@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Stamp Creator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a1a1e;color:#e0e0e0;display:flex;justify-content:center;padding:2rem}
+.app{max-width:920px;width:100%;display:grid;grid-template-columns:1fr 280px;gap:24px;align-items:start}
+h1{font-size:20px;font-weight:500;margin-bottom:16px;grid-column:1/-1;color:#ccc}
+#dropzone{border:2px dashed #444;border-radius:12px;padding:2rem;text-align:center;cursor:pointer;color:#888;font-size:14px;transition:border-color 0.2s;margin-bottom:12px}
+#dropzone:hover,#dropzone.over{border-color:#6a8cff}
+#dropzone .icon{font-size:32px;margin-bottom:8px;display:block}
+.canvas-wrap{position:relative;display:flex;justify-content:center;background:#111;border-radius:12px;padding:12px}
+canvas{border-radius:8px}
+.controls{display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow-y:auto;padding-right:4px}
+.ctrl-group{display:flex;flex-direction:column;gap:4px}
+.ctrl-group label{font-size:12px;color:#888;display:flex;justify-content:space-between}
+.ctrl-group label span:last-child{color:#aaa;font-weight:500}
+input[type=range]{width:100%;height:6px;-webkit-appearance:none;background:#333;border-radius:3px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#6a8cff;cursor:pointer}
+.color-row{display:flex;gap:6px;flex-wrap:wrap}
+.color-btn{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s}
+.color-btn:hover{transform:scale(1.1)}
+.color-btn.active{border-color:#fff;box-shadow:0 0 0 2px #1a1a1e,0 0 0 4px #fff}
+.dir-row{display:flex;gap:4px;flex-wrap:wrap}
+.dir-btn{padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #333;background:transparent;color:#888;transition:all 0.15s}
+.dir-btn:hover{border-color:#555;color:#ccc}
+.dir-btn.active{background:#2a3a6a;color:#8aafff;border-color:#4a6aaa}
+.tool-btn{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #333;background:transparent;color:#888;transition:all 0.15s}
+.tool-btn:hover{border-color:#555;color:#ccc}
+.tool-btn.active{background:#4a2a2a;color:#ff8a8a;border-color:#aa4a4a}
+.tool-btn.active-move{background:#2a3a6a;color:#8aafff;border-color:#4a6aaa}
+.action-row{display:flex;gap:8px;margin-top:4px}
+.btn{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all 0.15s}
+.btn:hover{transform:scale(0.98)}
+.btn-primary{background:#2a3a6a;color:#8aafff;flex:1}
+.btn-secondary{background:#2a2a2e;color:#aaa;border:1px solid #333}
+.btn-warn{background:#4a2a2a;color:#ff8a8a;border:1px solid #553333}
+.hint{font-size:11px;color:#555;text-align:center;margin-top:6px}
+.section-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>Token Stamp Creator</h1>
+<div>
+<div id="dropzone" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');loadFile(event.dataTransfer.files[0])" onclick="document.getElementById('fileIn').click()">
+<span class="icon">&#8681;</span>
+Drop image here or click to browse
+<input type="file" id="fileIn" accept="image/*" style="display:none" onchange="loadFile(this.files[0])">
+</div>
+<div class="canvas-wrap">
+<canvas id="cv" width="700" height="700" style="width:500px;height:500px"></canvas>
+</div>
+<p class="hint" id="hintText">Drag to position &middot; Scroll to scale &middot; Parts past the ring break out</p>
+</div>
+<div class="controls">
+<div class="section-label">Tool</div>
+<div class="ctrl-group">
+<div class="dir-row">
+<button class="tool-btn active-move" id="btnMove" onclick="setTool('move')">&#9995; Move</button>
+<button class="tool-btn" id="btnErase" onclick="setTool('erase')">&#10005; Erase</button>
+</div>
+</div>
+<div id="eraseControls" class="hidden">
+<div class="ctrl-group">
+<label><span>Brush size</span><span id="brushVal">20</span></label>
+<input type="range" id="brushR" min="3" max="100" value="20" step="1" oninput="ST.brushSize=+this.value;document.getElementById('brushVal').textContent=this.value;updateCursor()">
+</div>
+<div class="action-row">
+<button class="btn btn-secondary" onclick="undo()" id="undoBtn" disabled>&#8630; Undo</button>
+<button class="btn btn-warn" onclick="resetImage()">Reset image</button>
+</div>
+</div>
+<div class="section-label" style="margin-top:8px">Image</div>
+<div class="ctrl-group">
+<label><span>Scale</span><span id="scaleVal">150%</span></label>
+<input type="range" id="scaleR" min="30" max="400" value="150" step="1" oninput="ST.scale=this.value/100;document.getElementById('scaleVal').textContent=this.value+'%';render()">
+</div>
+<div class="ctrl-group">
+<label><span>Rotation</span><span id="rotVal">0°</span></label>
+<input type="range" id="rotR" min="-180" max="180" value="0" step="1" oninput="ST.rot=+this.value;document.getElementById('rotVal').textContent=this.value+'°';render()">
+</div>
+<div class="section-label" style="margin-top:8px">Ring</div>
+<div class="ctrl-group">
+<label><span>Shape</span></label>
+<div class="dir-row" id="shapeBtns">
+<button class="dir-btn active" data-shape="circle" onclick="setShape(this,'circle')">&#9711; Circle</button>
+<button class="dir-btn" data-shape="square" onclick="setShape(this,'square')">&#9633; Square</button>
+<button class="dir-btn" data-shape="hex" onclick="setShape(this,'hex')">&#11041; Hex</button>
+<button class="dir-btn" data-shape="hex-seg" onclick="setShape(this,'hex-seg')">&#9881; Hex seg</button>
+<button class="dir-btn" data-shape="hex-flat" onclick="setShape(this,'hex-flat')">&#11041; Hex flat</button>
+<button class="dir-btn" data-shape="hex-2" onclick="setShape(this,'hex-2')">Hex 2</button>
+<button class="dir-btn" data-shape="hex-3" onclick="setShape(this,'hex-3')">Hex 3</button>
+<button class="dir-btn" data-shape="hex-4" onclick="setShape(this,'hex-4')">Hex 4</button>
+</div>
+</div>
+<div class="ctrl-group">
+<label><span>Ring size</span><span id="rsVal">88%</span></label>
+<input type="range" id="rsR" min="50" max="98" value="88" step="1" oninput="ST.ringSize=this.value/100;document.getElementById('rsVal').textContent=this.value+'%';render()">
+</div>
+<div class="ctrl-group">
+<label><span>Ring width</span><span id="rwVal">20</span></label>
+<input type="range" id="rwR" min="6" max="50" value="20" step="1" oninput="ST.ringW=+this.value;document.getElementById('rwVal').textContent=this.value;render()">
+</div>
+<div class="ctrl-group">
+<label><span>Color</span></label>
+<div class="color-row" id="colorBtns">
+<button class="color-btn active" onclick="setClr(this,160,40,40)" style="background:#A02828" title="Red"></button>
+<button class="color-btn" onclick="setClr(this,180,140,30)" style="background:#B48C1E" title="Gold"></button>
+<button class="color-btn" onclick="setClr(this,160,100,40)" style="background:#A06428" title="Bronze"></button>
+<button class="color-btn" onclick="setClr(this,40,100,160)" style="background:#2864A0" title="Blue"></button>
+<button class="color-btn" onclick="setClr(this,40,130,60)" style="background:#28823C" title="Green"></button>
+<button class="color-btn" onclick="setClr(this,100,50,140)" style="background:#64328C" title="Purple"></button>
+<button class="color-btn" onclick="setClr(this,80,80,80)" style="background:#505050" title="Gray"></button>
+<button class="color-btn" onclick="setClr(this,50,50,50)" style="background:#323232" title="Dark"></button>
+</div>
+</div>
+<div class="section-label" style="margin-top:8px">Breakout</div>
+<div class="ctrl-group">
+<label><span>Direction (click multiple)</span></label>
+<div class="dir-row" id="dirBtns">
+<button class="dir-btn active" data-dir="top" onclick="toggleDir('top')">Top</button>
+<button class="dir-btn" data-dir="right" onclick="toggleDir('right')">Right</button>
+<button class="dir-btn" data-dir="bottom" onclick="toggleDir('bottom')">Bottom</button>
+<button class="dir-btn" data-dir="left" onclick="toggleDir('left')">Left</button>
+<button class="dir-btn" data-dir="all" onclick="toggleDir('all')" style="border-left:2px solid #333;margin-left:4px;padding-left:12px">All</button>
+<button class="dir-btn" data-dir="none" onclick="toggleDir('none')">None</button>
+</div>
+</div>
+<div class="ctrl-group">
+<label><span>Spread</span><span id="bsVal">140°</span></label>
+<input type="range" id="bsR" min="30" max="360" value="140" step="5" oninput="ST.bSpread=+this.value;document.getElementById('bsVal').textContent=this.value+'°';render()">
+</div>
+<div class="section-label" style="margin-top:8px">Background</div>
+<div class="ctrl-group">
+<div class="dir-row" id="bgBtns">
+<button class="dir-btn active" data-bg="white" onclick="setBg(this,'white')">White</button>
+<button class="dir-btn" data-bg="dark" onclick="setBg(this,'dark')">Dark</button>
+<button class="dir-btn" data-bg="none" onclick="setBg(this,'none')">None</button>
+</div>
+</div>
+</div>
+<div class="action-row" style="position:sticky;bottom:0;background:#1a1a1e;padding:8px 0 4px;border-top:1px solid #333;margin-top:8px">
+<button class="btn btn-primary" onclick="doDownload()">&#8681; Download token</button>
+<button class="btn btn-secondary" onclick="resetAll()" title="Reset position">&#8634;</button>
+</div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SZ=700;
+const ST={img:null,origImg:null,ox:0,oy:0,scale:1.5,rot:0,ringW:20,ringSize:0.88,clr:[160,40,40],shape:'circle',bDirs:new Set(['top']),bSpread:140,bg:'white',fname:'token',tool:'move',brushSize:20};
+
+let offCv=null,offCtx=null;
+let undoStack=[];
+let drag=false,lx=0,ly=0;
+
+function shapePath(c,cx,cy,r,shape){
+if(shape==='hex-seg')shape='hex';
+if(shape==='circle'){c.arc(cx,cy,r,0,Math.PI*2)}
+else if(shape==='square'){
+const cr=r*0.06;const s=r*0.92;
+c.moveTo(cx-s+cr,cy-s);c.lineTo(cx+s-cr,cy-s);
+c.arcTo(cx+s,cy-s,cx+s,cy-s+cr,cr);c.lineTo(cx+s,cy+s-cr);
+c.arcTo(cx+s,cy+s,cx+s-cr,cy+s,cr);c.lineTo(cx-s+cr,cy+s);
+c.arcTo(cx-s,cy+s,cx-s,cy+s-cr,cr);c.lineTo(cx-s,cy-s+cr);
+c.arcTo(cx-s,cy-s,cx-s+cr,cy-s,cr);c.closePath()}
+else if(shape==='hex'){
+for(let i=0;i<6;i++){const a=Math.PI/3*i-Math.PI/2;const x=cx+r*Math.cos(a);const y=cy+r*Math.sin(a);
+if(i===0)c.moveTo(x,y);else c.lineTo(x,y)}c.closePath()}
+else if(shape==='hex-flat'){
+for(let i=0;i<6;i++){const a=Math.PI/3*i;const x=cx+r*Math.cos(a);const y=cy+r*Math.sin(a);
+if(i===0)c.moveTo(x,y);else c.lineTo(x,y)}c.closePath()}
+else if(shape==='hex-2'){
+const v=[[0,-1],[.433,-.75],[.433,-.25],[.866,0],[.866,.5],[.433,.75],[0,.5],[-.433,.75],[-.866,.5],[-.866,0],[-.433,-.25],[-.433,-.75]];
+c.moveTo(cx+v[0][0]*r,cy+v[0][1]*r);
+for(let i=1;i<v.length;i++)c.lineTo(cx+v[i][0]*r,cy+v[i][1]*r);c.closePath()}
+else if(shape==='hex-3'){
+const v=[[-.327,-.945],[0,-.756],[.327,-.945],[.655,-.756],[.655,-.378],[.982,-.189],[.982,.189],[.655,.378],[.655,.756],[.327,.945],[0,.756],[-.327,.945],[-.655,.756],[-.655,.378],[-.982,.189],[-.982,-.189],[-.655,-.378],[-.655,-.756]];
+c.moveTo(cx+v[0][0]*r,cy+v[0][1]*r);
+for(let i=1;i<v.length;i++)c.lineTo(cx+v[i][0]*r,cy+v[i][1]*r);c.closePath()}
+else if(shape==='hex-4'){
+const v=[[-.687,.066],[-.916,-.066],[-.916,-.33],[-.687,-.463],[-.687,-.727],[-.458,-.859],[-.229,-.727],[0,-.859],[.229,-.727],[.458,-.859],[.687,-.727],[.687,-.463],[.916,-.33],[.916,-.066],[.687,.066],[.687,.33],[.458,.463],[.458,.727],[.229,.859],[0,.727],[-.229,.859],[-.458,.727],[-.458,.463],[-.687,.33]];
+c.moveTo(cx+v[0][0]*r,cy+v[0][1]*r);
+for(let i=1;i<v.length;i++)c.lineTo(cx+v[i][0]*r,cy+v[i][1]*r);c.closePath()}}
+
+function drawSegRing(ctx,cx,cy,outerR,innerR,color){
+const bands=7,rw=outerR-innerR,bw=rw/bands,trim=0.2;
+for(let i=0;i<bands;i++){
+const rr=outerR-i*bw-bw/2;
+const tt=i/(bands-1);
+let f;if(tt<0.12)f=1.7;else if(tt<0.3)f=1.4-tt;else if(tt<0.5)f=1.15;else if(tt<0.6)f=1.25;else if(tt<0.8)f=1.0;else if(tt<0.92)f=0.7;else f=0.8;
+ctx.lineWidth=bw+0.5;ctx.lineCap='butt';
+ctx.strokeStyle=`rgb(${Math.min(255,color[0]*f|0)},${Math.min(255,color[1]*f|0)},${Math.min(255,color[2]*f|0)})`;
+for(let e=0;e<6;e++){
+const a1=Math.PI/3*e-Math.PI/2,a2=Math.PI/3*(e+1)-Math.PI/2;
+const v1x=cx+rr*Math.cos(a1),v1y=cy+rr*Math.sin(a1);
+const v2x=cx+rr*Math.cos(a2),v2y=cy+rr*Math.sin(a2);
+ctx.beginPath();
+ctx.moveTo(v1x+(v2x-v1x)*trim,v1y+(v2y-v1y)*trim);
+ctx.lineTo(v1x+(v2x-v1x)*(1-trim),v1y+(v2y-v1y)*(1-trim));
+ctx.stroke()}}}
+
+function drawRingBands(mainCtx,cx,cy,outerR,innerR,color,shape){
+if(shape==='hex-seg'){drawSegRing(mainCtx,cx,cy,outerR,innerR,color);return}
+const tc=document.createElement('canvas');tc.width=SZ;tc.height=SZ;
+const t=tc.getContext('2d');
+const bands=7,bw=(outerR-innerR)/bands;
+for(let i=0;i<bands;i++){
+const rr=outerR-i*bw;
+const tt=i/(bands-1);
+let f;if(tt<0.12)f=1.7;else if(tt<0.3)f=1.4-tt;else if(tt<0.5)f=1.15;else if(tt<0.6)f=1.25;else if(tt<0.8)f=1.0;else if(tt<0.92)f=0.7;else f=0.8;
+t.beginPath();shapePath(t,cx,cy,rr,shape);
+t.fillStyle=`rgb(${Math.min(255,color[0]*f|0)},${Math.min(255,color[1]*f|0)},${Math.min(255,color[2]*f|0)})`;
+t.fill()}
+t.globalCompositeOperation='destination-out';
+t.beginPath();shapePath(t,cx,cy,innerR,shape);t.fill();
+mainCtx.drawImage(tc,0,0)}
+
+function loadFile(f){
+if(!f)return;ST.fname=f.name.replace(/\.[^.]+$/,'');
+const r=new FileReader();r.onload=e=>{const im=new Image();im.onload=()=>{
+ST.origImg=im;offCv=document.createElement('canvas');
+offCv.width=im.width;offCv.height=im.height;
+offCtx=offCv.getContext('2d');offCtx.drawImage(im,0,0);
+ST.img=offCv;undoStack=[];document.getElementById('undoBtn').disabled=true;
+const ringR=SZ/2*ST.ringSize;const fit=(ringR-ST.ringW)*2*0.85;
+ST.scale=fit/Math.max(im.width,im.height)*1.5;ST.ox=0;ST.oy=0;
+updSlider('scaleR','scaleVal',Math.round(ST.scale*100),'%');
+render()};im.src=e.target.result};r.readAsDataURL(f)}
+
+function resetImage(){if(!ST.origImg)return;offCtx.clearRect(0,0,offCv.width,offCv.height);offCtx.drawImage(ST.origImg,0,0);undoStack=[];document.getElementById('undoBtn').disabled=true;render()}
+function saveUndo(){undoStack.push(offCtx.getImageData(0,0,offCv.width,offCv.height));if(undoStack.length>30)undoStack.shift();document.getElementById('undoBtn').disabled=false}
+function undo(){if(!undoStack.length)return;offCtx.putImageData(undoStack.pop(),0,0);document.getElementById('undoBtn').disabled=undoStack.length===0;render()}
+
+function updSlider(id,valId,v,suffix){document.getElementById(id).value=v;document.getElementById(valId).textContent=v+(suffix||'')}
+function setClr(el,r,g,b){ST.clr=[r,g,b];document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');render()}
+function setShape(el,s){ST.shape=s;document.querySelectorAll('#shapeBtns .dir-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');render()}
+
+function toggleDir(d){
+if(d==='all')ST.bDirs=new Set(['top','right','bottom','left']);
+else if(d==='none')ST.bDirs=new Set();
+else{if(ST.bDirs.has(d))ST.bDirs.delete(d);else ST.bDirs.add(d)}
+updateDirBtns();render()}
+
+function updateDirBtns(){document.querySelectorAll('#dirBtns .dir-btn').forEach(btn=>{const d=btn.dataset.dir;if(d==='all')btn.classList.toggle('active',ST.bDirs.size===4);else if(d==='none')btn.classList.toggle('active',ST.bDirs.size===0);else btn.classList.toggle('active',ST.bDirs.has(d))})}
+
+function setBg(el,b){ST.bg=b;document.querySelectorAll('#bgBtns .dir-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');render()}
+function resetAll(){ST.ox=0;ST.oy=0;ST.rot=0;ST.scale=1.5;updSlider('scaleR','scaleVal',150,'%');updSlider('rotR','rotVal',0,'°');render()}
+
+function setTool(t){
+ST.tool=t;
+const ec=document.getElementById('eraseControls'),hint=document.getElementById('hintText');
+document.getElementById('btnMove').className='tool-btn'+(t==='move'?' active-move':'');
+document.getElementById('btnErase').className='tool-btn'+(t==='erase'?' active':'');
+if(t==='move'){ec.classList.add('hidden');cv.style.cursor='grab';hint.textContent='Drag to position · Scroll to scale · Parts past the ring break out'}
+else{ec.classList.remove('hidden');updateCursor();hint.textContent='Click and drag to erase parts of the image · Scroll to resize brush'}}
+
+function updateCursor(){
+const dispBrush=ST.brushSize*ST.scale*(500/SZ);const sz=Math.max(6,Math.round(dispBrush*2));
+const cc=document.createElement('canvas');cc.width=sz+4;cc.height=sz+4;const cctx=cc.getContext('2d');
+cctx.strokeStyle='rgba(255,100,100,0.9)';cctx.lineWidth=1.5;cctx.beginPath();cctx.arc(sz/2+2,sz/2+2,sz/2,0,Math.PI*2);cctx.stroke();
+cctx.strokeStyle='rgba(0,0,0,0.4)';cctx.lineWidth=1;cctx.beginPath();cctx.arc(sz/2+2,sz/2+2,sz/2+1,0,Math.PI*2);cctx.stroke();
+cv.style.cursor=`url(${cc.toDataURL()}) ${sz/2+2} ${sz/2+2}, crosshair`}
+
+function canvasToImage(cx,cy){const dx=cx-(SZ/2+ST.ox),dy=cy-(SZ/2+ST.oy);const a=-ST.rot*Math.PI/180;return{x:(dx*Math.cos(a)-dy*Math.sin(a))/ST.scale+offCv.width/2,y:(dx*Math.sin(a)+dy*Math.cos(a))/ST.scale+offCv.height/2}}
+
+function eraseAt(canvasX,canvasY){const p=canvasToImage(canvasX,canvasY);offCtx.save();offCtx.globalCompositeOperation='destination-out';offCtx.beginPath();offCtx.arc(p.x,p.y,ST.brushSize/ST.scale,0,Math.PI*2);offCtx.fill();offCtx.restore();render()}
+
+const dispW=500,ratio=SZ/dispW;
+cv.addEventListener('mousedown',e=>{const cx=e.offsetX*ratio,cy=e.offsetY*ratio;if(ST.tool==='erase'&&ST.img){saveUndo();eraseAt(cx,cy);drag=true;lx=e.offsetX;ly=e.offsetY;return}drag=true;lx=e.offsetX;ly=e.offsetY;cv.style.cursor='grabbing'});
+cv.addEventListener('mousemove',e=>{const mx=e.offsetX*ratio,my=e.offsetY*ratio;if(!drag)return;if(ST.tool==='erase'&&ST.img){eraseAt(mx,my);return}ST.ox+=(e.offsetX-lx)*ratio;ST.oy+=(e.offsetY-ly)*ratio;lx=e.offsetX;ly=e.offsetY;render()});
+cv.addEventListener('mouseup',()=>{drag=false;if(ST.tool==='move')cv.style.cursor='grab'});
+cv.addEventListener('mouseleave',()=>{drag=false;if(ST.tool==='move')cv.style.cursor='grab'});
+cv.addEventListener('wheel',e=>{e.preventDefault();if(ST.tool==='erase'){ST.brushSize=Math.max(3,Math.min(100,ST.brushSize+(e.deltaY>0?-2:2)));document.getElementById('brushR').value=ST.brushSize;document.getElementById('brushVal').textContent=ST.brushSize;updateCursor();return}ST.scale*=e.deltaY>0?0.95:1.05;ST.scale=Math.max(0.2,Math.min(5,ST.scale));updSlider('scaleR','scaleVal',Math.round(ST.scale*100),'%');render()},{passive:false});
+
+cv.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;if(ST.tool==='erase'&&ST.img){const rect=cv.getBoundingClientRect();saveUndo();eraseAt((e.touches[0].clientX-rect.left)*ratio,(e.touches[0].clientY-rect.top)*ratio)}}},{passive:true});
+cv.addEventListener('touchmove',e=>{if(!drag||e.touches.length!==1)return;e.preventDefault();const t=e.touches[0];const rect=cv.getBoundingClientRect();if(ST.tool==='erase'&&ST.img){eraseAt((t.clientX-rect.left)*ratio,(t.clientY-rect.top)*ratio);lx=t.clientX;ly=t.clientY;return}ST.ox+=(t.clientX-lx)*ratio;ST.oy+=(t.clientY-ly)*ratio;lx=t.clientX;ly=t.clientY;render()},{passive:false});
+cv.addEventListener('touchend',()=>{drag=false});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='z'){e.preventDefault();undo()}});
+
+function drawChar(){ctx.save();ctx.translate(SZ/2+ST.ox,SZ/2+ST.oy);ctx.rotate(ST.rot*Math.PI/180);const w=offCv.width*ST.scale,h=offCv.height*ST.scale;ctx.drawImage(offCv,-w/2,-h/2,w,h);ctx.restore()}
+
+function render(){
+const cx=SZ/2,outerR=cx*ST.ringSize,inR=outerR-ST.ringW,c=ST.clr,sh=ST.shape;
+ctx.clearRect(0,0,SZ,SZ);
+if(!ST.img){ctx.fillStyle='#555';ctx.font='16px sans-serif';ctx.textAlign='center';ctx.fillText('Load an image to begin',cx,cx);return}
+
+ctx.save();ctx.beginPath();shapePath(ctx,cx,cx,inR,sh);
+if(ST.bg==='white')ctx.fillStyle='#ffffff';
+else if(ST.bg==='dark')ctx.fillStyle='#1a1a1e';
+else ctx.fillStyle='rgba(0,0,0,0)';
+ctx.fill();ctx.clip();drawChar();ctx.restore();
+
+drawRingBands(ctx,cx,cx,outerR,inR,c,sh);
+
+if(ST.bDirs.size>0){ctx.save();ctx.beginPath();ctx.rect(0,0,SZ,SZ);shapePath(ctx,cx,cx,inR-2,sh);ctx.clip('evenodd');
+if(ST.bDirs.size<4){ctx.beginPath();const angles={top:-90,right:0,bottom:90,left:180};for(const d of ST.bDirs){const base=angles[d]*Math.PI/180;const half=ST.bSpread/2*Math.PI/180;ctx.moveTo(cx,cx);ctx.arc(cx,cx,SZ,base-half,base+half);ctx.closePath()}ctx.clip()}
+drawChar();ctx.restore()}}
+
+function doDownload(){if(!ST.img)return;const a=document.createElement('a');a.download=ST.fname+'_token.png';a.href=cv.toDataURL('image/png');a.click()}
+
+render();
+</script>
+</body>
+</html>
