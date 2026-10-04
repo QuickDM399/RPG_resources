@@ -1,0 +1,149 @@
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.1.0
+
+For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
+
+## Deliverable under test
+
+`BitD Crew Token Action Maker.js` v0.1.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+
+## Ground truth
+
+- **The sheet:** the crew sheet's own buttons (Tier, Wanted, Engagement, Fortune, cohort roll, ability and clock Show buttons) and its boxes (Heat, Wanted, Rep, Turf, Coin, XP, debt).
+- **The books:** core `bladesinthedark_v8_2` (Heat p147, Incarceration p148, Entanglements p150) and Deep Cuts v1.0 (Advancement p78, Fallout p80, Payoff p81, Entanglements p82, Heat & Hold p84, crew changes p88). The rule table is in `BitD Crew Token Action Maker - Spec.md`, section 3.
+- **An older working crew sheet:** Bravos, made before the modules existed.
+
+## Crews
+
+| Label | Crew | Character id | Why |
+|---|---|---|---|
+| A | `crew test` | `-P37IngTboqYwzckEMPu` | Assassins crew made after the modules existed: Advancement, Downtime, Harm, Load on. The Deep Cuts crew. |
+| B | Bravos | `-MEo2MoHcs1_bIktRx8g` | Old crew, `crew_type` is lowercase `bravos`, all modules off. The core-rules crew. |
+| C | Assassins | `-MEo28An-uFTAxOyQV9b` | Old crew, `crew_type` is capitalised `Assassins`, modules off. Checks that casing does not matter. |
+| D | Shadows | `-MeHGN5WWSLnEI9YFOpk` | For Slippery and the 5th Wanted box (L14). |
+
+Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1.
+
+## Before you start
+
+1. For crews A to D write down: `heat`, `wanted`, `wantedDC`, `rep`, `turf`, `crew_tier`, `hold`, `crewcoin`, `crewcoin_dc`, `crew_xp`, `dc_crew_xpclock_1` to `_4`, `crew_debt_dc`, the crew clocks, and the settings `setting_dc_downtime`, `setting_dc_advancement`, `setting_wanted_5th`. L16 puts them back.
+2. Open each crew's sheet once in your browser (sheet workers only run in a browser that has the sheet open).
+3. Make sure each crew has a token on the table and that its "Can be edited and controlled by" is set. For L12 you need one player account that controls crew B and one that does not (or log in as a player in a second browser).
+
+## L0 Deploy and coexistence
+
+**Steps:** upload the script to the Mods page. Open the API console.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.1.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
+
+## L1 Setup and Rebuild (crews A, B, C, then the others)
+
+**Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
+**Pass:**
+- A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Abilities`, `6. Adjust`, `7. Clocks`, `8. Status`, `~ Rebuild`.
+- Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
+- On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
+- Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
+**Known fail states:** bar 1 empty (the linking order matters: link first, value and max second); a second set of actions with a different marker (the PC script's marker was used); Entanglement offered on A.
+
+## L2 Rolls (B core, A Deep Cuts)
+
+**Ground truth:** the sheet's own Tier, Wanted and cohort buttons, same crew, same bonus. **Steps:** for B set Tier 2, Wanted 2, Heat 5, and give cohort 1 a name and the type Gang. Click `1. Roll`, pick Tier, bonus 0. Click the sheet's Tier button, bonus 0, and compare. Repeat with Entanglement and with the cohort entry. Then bonus +1 and -3.
+**Pass:**
+- Tier card: header "Bravos roll their", title "Crew Tier", 2 dice. With +1: 3 dice. With a bonus that takes the pool to 0 or below: two dice with the "take the lowest" caption. The card looks the same as the sheet's own card.
+- Entanglement card: "Bravos (who currently have 5 Heat) roll for", title "Entanglement", 2 dice (Wanted 2). Wanted 0 gives the two-dice lowest roll.
+- Cohort card: header shows the cohort name with "(Gang, <subtype>)", title "Cohort Quality", dice = crew Tier. Mark the cohort impaired: one die fewer. Change the type to Elite or Expert: one die more.
+- The card is posted as the player who clicked, and it appears (it is not swallowed).
+**Known fail states:** no card at all (a callback was added to the post); dice count off by one from the sheet button; `^{key}` text showing raw (a missing translation key).
+
+## L3 Engagement and Fortune (B)
+
+**Steps:** click `2. Engagement`, answer the number-of-dice prompt with 2. Click the sheet's Engagement button, same answer. Same for `3. Fortune` and the sheet's Fortune button (answer the notes prompt too).
+**Pass:** cards match the sheet's own, including the small "Engagement" title and the notes line. **Known fail states:** a prompt asked twice; the crew name replaced by the wrong character.
+
+## L4 Entanglement result lookup (B)
+
+**Ground truth:** core book p150 table (print or PDF). **Steps:** for each Heat in {2, 4, 7} click `1. Roll`, Entanglement, bonus 0, with Wanted 3 (dice give any result). Read the dice on the card.
+**Pass:** right after the roll card a whisper from "BitDCrew" (to the GM, and to players who control the crew) names the column (Heat 0-3, 4-5, 6+), the highest die, and the matching row: 1-3, 4/5 or 6, with the entanglement names from the book. Check one result from each column and each row across the runs (you may set Wanted to force dice counts). Then set Wanted 0: the result uses the **lowest** of two dice. Change Heat on the sheet between the click and the end: the result still uses the Heat at the time of the roll.
+**Known fail states:** no whisper (the dice could not be read: the console logs "could not read the dice"); the whisper arrives for a roll made with the sheet's own Wanted button (it must not); a second whisper for the same roll.
+
+## L5 Heat bar and the Heat 9 rule (B core, A Deep Cuts, D)
+
+**Ground truth:** core p147: at 9 the crew gains a wanted level, clears Heat, excess rolls over. **Steps (B):** set Wanted 1, Heat 8. Type 9 into **bar 1 on the token**. Then repeat by clicking the 9th Heat box on the sheet. Then set Heat 7 and use `6. Adjust` > `Heat +1`, +1, +1.
+**Pass:** each time Heat becomes 0 and Wanted rises by 1 (2, then 3, then 4). A card "Wanted level" goes to the GM and controllers (not to a player who does not control the crew) and says "Heat reached 9: Wanted level +1". The **token bar shows 0**, not 9, within a few seconds. At Wanted 4, one more fill leaves Wanted at 4, clears Heat and says "already at its highest level (4)".
+**Steps (A):** the same with Heat 8 on the bar.
+**Pass (A):** the card also says "mark crew xp and pick Bluecoats as the entanglement", shows the Bluecoats line for the new Wanted level, the buy-off cost (Wanted + 4 Coin), and a **Mark crew XP** button that ticks the first unfilled `dc_crew_xpclock_N` clock.
+**Also check:** the PC script's stress bar still resets at 9 on a PC token while this script is loaded.
+**Known fail states:** bar left at 9 with Heat 0 (the late bar save: the script corrects it after 2 seconds); Wanted raised twice; nothing happens when the bar is typed (the linked bar did not save the attribute: try the sheet box to separate the two paths).
+
+## L6 Score, core rules (B)
+
+**Ground truth:** core p147 table. **Steps:** set Heat 0, Wanted 0. Click `4. Score` and answer: Exposure "Contained 2", the four extras No. Then Heat 7 and Exposure "Loud and chaotic 4", extras No (the book's example).
+**Pass:** Heat +2 then Heat 2. Second run: card shows "Heat +4", Heat becomes 2, Wanted +1. All five prompts appear in the order exposure, high-profile target, hostile turf, at war, killing. Rep and Coin are not changed. **Known fail states:** seven prompts (a Deep Cuts action on a core crew: rebuild).
+
+## L7 Score, Deep Cuts, and the Payoff walk-through (A)
+
+**Ground truth:** Deep Cuts pp80-81. **Steps:** set crew Tier 2, Heat 0, Wanted 0, Rep 0, `crewcoin_dc` 0, no Vault upgrade ticked. Click `4. Score`. Answer: Base "Standard criminal operation 2", Target "High profile or well-connected +2", Chaos "Open combat or destruction or mayhem +2", Death "No death", Witnesses "Witnesses who can be questioned +2", Target Tier 1, PCs 4.
+**Pass, Fallout card:** "Heat +10 (base 2, crew Tier +2, target +2, chaos or war +2, witnesses +2)". Heat becomes 1 and Wanted 1 (10 minus 9). The Wanted-level text and Bluecoats line appear. "Rep +5 ... Rep now 5/12" (Tier 1 target is not above Tier 2). "Payoff: 1 Coin per PC (4) plus 3 x the target's Tier (1) = 7 Coin". Seized-assets buttons appear. **No Coin changes yet.** The GM sees a separate Wanted card.
+**Steps:** click "No seized assets".
+**Pass:** "Earned from the score: 7 Coin". Tithe: Tier 2, 1 Coin per 4 earned = 1 Coin, with Pay and Not paying buttons.
+**Steps:** click "Pay the tithe". **Pass:** "6 Coin left to deposit", with room for 4 more (no vault). Click "All 6 to the crew". **Pass:** `crewcoin_dc` is 4; the final card is posted **publicly** and says "Heat +10, Rep +5" (the score's totals, the same as the Fallout card), "Earned 7 Coin, tithe 1 paid, 6 to deposit", "To the crew: 4 Coin (crew now holds 4)", "The crew's vaults had room for only 4 of the 6 Coin you chose" and "Elsewhere (PC stashes or a bank): 2 Coin".
+**More runs (reset Heat, Wanted, Rep and coin between them):**
+- Tick the first Vault upgrade first: room is 12.
+- Seized "load of cash +4": earned 11, tithe 2. Fence valuables for 8 Coin: +2 Heat and 8 Coin.
+- Set crew Tier 3: no tithe step, deposit buttons straight away.
+- Click any step button twice: second click says "Already done" and changes nothing.
+- "Half" deposits the rounded-down half; "None" deposits nothing. The standard `crewcoin` is never changed.
+- With Wanted 1 or more, the final card ends with the bank reminder.
+**Known fail states:** Coin added before any deposit click; Heat applied twice; the final card whispered instead of public; `crewcoin` written instead of `crewcoin_dc`; a vault box ticked but room not counted (vault attribute names: `upgrade_vault_check_1`, `_2`).
+
+## L8 Adjust entries (B core entries, A Deep Cuts entries)
+
+Click `6. Adjust` and pick each entry; check the sheet box and the card.
+**Pass (both):** Heat ±1 (a +1 at 8 fills the track as in L5), Wanted ±1 (stops at 0 and 4), Incarceration (Wanted -1 and Heat 0, core p148), Rep ±1 (stops at 12), Turf ±1 (stops at 6), Tier ±1 (stops at 0 and 4), Hold strong and Hold weak, Coin +1/+2/+4/-1/-2/-4.
+**Pass (B):** Coin changes `crewcoin`, stops at 16. Mark crew XP raises `crew_xp`; the 10th mark posts the core reminder (new special ability or two upgrade boxes, stash Tier+2) with a Clear button.
+**Pass (A):** Coin changes `crewcoin_dc` and stops at 24, and `crewcoin` is not touched. Mark crew XP ticks `dc_crew_xpclock_1` to 6, then clock 2; when all four are full it says so. "Reduce Heat: spend 1 Coin" and "... 1 Rep" lower Heat by 1 and the cost by 1, and refuse with no Heat or nothing to spend. "Assess hold": with Turf 1 and Tier 2 hold becomes weak; with Turf 2 strong. "Debt clock +1/-1" ticks `crew_debt_dc` and posts the clock card. A has no core XP reminder at 10 `crew_xp`.
+**Known fail states:** the Debt, Reduce Heat or Assess hold entries missing on A (Rebuild after switching Downtime on) or present on B.
+
+## L9 Abilities menu (A and B)
+
+**Ground truth:** the sheet's `:` button next to an ability. **Steps:** tick two crew abilities and leave one unticked. Click `5. Abilities`, then click each ability button.
+**Pass:** only the ticked abilities are listed. Each click posts the same "Special Ability" card as the sheet's own button, with the text the sheet shows (including the PC script's corrected wording for Crow's Veil and similar). **This Show button has been tested live for PC abilities only; the crew version is new.** **Known fail states:** a silent click (Roll20 sometimes ignores the first click; click again before failing it); the wrong crew's card.
+
+## L10 Clocks (B)
+
+**Steps:** add two crew clocks on the sheet, sizes 6 and 4, one with no size chosen. Click `7. Clocks`. Use -1, +1 and Show.
+**Pass:** both clocks listed with their progress; the unset size is shown as 4. +1 raises the sheet's clock and posts the clock card; stops at full and at 0. Show posts the sheet's native card. **Known fail states:** the sheet's clock picture does not move (an attribute written but the sheet not refreshed: close and reopen the sheet).
+
+## L11 Status (B and A)
+
+**Pass:** the card matches the sheet: Heat, Wanted, Rep, Turf, Tier, Hold, Coin with "the crew can hold N", crew XP (B) or the four advancement clocks (A), Debt (A only), crew clocks, cohorts with quality. On A with Heat 6 or more the entanglement line shows. With Turf boxes and ticked Turf claims differing, the note appears; equal, it does not. On A with Hold different from the rule, an Assess hold button shows and works. Vault room: 4 with no vault; standard 8 and 16; Deep Cuts 12 and 24.
+
+## L12 Permissions
+
+**Steps:** as the player who controls B, use `~ Rebuild`, `6. Adjust`, `4. Score` on B. As the player who does **not** control B, select B's token (if you can) or paste `!bitdcrew status --c -MEo2MoHcs1_bIktRx8g` in chat. As GM, use every button on A and B. Set a crew's control to All Players and use it from a second player. Check the `CREW_TAM` macro appears on a player's macro bar.
+**Pass:** the controlling player can do everything on B; the other player gets "you can only use this on crews you control" and nothing changes; the GM can act on any crew; "all players" crews work for every player; a player's Rebuild on B works and on A (if not theirs) is refused. **Known fail states:** `CREW_TAM` not on the player's bar (macro visibility: the PC macro has the same open question).
+
+## L13 Module switch and stale actions (B)
+
+**Steps:** with B rebuilt, switch **Downtime** on in B's sheet settings. Without rebuilding, click `4. Score` and answer the 5 core prompts. Then `~ Rebuild` and click `4. Score` again. Switch Downtime off again and rebuild.
+**Pass:** the first Score says "this token action is out of date ... Run ~ Rebuild" and changes nothing. After the rebuild there are 7 prompts, Entanglement is gone from `1. Roll`, and Adjust has the Deep Cuts entries. Coin now uses `crewcoin_dc` (the sheet copies the track once when the toggle changes). **Known fail states:** coin lost when toggling (the sheet's copy behaviour: compare with doing it by hand); stale Entanglement still rolling after the switch (it must say there is no entanglement roll in Deep Cuts).
+
+## L14 Slippery and the 5th Wanted box (D, then A)
+
+**Steps:** on D switch Downtime on, tick Slippery, switch the 5th Wanted box on. Set Wanted 4 (`wantedDC` 4) and Heat 8. Rebuild. Click `6. Adjust` > Heat +1.
+**Pass:** the 5-box track gains the level (5/5) and `wanted` is unchanged; the Bluecoats line uses the effective Wanted (one lower); the Slippery sentence appears; `8. Status` shows "Wanted (5-box track) 5/5 (Slippery: effective 4)". Switch the 5th box off: Status shows the 4-box track again. **Ground truth to confirm:** with the 5th box on, which row do your players mark? The script assumes the 5-box row (`wantedDC`).
+**Also check No Traces on A** (Assassins ability, tick it): a Score with Heat total 10 takes 9 and the card says "No Traces -1".
+
+## L15 Both scripts together
+
+**Steps:** run the PC script's `~ Rebuild` on a PC token, then this script's on a crew token. Run the PC script's fix command `!bitd fixtext check` as GM.
+**Pass:** each token keeps its own 9 actions; the crew actions are untouched by the PC rebuild; `fixtext check` reports nothing caused by the crew script (it must not list attributes this script wrote). Edit a PC's stress to 9 and a crew's Heat to 9 in the same minute: each rule fires once, on its own sheet.
+
+## L16 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Leave `CREW_TAM` in place.
+
+## Not verifiable offline (summary)
+
+Token-action prompt wording and order in a real Roll20 query; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).
