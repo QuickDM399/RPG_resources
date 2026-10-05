@@ -68,6 +68,9 @@ function makeEnv(withPC) {
     player(name, gm) { const rec = { id: nid(), _displayname: name, gm: !!gm }; store.players.push(rec); return rec.id; },
     token(cid) { const rec = { id: nid(), represents: cid }; store.graphics.push(rec); return rec.id; },
     tok(id) { return store.graphics.find(g => g.id === id); },
+    // Roll20's Party member flag as the script reads it: the tag inside the character's tags (array, JSON text or plain text)
+    party(cid, how) { const r = store.chars.find(c => c.id === cid); const tag = '_roll20_internal_party_tag_'; r.tags = how === 'string' ? tag : (how === 'json' ? JSON.stringify([tag]) : [tag]); },
+    rawTags(cid, v) { store.chars.find(c => c.id === cid).tags = v; },
     abil(cid) { return store.abilities.filter(x => x._characterid === cid); },
     run(content, playerid, selectedTokenId) {
       out.length = 0;
@@ -490,7 +493,8 @@ function queries(action) {
   ok(has(o, /Tithe paid: 1 Coin\. 6 Coin left/) && has(o, /deposit all --c .* --idx/) && has(o, /All 6 to the crew/) && has(o, /Half, 3, to the crew/) && has(o, /room for 4 more/), 'tithe paid: 6 to deposit, crew has room for 4 (no vault)', o);
   E.out.length = 0; o = E.run('!bitdcrew deposit all --c ' + w.c + ' --idx ' + w.n, pat);
   ok(E.val(w.c, 'crewcoin_dc') === '4' && has(o, /To the crew: 4 Coin \(crew now holds 4\)/) && has(o, /had room for only 4 of the 6/) && has(o, /Elsewhere \(PC stashes or a bank\): 2 Coin/), 'deposit all: limited by vault room, rest goes elsewhere', o);
-  ok(E.out.length === 1 && /^player\|/.test(E.out[0].who) && /Score recorded/.test(E.out[0].text) && /Heat \+4, Rep \+2/.test(E.out[0].text), 'the final summary is posted publicly', E.out.map(x => x.who));
+  ok(E.out.filter(x => /^player\|/.test(x.who)).length === 1 && /^player\|/.test(E.out[0].who) && /Score recorded/.test(E.out[0].text) && /Heat \+4, Rep \+2/.test(E.out[0].text), 'the final summary is posted publicly', E.out.map(x => x.who));
+  ok(E.out.length === 2 && /^\/w /.test(E.out[1].text) && /Heat and Hold/.test(E.out[1].text), 'a Heat and Hold card is whispered right after the final summary', E.out.map(x => x.who));
   ok(E.val(w.c, 'crewcoin') === undefined, 'the standard coin track is never written when Downtime is on');
   // once only
   [['seized cash', /Already done/], ['tithe skip', /Already done/], ['deposit none', /Already done/]].forEach(c2 => {
@@ -713,6 +717,225 @@ function queries(action) {
   E.attr(d, 'setting_dc_downtime', '1'); ok(room(td) === '24', 'Deep Cuts, both vaults: 24'); E.attr(d, 'upgrade_vault_check_2', '0'); ok(room(td) === '12', 'Deep Cuts, vault 1: 12');
 }
 
+// ---------------------------------------------------------------- v0.2.0 helpers
+let rowN = 0;
+const tick = (E, cid, name, on) => { const r = '-T' + (++rowN); E.attr(cid, 'repeating_crewability_' + r + '_name', name); E.attr(cid, 'repeating_crewability_' + r + '_check', on === false ? '0' : '1'); };
+const dtCrew = (E, owner, name, tier) => { const c = E.crew(name, owner); E.attr(c, 'setting_dc_downtime', '1'); E.attr(c, 'crew_tier', tier === undefined ? 2 : tier); return c; };
+const ledger = (E, cid) => E.env.state.BitDCrewTAM.downtime[cid];
+const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); return m ? m[1] : null; };
+
+// ---------------------------------------------------------------- T15 party probe and the Payoff PC count
+{
+  const { E, gm, pat, quinn } = table();
+  const a = dtCrew(E, pat, 'Assassins', 2), ta = E.token(a);
+  const p1 = E.char('Ayla', pat), p2 = E.char('Bo', pat), p3 = E.char('Cy', pat), fac = E.char('Factions', ''); E.attr(fac, 'sheet_type', 'faction');
+  let o = E.run('!bitdcrew party', gm);
+  ok(has(o, /Characters checked: 5\. Party members found: 0/) && has(o, /None found/) && has(o, /No character has any tags the script can read/), 'party probe with nobody marked', o);
+  E.party(p1, 'array'); E.party(p2, 'string'); E.party(p3, 'json'); E.party(a, 'array'); E.party(fac, 'array');
+  o = E.run('!bitdcrew party', gm);
+  ok(has(o, /Party members found: 5 \(3 player characters, 1 crew sheet\)/) && has(o, /Party member: Ayla \(character\)/) && has(o, /Party member: Assassins \(crew\)/) && has(o, /Party member: Factions \(faction\)/), 'probe lists array, text and JSON-text flags, with sheet types', o);
+  ok(has(o, /Tags the script can read: .*_roll20_internal_party_tag_/), 'probe shows the raw tags it can read', o);
+  E.rawTags(p3, ['some_other_tag']); o = E.run('!bitdcrew party', gm);
+  ok(has(o, /Party members found: 4 \(2 player characters/) && has(o, /Cy: "?some_other_tag/), 'other tags are not party flags but are shown', o);
+  o = E.run('!bitdcrew party', pat); ok(has(o, /only the GM can run the party check/), 'the party probe is GM only', o);
+  // PC count from the party: player characters only (not crews or factions), at click time
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 party', pat, ta);
+  ok(has(o, /Payoff: 1 Coin per PC \(2, the party\) plus 3 x the target's Tier \(1\) = 5 Coin\./), 'party count: 2 player characters, crew and faction not counted', o.map(t => t.slice(0, 80)));
+  const n1 = idxOf(o); E.run('!bitdcrew seized none --c ' + a + ' --idx ' + n1, pat);
+  ok(has(E.out.map(x => x.text), /Earned from the score: 5 Coin/), 'the party count flows into the payoff', E.out.map(x => x.text.slice(0, 60)));
+  E.party(p3, 'array'); E.attr(a, 'heat', 0);
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 PARTY', pat, ta); ok(has(o, /\(3, the party\)/), 'the count is read each time, and "party" is not case sensitive', o.map(t => t.slice(0, 80)));
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 4', pat, ta); ok(has(o, /Payoff: 1 Coin per PC \(4\) plus/) && !has(o, /the party/), 'a typed count still works, because not every PC is on every score', o.map(t => t.slice(0, 80)));
+  // nobody marked: nothing is applied and no Downtime is started
+  const b = dtCrew(E, pat, 'Hawkers', 2), tb = E.token(b);
+  E.rawTags(p1, []); E.rawTags(p2, undefined); E.rawTags(p3, ''); E.rawTags(a, []);
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 party', pat, tb);
+  ok(has(o, /no player characters are marked as Party members/) && has(o, /Nothing was applied/) && E.val(b, 'heat') === undefined && E.val(b, 'rep') === undefined && !ledger(E, b), 'no party: told so, nothing applied, no Downtime started', o);
+  // the prompt the token action asks
+  E.run('!bitdcrew setup', pat, tb);
+  const q = queries(E.abil(b).find(x => x.name === '4. Score').action);
+  ok(q.length === 7 && q[6][0] === 'PCs for the Payoff (1 Coin each)' && q[6][1] === 'All party members,party' && q[6].slice(2).join(',') === '1,2,3,4,5,6,7,8', 'the Payoff prompt: Party first, then 1 to 8', q[6]);
+  // a stale token action with the old label and numbers still works
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 6', pat, tb); ok(has(o, /Payoff: 1 Coin per PC \(6\)/), 'old numeric answers still work without a Rebuild');
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 9', pat, tb); ok(has(o, /not valid/), 'a typed count above 8 is still refused');
+}
+
+// ---------------------------------------------------------------- T16 debug switch
+{
+  const { E, gm, pat } = table();
+  const a = dtCrew(E, pat, 'Cult', 2), ta = E.token(a);
+  E.run('!bitdcrew score 2 0 0 0 0 0 2', pat, ta);
+  ok(!E.logs.some(l => /BitDCrew debug/.test(l)), 'debug logging is off by default');
+  let o = E.run('!bitdcrew debug on', pat); ok(has(o, /only the GM/) && !E.env.state.BitDCrewTAM.debug, 'debug switch is GM only', o);
+  o = E.run('!bitdcrew debug', gm); ok(has(o, /debug logging is off/), 'debug reports its state', o);
+  o = E.run('!bitdcrew debug on', gm); ok(has(o, /now on/) && E.env.state.BitDCrewTAM.debug === true, 'debug on', o);
+  E.run('!bitdcrew score 2 0 0 0 0 0 2', pat, ta);
+  ok(E.logs.some(l => /BitDCrew debug: downtime start/.test(l)) && E.logs.some(l => /BitDCrew debug: gainRep/.test(l)), 'with debug on the ledger and Rep steps are logged', E.logs.filter(l => /debug/.test(l)));
+  E.run('!bitdcrew debug off', gm); const n = E.logs.length; E.run('!bitdcrew score 2 0 0 0 0 0 2', pat, ta);
+  ok(E.logs.length === n, 'debug off: nothing more is logged');
+}
+
+// ---------------------------------------------------------------- T17 Downtime ledger and the Heat and Hold card
+{
+  const { E, gm, pat, quinn } = table();
+  const a = dtCrew(E, pat, 'Smugglers', 2), ta = E.token(a);
+  E.attr(a, 'heat', 5); E.attr(a, 'crewcoin_dc', 3); E.attr(a, 'rep', 4); E.attr(a, 'turf', 1);
+  const b = E.crew('Bravos', pat), tb = E.token(b);   // core crew
+  let o;
+  // Downtime off
+  ['adj hh', 'hh', 'adj dtstart', 'hhact jpt --idx x'].forEach(v => { const r = E.run('!bitdcrew ' + v, pat, tb); ok(has(r, /Deep Cuts Downtime step|need the Downtime module/) && !ledger(E, b), 'Downtime off: "' + v + '" refused', r); });
+  // opening with nothing open starts a Downtime
+  o = E.run('!bitdcrew adj hh', pat, ta);
+  const L1 = ledger(E, a);
+  ok(L1 && L1.ended === false && L1.startHeat === 5 && has(o, /Downtime started/) && has(o, /No Downtime was open/), 'Heat and Hold with no Downtime open starts one, remembering the Heat', o.map(x => x.slice(0, 50)));
+  const card = o.find(t => /Heat and Hold/.test(t));
+  ok(/Heat .{5}.{4} 5\/9\. Wanted 0\/4\./.test(card) && /Reduce Heat by 1 for each Coin or Rep you spend/.test(card) && /hhact rh-coin --c \S+ --idx \S+\)/.test(card) && /hhact rh-rep/.test(card) &&
+     /Hold is strong\. By the Deep Cuts rule \(turf 1, Tier 2\) it is weak\./.test(card) && /hhact hold/.test(card) && /hhact end/.test(card), 'card: Heat, Reduce Heat, Hold line, Assess hold, End Downtime', card);
+  ok(!/hhact jpt/.test(card) && !/This Downtime so far/.test(card), 'no Just Passing Through button unless ticked; no log yet');
+  ok(idxOf([card]) === L1.id && new RegExp('--c ' + a + ' ').test(card), 'every button carries the crew and the Downtime id');
+  // Reduce Heat from the card
+  o = E.run('!bitdcrew hhact rh-coin --c ' + a + ' --idx ' + L1.id, pat);
+  ok(E.val(a, 'heat') === '4' && E.val(a, 'crewcoin_dc') === '2' && E.val(a, 'crewcoin') === undefined && has(o, /Spent 1 Coin/) && has(o, /This Downtime so far:/) && has(o, /Spent 1 Coin for Heat -1\./), 'Reduce Heat by Coin: Heat -1, Coin -1, logged, card reposted', o.map(x => x.slice(0, 60)));
+  o = E.run('!bitdcrew hhact rh-rep --c ' + a + ' --idx ' + L1.id, pat);
+  ok(E.val(a, 'heat') === '3' && E.val(a, 'rep') === '3' && has(o, /Spent 1 Rep/), 'Reduce Heat by Rep: Heat -1, Rep -1', o.map(x => x.slice(0, 60)));
+  E.attr(a, 'crewcoin_dc', 0); o = E.run('!bitdcrew hhact rh-coin --c ' + a + ' --idx ' + L1.id, pat);
+  ok(E.val(a, 'heat') === '3' && has(o, /no Coin to spend/) && L1.log.length === 2, 'no Coin: refused and not logged', o.map(x => x.slice(0, 60)));
+  // Just Passing Through: once per Downtime
+  tick(E, a, 'Just Passing Through');
+  o = E.run('!bitdcrew hh --c ' + a, pat);
+  const c2 = o.find(t => /Heat and Hold/.test(t));
+  ok(/Just Passing Through: during Downtime, take -1 Heat\./.test(c2) && /hhact jpt/.test(c2) && o.length === 1, 'ticked: the card offers Just Passing Through (the open Downtime is reused)', o.map(x => x.slice(0, 50)));
+  o = E.run('!bitdcrew hhact jpt --c ' + a + ' --idx ' + L1.id, pat);
+  ok(E.val(a, 'heat') === '2' && L1.used.jpt === true && has(o, /Just Passing Through: Heat -1 \(Heat now 2\)\./) && !has(o, /hhact jpt/), 'Just Passing Through: Heat -1, logged, button gone from the new card', o.map(x => x.slice(0, 60)));
+  o = E.run('!bitdcrew hhact jpt --c ' + a + ' --idx ' + L1.id, pat); ok(E.val(a, 'heat') === '2' && has(o, /already used this Downtime/), 'Just Passing Through only once per Downtime', o);
+  // assess hold
+  o = E.run('!bitdcrew hhact hold --c ' + a + ' --idx ' + L1.id, pat);
+  ok(E.val(a, 'hold') === 'weak' && L1.assessed === 'weak' && has(o, /Hold weak/), 'Assess hold from the card sets the hold by the Deep Cuts rule', o.map(x => x.slice(0, 60)));
+  // a new Downtime makes the once-per-Downtime ability available again
+  o = E.run('!bitdcrew adj dtstart', pat, ta); const L2 = ledger(E, a);
+  ok(L2.id !== L1.id && L2.used.jpt === undefined && has(o, /hhact jpt/) && has(o, /Downtime started/), 'start a new Downtime from Adjust: new id, abilities available again', o.map(x => x.slice(0, 50)));
+  o = E.run('!bitdcrew hhact rh-rep --c ' + a + ' --idx ' + L1.id, pat); ok(has(o, /no longer open/) && E.val(a, 'rep') === '3', 'a button from the replaced Downtime is refused', o);
+  o = E.run('!bitdcrew hhact jpt --c ' + a + ' --idx nope', pat); ok(has(o, /no longer open/), 'an unknown Downtime id is refused', o);
+  const other = dtCrew(E, pat, 'Cult', 2); o = E.run('!bitdcrew hhact hold --c ' + other + ' --idx ' + L2.id, pat);
+  ok(has(o, /no longer open/) && E.val(other, 'hold') === undefined, 'a Downtime id from another crew is refused', o);
+  // Just Passing Through: not ticked, or Heat 0
+  const c = dtCrew(E, pat, 'Hawkers', 2), tc = E.token(c); E.attr(c, 'heat', 3);
+  E.run('!bitdcrew adj dtstart', pat, tc); const Lc = ledger(E, c);
+  o = E.run('!bitdcrew hhact jpt --c ' + c + ' --idx ' + Lc.id, pat); ok(has(o, /not ticked on this sheet/) && E.val(c, 'heat') === '3', 'an unticked Just Passing Through is refused', o);
+  tick(E, c, 'Just Passing Through', false); o = E.run('!bitdcrew hhact jpt --c ' + c + ' --idx ' + Lc.id, pat); ok(has(o, /not ticked/), 'a row with the circle empty does not count');
+  tick(E, c, 'just passing through'); E.attr(c, 'heat', 0);
+  o = E.run('!bitdcrew hh --c ' + c, pat); ok(has(o, /Heat is 0, so there is nothing to reduce\./) && !has(o, /hhact jpt/) && !has(o, /hhact rh-coin/), 'Heat 0: no Reduce Heat or Just Passing Through buttons', o);
+  o = E.run('!bitdcrew hhact jpt --c ' + c + ' --idx ' + Lc.id, pat); ok(has(o, /not used/) && !Lc.used.jpt, 'Heat 0: Just Passing Through is not spent', o);
+  E.attr(c, 'heat', 2); o = E.run('!bitdcrew hhact jpt --c ' + c + ' --idx ' + Lc.id, pat); ok(E.val(c, 'heat') === '1' && Lc.used.jpt === true, 'it can still be used later, when there is Heat');
+  // End Downtime: No Traces and Leverage
+  const d = dtCrew(E, pat, 'Assassins', 2), td = E.token(d); tick(E, d, 'No Traces'); E.attr(d, 'rep', 4); E.attr(d, 'heat', 3);
+  E.run('!bitdcrew adj dtstart', pat, td); const Ld = ledger(E, d);
+  E.out.length = 0; o = E.run('!bitdcrew hhact end --c ' + d + ' --idx ' + Ld.id, pat);
+  ok(Ld.ended === true && /^player\|/.test(E.out[0].who) && has(o, /Downtime ended/) && has(o, /Heat went from 3 \(when Heat and Hold opened\) to 3\./) && has(o, /No Traces: Heat is 3, so no Rep this time\./) && E.val(d, 'rep') === '4', 'End Downtime with Heat above 0: no Rep, public summary', o.map(x => x.slice(0, 80)));
+  o = E.run('!bitdcrew hhact rh-coin --c ' + d + ' --idx ' + Ld.id, pat); ok(has(o, /Already ended/), 'buttons after End Downtime are refused', o);
+  o = E.run('!bitdcrew hh --c ' + d, pat); const Ld2 = ledger(E, d); ok(Ld2.id !== Ld.id && has(o, /No Downtime was open/), 'Heat and Hold after End starts a fresh Downtime', o.map(x => x.slice(0, 50)));
+  E.attr(d, 'heat', 0); Ld2.log.push('Just Passing Through: Heat -1 (Heat now 0).');
+  E.out.length = 0; o = E.run('!bitdcrew hhact end --c ' + d + ' --idx ' + Ld2.id, pat);
+  ok(E.val(d, 'rep') === '5' && has(o, /No Traces: the crew ended Downtime with zero Heat, so \+1 Rep\. Rep now 5\/12\./) && has(o, /Just Passing Through: Heat -1/) && !has(o, /Leverage/), 'End Downtime at Heat 0: No Traces gives +1 Rep, the log is in the summary', o.map(x => x.slice(0, 90)));
+  const e = dtCrew(E, pat, 'Smugglers2', 2), te = E.token(e); tick(E, e, 'No Traces'); tick(E, e, 'Leverage'); E.attr(e, 'rep', 11);
+  E.run('!bitdcrew adj dtstart', pat, te); o = E.run('!bitdcrew hhact end --c ' + e + ' --idx ' + ledger(E, e).id, pat);
+  ok(E.val(e, 'rep') === '12' && has(o, /\+1 Rep \(\+1 more from Leverage\)\. Rep now 12\/12 \(the track is full\)/), 'No Traces and Leverage stack, capped at 12', o);
+  const f = dtCrew(E, pat, 'Vigilantes', 2), tf = E.token(f); E.attr(f, 'rep', 3);
+  E.run('!bitdcrew adj dtstart', pat, tf); E.run('!bitdcrew hhact end --c ' + f + ' --idx ' + ledger(E, f).id, pat); ok(E.val(f, 'rep') === '3', 'a crew without No Traces gets nothing at End Downtime');
+  // a Score starts a Downtime; the next Score replaces it
+  const g = dtCrew(E, pat, 'Shadows', 3), tg = E.token(g);
+  E.run('!bitdcrew score 2 0 0 0 0 1 3', pat, tg); const Lg = ledger(E, g);
+  ok(Lg && Lg.ended === false && Lg.log.length === 0, 'a Deep Cuts Score starts a Downtime');
+  E.run('!bitdcrew score 2 0 0 0 0 1 3', pat, tg); ok(ledger(E, g).id !== Lg.id, 'the next Score replaces it');
+  // the last Score step offers Heat and Hold, and only while a Downtime is open
+  E.attr(g, 'heat', 0);
+  let w = E.run('!bitdcrew score 2 0 0 0 0 1 3', pat, tg); const nid = idxOf(w), Lh = ledger(E, g);
+  E.run('!bitdcrew seized none --c ' + g + ' --idx ' + nid, pat);
+  E.out.length = 0; o = E.run('!bitdcrew deposit all --c ' + g + ' --idx ' + nid, pat);
+  ok(E.out.length === 2 && /^\/w /.test(E.out[1].text) && /Heat and Hold/.test(E.out[1].text) && idxOf([E.out[1].text]) === Lh.id && Lh.startHeat !== null, 'after the deposit the Heat and Hold card is whispered with the open Downtime id', E.out.map(x => x.text.slice(0, 40)));
+  w = E.run('!bitdcrew score 2 0 0 0 0 1 3', pat, tg); const nid2 = idxOf(w), Li = ledger(E, g);
+  E.run('!bitdcrew hhact end --c ' + g + ' --idx ' + Li.id, pat);
+  E.run('!bitdcrew seized none --c ' + g + ' --idx ' + nid2, pat); E.out.length = 0; E.run('!bitdcrew deposit all --c ' + g + ' --idx ' + nid2, pat);
+  ok(E.out.length === 1, 'no Heat and Hold card when the Downtime was already ended', E.out.map(x => x.text.slice(0, 40)));
+  // permissions
+  o = E.run('!bitdcrew adj hh', quinn, ta); ok(has(o, /only use this on crews you control/), 'Heat and Hold refused for a non-controller');
+  o = E.run('!bitdcrew hhact hold --c ' + a + ' --idx ' + ledger(E, a).id, quinn); ok(has(o, /only use this on crews you control/), 'its buttons are refused for a non-controller');
+  o = E.run('!bitdcrew adj dtstart', quinn, ta); ok(has(o, /only use this on crews you control/), 'starting a Downtime is refused for a non-controller');
+  o = E.run('!bitdcrew hhact bogus --c ' + a + ' --idx ' + ledger(E, a).id, pat); ok(has(o, /unknown Heat and Hold choice/), 'unknown Heat and Hold choice');
+  // Status and the Adjust menu
+  o = E.run('!bitdcrew status', pat, ta)[0];
+  ok(/Downtime is open\. \[Heat and Hold\]\(!bitdcrew hh --c \S+\)/.test(o) && /Just Passing Through: \+1d to pass yourselves off as ordinary citizens while Heat is 4 or less \(active now\)/.test(o), 'Status: open Downtime link and the Just Passing Through line (Heat 2: active)', o);
+  E.attr(a, 'heat', 7); o = E.run('!bitdcrew status', pat, ta)[0]; ok(/not active, Heat is 7/.test(o), 'Status: Just Passing Through not active above Heat 4');
+  o = E.run('!bitdcrew status', pat, tb)[0]; ok(!/Downtime is open/.test(o) && !/Just Passing Through/.test(o), 'Status: nothing extra for a crew without the ability or the module');
+  E.run('!bitdcrew hhact end --c ' + a + ' --idx ' + ledger(E, a).id, pat); o = E.run('!bitdcrew status', pat, ta)[0]; ok(!/Downtime is open/.test(o), 'Status: no open-Downtime link after End Downtime');
+  E.run('!bitdcrew setup', pat, ta); E.run('!bitdcrew setup', pat, tb);
+  const adjA = E.abil(a).find(x => x.name === '6. Adjust').action, adjB = E.abil(b).find(x => x.name === '6. Adjust').action;
+  ok(/Downtime: Heat and Hold,hh/.test(adjA) && /Downtime: start a new Downtime,dtstart/.test(adjA) && !/Heat and Hold/.test(adjB) && !/dtstart/.test(adjB), 'Adjust has the two Downtime entries only for a Downtime crew');
+  queries(adjA).forEach(q2 => ok(q2.slice(1).every(p => p.length > 0 && count(p, ',') <= 1), 'Adjust prompt still well formed', q2));
+  // boundaries: No Traces needs Heat of exactly 0; Just Passing Through's +1d needs Heat of 4 or less
+  const h1 = dtCrew(E, pat, 'Assassins9', 2), th1 = E.token(h1); tick(E, h1, 'No Traces'); E.attr(h1, 'rep', 4); E.attr(h1, 'heat', 1);
+  E.run('!bitdcrew adj dtstart', pat, th1); o = E.run('!bitdcrew hhact end --c ' + h1 + ' --idx ' + ledger(E, h1).id, pat);
+  ok(E.val(h1, 'rep') === '4' && has(o, /No Traces: Heat is 1, so no Rep this time\./), 'No Traces: Heat 1 at End Downtime earns nothing');
+  E.attr(a, 'heat', 4); o = E.run('!bitdcrew status', pat, ta)[0]; ok(/\(active now\)/.test(o), 'Status: Just Passing Through is active at Heat 4');
+  E.attr(a, 'heat', 5); o = E.run('!bitdcrew status', pat, ta)[0]; ok(/not active, Heat is 5/.test(o), 'Status: Just Passing Through is not active at Heat 5');
+}
+
+// ---------------------------------------------------------------- T18 Leverage
+{
+  const { E, pat, quinn } = table();
+  const a = dtCrew(E, pat, 'Smugglers', 2), ta = E.token(a); tick(E, a, 'Leverage');
+  let o = E.run('!bitdcrew score 2 0 0 0 0 1 4', pat, ta);
+  ok(E.val(a, 'rep') === '3' && has(o, /Rep \+2 \(1 per 2 Heat\)\. Leverage: \+1 Rep\. Rep now 3\/12\./), 'Leverage: a Rep gain of 2 becomes 3, with a line on the card', o.map(x => x.slice(0, 120)));
+  const n = idxOf(o); E.run('!bitdcrew seized none --c ' + a + ' --idx ' + n, pat); E.run('!bitdcrew tithe skip --c ' + a + ' --idx ' + n, pat); E.run('!bitdcrew deposit none --c ' + a + ' --idx ' + n, pat);
+  ok(/Heat \+4, Rep \+3\./.test(E.out[0].text), 'the final summary counts the Leverage Rep', E.out[0].text);
+  const b = dtCrew(E, pat, 'Smugglers2', 0), tb = E.token(b); tick(E, b, 'Leverage');
+  o = E.run('!bitdcrew score 0 0 0 0 0 0 1', pat, tb);
+  ok(E.val(b, 'rep') === undefined && has(o, /Rep \+0 /) && !has(o, /Leverage/), 'Leverage adds nothing to a gain of 0', o.map(x => x.slice(0, 120)));
+  const c = dtCrew(E, pat, 'Smugglers3', 2), tc = E.token(c); tick(E, c, 'Leverage'); E.attr(c, 'rep', 11);
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 4', pat, tc);
+  ok(E.val(c, 'rep') === '12' && has(o, /Leverage: \+1 Rep\. Rep now 12\/12 \(the track is full\)/), 'Rep is capped at 12 with Leverage', o.map(x => x.slice(0, 120)));
+  const d = dtCrew(E, pat, 'Smugglers4', 2), td = E.token(d); tick(E, d, 'Leverage', false);
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 4', pat, td); ok(E.val(d, 'rep') === '2' && !has(o, /Leverage/), 'an unticked Leverage does nothing');
+  const e = dtCrew(E, pat, 'Smugglers5', 2), te = E.token(e); tick(E, e, 'leverage'); E.attr(e, 'rep', 1);
+  E.run('!bitdcrew adj rep+1', pat, te); ok(E.val(e, 'rep') === '2', 'a manual Adjust Rep +1 is not boosted by Leverage');
+  const f = dtCrew(E, pat, 'Assassins', 2), tf = E.token(f); tick(E, f, 'Leverage'); tick(E, f, 'No Traces');
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tf);
+  ok(E.val(f, 'rep') === '5' && has(o, /Rep \+4 \(1 per 2 Heat\)\. Leverage: \+1 Rep\. Rep now 5\/12\./), 'Leverage and No Traces together: Heat 10 - 1 = 9 gives Rep 4, +1 Leverage', o.map(x => x.slice(0, 140)));
+}
+
+// ---------------------------------------------------------------- T19 Misdirection
+{
+  const { E, pat, quinn } = table();
+  const mk = (name, rep) => { const c = dtCrew(E, pat, name, 2); tick(E, c, 'Misdirection'); if (rep !== undefined) E.attr(c, 'rep', rep); return c; };
+  const a = mk('Vigilantes', 0), ta = E.token(a);
+  let o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, ta);
+  ok(E.val(a, 'rep') === '5' && has(o, /Misdirection: you may give up half the Rep gained \(2\)/) && has(o, /\[Misdirection: give up 2 Rep\]\(!bitdcrew misdirect --c \S+ --idx \S+\)/), 'Rep +5: Misdirection offers to give up half, rounded down (2)', o.map(x => x.slice(0, 120)));
+  const n = idxOf(o);
+  o = E.run('!bitdcrew misdirect --c ' + a + ' --idx ' + n, pat);
+  ok(E.val(a, 'rep') === '3' && has(o, /Gave up 2 Rep/) && has(o, /Rep is now 3\/12/) && has(o, /Status is not tracked here/), 'the button lowers Rep by 2 and tells you to name the faction', o);
+  o = E.run('!bitdcrew misdirect --c ' + a + ' --idx ' + n, pat); ok(E.val(a, 'rep') === '3' && has(o, /Already done/), 'Misdirection once per Score');
+  o = E.run('!bitdcrew misdirect --c ' + a + ' --idx ' + n, quinn); ok(has(o, /only use this on crews you control/) && E.val(a, 'rep') === '3', 'refused for a non-controller');
+  o = E.run('!bitdcrew misdirect --c ' + a + ' --idx nope', pat); ok(has(o, /no longer available/), 'unknown walk-through id');
+  // Leverage counts as Rep gained: 5 + 1 = 6, half is 3
+  const b = mk('Vigilantes2', 0), tb = E.token(b); tick(E, b, 'Leverage');
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tb); ok(E.val(b, 'rep') === '6' && has(o, /give up half the Rep gained \(3\)/), 'Leverage Rep is part of the Rep gained', o.map(x => x.slice(0, 120)));
+  // too little, a full track, and an unticked ability
+  const c = mk('Vigilantes3', 0), tc = E.token(c); E.attr(c, 'crew_tier', 0);
+  o = E.run('!bitdcrew score 2 0 0 0 0 0 1', pat, tc); ok(E.val(c, 'rep') === '1' && !has(o, /Misdirection/), 'a gain of 1 has no half to give up');
+  const d = mk('Vigilantes4', 11), td = E.token(d);
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, td); ok(E.val(d, 'rep') === '12' && !has(o, /Misdirection/), 'a full track leaves only 1 Rep gained: no button');
+  const e = mk('Vigilantes5', 10), te = E.token(e);
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, te); ok(E.val(e, 'rep') === '12' && has(o, /give up half the Rep gained \(1\)/), 'the Rep actually gained counts: 2 gained, half is 1', o.map(x => x.slice(0, 120)));
+  const f = dtCrew(E, pat, 'Vigilantes6', 2), tf = E.token(f); tick(E, f, 'Misdirection', false);
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tf); ok(!has(o, /Misdirection/), 'an unticked Misdirection is not offered');
+  const g = mk('Vigilantes7', 0), tg = E.token(g); o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tg); const ng = idxOf(o);
+  E.attr(g, 'rep', 1); o = E.run('!bitdcrew misdirect --c ' + g + ' --idx ' + ng, pat); ok(E.val(g, 'rep') === '0' && has(o, /Gave up 1 Rep/), 'Rep never goes below 0');
+  // a second Score has its own button
+  const h = mk('Vigilantes8', 0), th = E.token(h);
+  const r1 = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, th)), r2 = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, th));
+  ok(r1 !== r2 && E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r2, pat).length > 0 && !has(E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r1, pat), /no longer available/), 'each Score has its own Misdirection button');
+}
+
 // ---------------------------------------------------------------- T13 the two scripts together
 if (PC_SRC) {
   const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false), quinn = E.player('Quinn', false);
@@ -758,7 +981,9 @@ if (PC_SRC) {
   const snap0 = snapshot(), fixlog0 = JSON.stringify(E.env.state.BitDTAM && E.env.state.BitDTAM.fixlog || []);
   ['setup', 'status', 'abilities', 'clocks', 'roll tier 1', 'roll wanted 0', 'adj heat+1', 'adj wanted+1', 'adj incarc', 'adj rep+1', 'adj turf+1', 'adj coin+2', 'adj tier+1', 'adj hold-weak', 'adj xp+1', 'score 2 0 0 0 0'].forEach(v => E.run('!bitdcrew ' + v, pat, tc));
   E.attr(crew, 'setting_dc_downtime', '1');
-  ['setup', 'adj holdassess', 'adj rh-coin', 'adj debt+1', 'score 2 2 2 0 2 1 4'].forEach(v => E.run('!bitdcrew ' + v, pat, tc));
+  ['setup', 'adj holdassess', 'adj rh-coin', 'adj debt+1', 'score 2 2 2 0 2 1 4', 'hh', 'adj dtstart', 'adj hh', 'status', 'party'].forEach(v => E.run('!bitdcrew ' + v, pat, tc));
+  E.run('!bitdcrew party', gm, tc);
+  { const L = E.env.state.BitDCrewTAM.downtime[crew]; if (L) { ['rh-coin', 'jpt', 'hold', 'end'].forEach(c => E.run('!bitdcrew hhact ' + c + ' --c ' + crew + ' --idx ' + L.id, pat)); } }
   E.flush();
   ok(snapshot() === snap0, 'no crew verb changed any attribute the PC text fixer owns', snapshot());
   ok(JSON.stringify(E.env.state.BitDTAM && E.env.state.BitDTAM.fixlog || []) === fixlog0, 'the PC fixer logged nothing because of crew writes');

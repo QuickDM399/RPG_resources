@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.1.0
+/* BitD Crew Token Action Maker  v0.2.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -13,16 +13,22 @@
  *   - Heat reaching 9: +1 Wanted, Heat clears, the excess rolls over (core, Heat). Fires on token bar 1 / sheet edits.
  *   - Score (button 4): Heat from the score. Downtime on: Fallout, Rep and the walk through the Payoff (Deep Cuts p80-81).
  *   - Entanglement roll (core only) names the table result; Deep Cuts has no entanglement roll.
+ *   - Deep Cuts Downtime crews: a Heat and Hold card with a once-per-Downtime ledger (Just Passing Through, Reduce Heat,
+ *     Assess hold, End Downtime with No Traces' +1 Rep), Leverage's +1 Rep on every Rep gain, Misdirection after a Score.
+ *   - Party link: !bitdcrew party (GM) lists the characters Roll20 marks as Party members; the Score's PC count can use it.
+ *   - !bitdcrew debug on|off (GM) writes the new flows to the API console.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.2.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
   var MACRO_NAME = 'CREW_TAM';
   var STATE_KEY = 'BitDCrewTAM';
+  // Roll20's Party member flag, reported (not yet verified in this game) as this tag inside a character's tags property
+  var PARTY_TAG = '_roll20_internal_party_tag_';
 
   // When Heat reaches 9 (token bar 1, the sheet or any other edit) add a Wanted level and clear Heat with rollover.
   var AUTO_HEAT = true;
@@ -217,8 +223,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   function botState() {
     state[STATE_KEY] = state[STATE_KEY] || {};
     state[STATE_KEY].flows = state[STATE_KEY].flows || {};
+    state[STATE_KEY].downtime = state[STATE_KEY].downtime || {};
     return state[STATE_KEY];
   }
+  // verbose API-console logging for the newer flows; switched by !bitdcrew debug on|off
+  function dbg(text) { if (botState().debug) { log('BitDCrew debug: ' + text); } }
 
   // ---------------------------------------------------------------- sheet readers
 
@@ -227,13 +236,15 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return isOn(cid, 'setting_wanted_5th') ? { attr: 'wantedDC', max: 5, label: 'Wanted (5-box track)' } : { attr: 'wanted', max: 4, label: 'Wanted' };
   }
 
-  function crewAbilityOn(cid, name) {
-    var want = normName(name), on = false;
+  // the crew's ticked abilities as a set of normalized names (a row counts only when its circle is ticked)
+  function abilitiesOn(cid) {
+    var on = {};
     listRows(cid, 'crewability', 'name').forEach(function (r) {
-      if (normName(r.value) === want && String(getAttrByName(cid, 'repeating_crewability_' + r.row + '_check')) === '1') { on = true; }
+      if (String(getAttrByName(cid, 'repeating_crewability_' + r.row + '_check')) === '1') { on[normName(r.value)] = true; }
     });
     return on;
   }
+  function crewAbilityOn(cid, name) { return abilitiesOn(cid)[normName(name)] === true; }
 
   // Deep Cuts p88: Slippery makes the effective Wanted level one less than the actual value
   function slipperyOn(cid) { return mods(cid).downtime && crewAbilityOn(cid, 'Slippery'); }
@@ -259,6 +270,27 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       if ((nm === 'turf' || nm === 'claim_turf') && isOn(cid, 'claim_' + i + '_check')) { n++; }
     }
     return n;
+  }
+
+  // Party member flag (Roll20): the character's tags hold PARTY_TAG, as an array or as text
+  function isPartyMember(ch) {
+    var t;
+    try { t = ch.get('tags'); } catch (e) { return false; }
+    if (t === undefined || t === null || t === '') { return false; }
+    return (typeof t === 'string' ? t : JSON.stringify(t)).indexOf(PARTY_TAG) >= 0;
+  }
+  function partyCharacters() { return findObjs({ _type: 'character' }).filter(isPartyMember); }
+  function partyPcCount() {
+    return partyCharacters().filter(function (c) { return getAttr(c.id, 'sheet_type', 'character') === 'character'; }).length;
+  }
+
+  // Rep the script gives the crew. Leverage: "Whenever you gain rep, gain +1 rep" (not for a gain of 0). Capped at the track.
+  function gainRep(cid, n) {
+    var before = getNum(cid, 'rep', 0), bonus = (n > 0 && crewAbilityOn(cid, 'Leverage')) ? 1 : 0;
+    var want = n + bonus, after = Math.min(REP_MAX, before + want);
+    if (after !== before) { setAttr(cid, 'rep', after); }
+    dbg('gainRep ' + cid + ' asked ' + n + ' bonus ' + bonus + ': ' + before + ' to ' + after);
+    return { asked: n, bonus: bonus, before: before, after: after, applied: after - before, full: before + want > REP_MAX };
   }
 
   function cohortList(cid) {
@@ -303,7 +335,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       ' ?{Death|No death 0,0|Death in connection to the score +4,4}' +
       ' ?{Witnesses|None 0,0|Witnesses who can be questioned +2,2|Crew members identified +4,4}' +
       ' ?{Target Tier|' + intList(0, 6) + '}' +
-      ' ?{PCs on the score|' + intList(1, 8) + '}';
+      ' ?{PCs for the Payoff (1 Coin each)|All party members,party|' + intList(1, 8) + '}';
   }
 
   function tokenActions(cid) {
@@ -318,7 +350,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       '|Tier +1,tier+1|Tier -1,tier-1|Hold: strong,hold-strong|Hold: weak,hold-weak' +
       '|Mark crew XP,xp+1' +
       (dt ? '|Assess hold (Downtime rule),holdassess|Reduce Heat: spend 1 Coin,rh-coin|Reduce Heat: spend 1 Rep,rh-rep' +
-        '|Debt clock +1,debt+1|Debt clock -1,debt-1' : '');
+        '|Debt clock +1,debt+1|Debt clock -1,debt-1|Downtime: Heat and Hold,hh|Downtime: start a new Downtime,dtstart' : '');
     var engagement = '&{template:blades} {{charname=@{selected|character_name}}} {{type=action}} {{short=short}} ' +
       '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} ' +
       '@{selected|numberofdice} {{charimage=@{selected|chat_image}}} @{selected|title_text}';
@@ -737,10 +769,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
         break;
       case 'holdassess':
         if (!m.downtime) { whisper(msg, 'BitDCrew: the Downtime module is off for this crew, so hold is set by hand.'); break; }
-        var holdNow = holdByRule(cid);
-        setAttr(cid, 'hold', holdNow);
-        note(msg, t.c, 'Hold', 'Hold ' + holdNow, 'Turf ' + getNum(cid, 'turf', 0) + ', Tier ' + getNum(cid, 'crew_tier', 0) +
-          '. Strong hold needs turf claims equal to or greater than your Tier (Deep Cuts, Assess Hold).');
+        assessHold(msg, t);
         break;
       case 'xp+1': markCrewXp(msg, t); break;
       case 'xpclear':
@@ -756,19 +785,149 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'rh-rep':
         // Deep Cuts, Reduce Heat: Heat -1 for each Coin or Rep the crew expends
         if (!m.downtime) { whisper(msg, 'BitDCrew: Reduce Heat by spending Coin or Rep is a Deep Cuts Downtime rule, and the module is off for this crew.'); break; }
-        var pay = code === 'rh-coin' ? tr.attr : 'rep', payName = code === 'rh-coin' ? 'Coin' : 'Rep';
-        if (getNum(cid, 'heat', 0) < 1) { note(msg, t.c, 'Heat', 'Heat 0', 'There is no Heat to reduce.'); break; }
-        if (getNum(cid, pay, 0) < 1) { note(msg, t.c, 'Heat', 'No ' + payName, 'The crew has no ' + payName + ' to spend.'); break; }
-        setAttr(cid, pay, getNum(cid, pay, 0) - 1);
-        res = addHeat(cid, -1);
-        note(msg, t.c, 'Heat', 'Heat ' + res.after + ' / ' + HEAT_MAX, 'Spent 1 ' + payName + ' (now ' + getNum(cid, pay, 0) + ') to reduce Heat by 1 (Deep Cuts, Reduce Heat).');
+        reduceHeat(msg, t, code === 'rh-coin' ? 'Coin' : 'Rep');
         break;
+      case 'hh': doHeatHold(msg, o); break;
+      case 'dtstart': doDowntimeStart(msg, t); break;
       default: whisper(msg, 'BitDCrew: unknown adjustment "' + clean(code) + '".');
     }
   }
 
   // Deep Cuts, Assess Hold: strong hold when turf claims are equal to or greater than the Tier
   function holdByRule(cid) { return getNum(cid, 'turf', 0) >= getNum(cid, 'crew_tier', 0) ? 'strong' : 'weak'; }
+
+  function assessHold(msg, t) {
+    var cid = t.ch.id, holdNow = holdByRule(cid);
+    setAttr(cid, 'hold', holdNow);
+    note(msg, t.c, 'Hold', 'Hold ' + holdNow, 'Turf ' + getNum(cid, 'turf', 0) + ', Tier ' + getNum(cid, 'crew_tier', 0) +
+      '. Strong hold needs turf claims equal to or greater than your Tier (Deep Cuts, Assess Hold).');
+    return holdNow;
+  }
+
+  // Deep Cuts, Reduce Heat: Heat -1 for each Coin or Rep the crew expends. Returns true when it was applied.
+  function reduceHeat(msg, t, payName) {
+    var cid = t.ch.id, pay = payName === 'Coin' ? coinTrack(cid).attr : 'rep';
+    if (getNum(cid, 'heat', 0) < 1) { note(msg, t.c, 'Heat', 'Heat 0', 'There is no Heat to reduce.'); return false; }
+    if (getNum(cid, pay, 0) < 1) { note(msg, t.c, 'Heat', 'No ' + payName, 'The crew has no ' + payName + ' to spend.'); return false; }
+    setAttr(cid, pay, getNum(cid, pay, 0) - 1);
+    var res = addHeat(cid, -1);
+    note(msg, t.c, 'Heat', 'Heat ' + res.after + ' / ' + HEAT_MAX, 'Spent 1 ' + payName + ' (now ' + getNum(cid, pay, 0) + ') to reduce Heat by 1 (Deep Cuts, Reduce Heat).');
+    return true;
+  }
+
+  // ---------------------------------------------------------------- Downtime ledger and the Heat and Hold card
+  // One record per crew: what was used this Downtime (once-per-Downtime abilities) and what happened. A Deep Cuts Score
+  // starts one; so does Adjust > Downtime: start a new Downtime. End Downtime closes it.
+
+  function startDowntime(cid, why) {
+    var st = botState(), prev = st.downtime[cid];
+    var rec = { id: Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), at: Date.now(), used: {}, log: [], ended: false, startHeat: null, assessed: null };
+    st.downtime[cid] = rec;
+    dbg('downtime start ' + cid + ' ' + rec.id + ' (' + why + ')' + (prev && !prev.ended ? ', replacing an open one' : ''));
+    return rec;
+  }
+  function openDowntime(cid) {
+    var d = botState().downtime[cid];
+    return (d && !d.ended) ? d : null;
+  }
+  // the open Downtime a Heat and Hold button belongs to, or null (after telling the player why)
+  function ledgerFor(msg, t, o) {
+    var d = botState().downtime[t.ch.id];
+    if (!d || !o.idx || d.id !== o.idx) {
+      whisper(msg, 'BitDCrew: that Downtime is no longer open. Open Heat and Hold again from Adjust, or start a new Downtime there.');
+      return null;
+    }
+    if (d.ended) { note(msg, t.c, 'Downtime', 'Already ended', 'That Downtime was ended. Start a new one from Adjust.'); return null; }
+    return d;
+  }
+
+  function heatHoldText(t, d) {
+    var cid = t.ch.id, ab = abilitiesOn(cid), L = [], heat = getNum(cid, 'heat', 0), w = wantedInfo(cid);
+    var turf = getNum(cid, 'turf', 0), tier = getNum(cid, 'crew_tier', 0), hold = String(getAttr(cid, 'hold', 'strong')).toLowerCase();
+    var b = function (code, label) { return '[' + label + '](' + CMD + ' hhact ' + code + ' --c ' + cid + ' --idx ' + d.id + ')'; };
+    L.push('Heat ' + bar(heat, HEAT_MAX) + ' ' + heat + '/' + HEAT_MAX + '. ' + w.label + ' ' + getNum(cid, w.attr, 0) + '/' + w.max + '.');
+    if (heat > 0) {
+      L.push('Reduce Heat by 1 for each Coin or Rep you spend (Deep Cuts, Heat and Hold): ' + b('rh-coin', 'Spend 1 Coin: Heat -1') + ' ' + b('rh-rep', 'Spend 1 Rep: Heat -1'));
+    } else {
+      L.push('Heat is 0, so there is nothing to reduce.');
+    }
+    if (ab['just passing through'] === true && !d.used.jpt && heat > 0) {
+      L.push('Just Passing Through: during Downtime, take -1 Heat. ' + b('jpt', 'Just Passing Through: Heat -1'));
+    }
+    L.push('Hold is ' + hold + '. By the Deep Cuts rule (turf ' + turf + ', Tier ' + tier + ') it is ' + holdByRule(cid) + '. ' + b('hold', 'Assess hold'));
+    if (d.log.length) { L.push('This Downtime so far:'); d.log.forEach(function (x) { L.push(x); }); }
+    L.push(b('end', 'End Downtime'));
+    return broadcast(t.c, { type: 'Heat and Hold', title: 'Downtime', content: L.join(NL) });
+  }
+
+  function doHeatHold(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id;
+    if (!mods(cid).downtime) { whisper(msg, 'BitDCrew: Heat and Hold is a Deep Cuts Downtime step, and the module is off for this crew.'); return; }
+    var d = openDowntime(cid);
+    if (!d) {
+      d = startDowntime(cid, 'opened Heat and Hold');
+      note(msg, t.c, 'Downtime', 'Downtime started', 'No Downtime was open, so one was started now.');
+    }
+    if (d.startHeat === null) { d.startHeat = getNum(cid, 'heat', 0); }
+    whisper(msg, heatHoldText(t, d));
+  }
+
+  function doDowntimeStart(msg, t) {
+    var cid = t.ch.id;
+    if (!mods(cid).downtime) { whisper(msg, 'BitDCrew: Downtime steps need the Downtime module, and it is off for this crew.'); return; }
+    var d = startDowntime(cid, 'adjust');
+    d.startHeat = getNum(cid, 'heat', 0);
+    note(msg, t.c, 'Downtime', 'Downtime started', 'A new Downtime is open. Anything used in an earlier one is available again.');
+    whisper(msg, heatHoldText(t, d));
+  }
+
+  function doHhAct(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, code = String(o.pos[0] || ''), res;
+    if (!mods(cid).downtime) { whisper(msg, 'BitDCrew: Heat and Hold is a Deep Cuts Downtime step, and the module is off for this crew.'); return; }
+    var d = ledgerFor(msg, t, o); if (!d) { return; }
+    dbg('hhact ' + code + ' ' + cid + ' ' + d.id);
+    switch (code) {
+      case 'rh-coin':
+      case 'rh-rep':
+        if (reduceHeat(msg, t, code === 'rh-coin' ? 'Coin' : 'Rep')) { d.log.push('Spent 1 ' + (code === 'rh-coin' ? 'Coin' : 'Rep') + ' for Heat -1.'); }
+        break;
+      case 'jpt':
+        if (!crewAbilityOn(cid, 'Just Passing Through')) { whisper(msg, 'BitDCrew: Just Passing Through is not ticked on this sheet.'); return; }
+        if (d.used.jpt) { note(msg, t.c, 'Downtime', 'Already used', 'Just Passing Through was already used this Downtime.'); return; }
+        if (getNum(cid, 'heat', 0) < 1) { note(msg, t.c, 'Heat', 'Heat 0', 'There is no Heat to reduce, so Just Passing Through was not used.'); return; }
+        d.used.jpt = true;
+        res = addHeat(cid, -1);
+        d.log.push('Just Passing Through: Heat -1 (Heat now ' + res.after + ').');
+        break;
+      case 'hold':
+        d.assessed = assessHold(msg, t);
+        break;
+      case 'end': endDowntime(msg, t, d); return;
+      default: whisper(msg, 'BitDCrew: unknown Heat and Hold choice.'); return;
+    }
+    whisper(msg, heatHoldText(t, d));
+  }
+
+  // End Downtime: No Traces' "When you end downtime with zero Heat, take +1 Rep" (Deep Cuts p88), then a public summary
+  function endDowntime(msg, t, d) {
+    var cid = t.ch.id, ab = abilitiesOn(cid), L = [], heat = getNum(cid, 'heat', 0), r;
+    d.ended = true;
+    L.push(d.startHeat !== null ? 'Heat went from ' + d.startHeat + ' (when Heat and Hold opened) to ' + heat + '.' : 'Heat is ' + heat + '.');
+    d.log.forEach(function (x) { L.push(x); });
+    if (ab['no traces'] === true) {
+      if (heat === 0) {
+        r = gainRep(cid, 1);
+        L.push('No Traces: the crew ended Downtime with zero Heat, so +1 Rep' + (r.bonus ? ' (+1 more from Leverage)' : '') + '. Rep now ' + r.after + '/' + REP_MAX + (r.full ? ' (the track is full)' : '') + '.');
+      } else {
+        L.push('No Traces: Heat is ' + heat + ', so no Rep this time.');
+      }
+    }
+    L.push('Hold is ' + String(getAttr(cid, 'hold', 'strong')).toLowerCase() + (d.assessed ? ' (assessed: ' + d.assessed + ')' : '') + '.');
+    dbg('downtime end ' + cid + ' ' + d.id);
+    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Downtime', title: 'Downtime ended', content: L.join(NL) }));
+  }
 
   // ---------------------------------------------------------------- score and payoff
 
@@ -800,11 +959,21 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var cid = t.ch.id, m = mods(cid), a = o.pos.map(function (x) { return parseInt(x, 10); });
     if (m.downtime) {
       if (a.length !== 7) { whisper(msg, 'BitDCrew: this token action is out of date (the Downtime module changed). Run ~ Rebuild.'); return; }
+      // the last answer may be "party": count the player characters Roll20 marks as Party members
+      var fromParty = String(o.pos[6]).toLowerCase() === 'party';
+      if (fromParty) {
+        var pn = partyPcCount();
+        if (pn < 1) {
+          whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nothing to count. Mark them in Roll20 (Edit character, Party member) or pick a number. Nothing was applied.');
+          return;
+        }
+        a[6] = pn;
+      }
       if (!intOk(a[0], [0, 2]) || !intOk(a[1], [0, 2]) || !intOk(a[2], [0, 2, 4]) || !intOk(a[3], [0, 4]) || !intOk(a[4], [0, 2, 4]) ||
-          !intOk(a[5], [0, 1, 2, 3, 4, 5, 6]) || !intOk(a[6], [1, 2, 3, 4, 5, 6, 7, 8])) {
+          !intOk(a[5], [0, 1, 2, 3, 4, 5, 6]) || !(fromParty || intOk(a[6], [1, 2, 3, 4, 5, 6, 7, 8]))) {
         whisper(msg, 'BitDCrew: those score answers are not valid.'); return;
       }
-      scoreDeepCuts(msg, t, a);
+      scoreDeepCuts(msg, t, a, fromParty);
     } else {
       if (a.length !== 5) { whisper(msg, 'BitDCrew: this token action is out of date (the Downtime module changed). Run ~ Rebuild.'); return; }
       if (!intOk(a[0], [0, 2, 4, 6]) || !intOk(a[1], [0, 1]) || !intOk(a[2], [0, 1]) || !intOk(a[3], [0, 1]) || !intOk(a[4], [0, 2])) {
@@ -828,9 +997,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   }
 
   // Deep Cuts p80-81: Fallout (Heat), Rep, then the Payoff in steps. Heat and Rep are applied now; Coin only by button.
-  function scoreDeepCuts(msg, t, a) {
+  function scoreDeepCuts(msg, t, a, fromParty) {
     var cid = t.ch.id, tier = getNum(cid, 'crew_tier', 0);
     var base = a[0], target1 = a[1], chaos = a[2], death = a[3], wit = a[4], tTier = a[5], pcs = a[6];
+    startDowntime(cid, 'score');
     var total = base + tier + target1 + chaos + death + wit, parts = ['base ' + base, 'crew Tier +' + tier];
     if (target1) { parts.push('target +' + target1); }
     if (chaos) { parts.push('chaos or war +' + chaos); }
@@ -847,13 +1017,18 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (wl.length) { L = L.concat(wl); }
     if (res.after >= 6) { L.push('Heat is 6 or more: the GM brings an entanglement into play (Deep Cuts, Entanglements).'); }
     // Rep: 1 per 2 Heat generated by the score, +1 per Tier of the target above the crew's Tier
-    var repGain = Math.floor(total / 2) + Math.max(0, tTier - tier), repNow = getNum(cid, 'rep', 0), repNext = Math.min(REP_MAX, repNow + repGain);
-    if (repNext !== repNow) { setAttr(cid, 'rep', repNext); }
-    L.push('Rep +' + repGain + ' (1 per 2 Heat' + (tTier > tier ? ', +' + (tTier - tier) + ' for the target\'s Tier' : '') + '). Rep now ' + repNext + '/' + REP_MAX +
-      (repNow + repGain > REP_MAX ? ' (the track is full)' : '') + '.');
+    var repGain = Math.floor(total / 2) + Math.max(0, tTier - tier), rg = gainRep(cid, repGain);
+    L.push('Rep +' + repGain + ' (1 per 2 Heat' + (tTier > tier ? ', +' + (tTier - tier) + ' for the target\'s Tier' : '') + '). ' +
+      (rg.bonus ? 'Leverage: +1 Rep. ' : '') + 'Rep now ' + rg.after + '/' + REP_MAX + (rg.full ? ' (the track is full)' : '') + '.');
     var payoff = pcs + 3 * tTier;
-    L.push('Payoff: 1 Coin per PC (' + pcs + ') plus 3 x the target\'s Tier (' + tTier + ') = ' + payoff + ' Coin.');
-    var nonce = newFlow(cid, { base: payoff, tier: tier, heatGain: total, repGain: repGain });
+    L.push('Payoff: 1 Coin per PC (' + pcs + (fromParty ? ', the party' : '') + ') plus 3 x the target\'s Tier (' + tTier + ') = ' + payoff + ' Coin.');
+    // Misdirection: "sacrifice half the rep gained" so another faction loses Status instead of the crew (round down)
+    var give = Math.floor(rg.applied / 2);
+    var nonce = newFlow(cid, { base: payoff, tier: tier, heatGain: total, repGain: repGain + rg.bonus, misdirect: give });
+    if (crewAbilityOn(cid, 'Misdirection') && rg.applied >= 2) {
+      L.push('Misdirection: you may give up half the Rep gained (' + give + ') so another faction loses Status with your target instead of your crew.');
+      L.push('[Misdirection: give up ' + give + ' Rep](' + CMD + ' misdirect --c ' + cid + ' --idx ' + nonce + ')');
+    }
     var pick = function (code, label) { return '[' + label + '](' + CMD + ' seized ' + code + ' --c ' + cid + ' --idx ' + nonce + ')'; };
     L.push('Seized assets? Pick one:');
     L.push([pick('none', 'No seized assets'), pick('cash', 'Seized load of cash +4 Coin'), pick('fence2', 'Fence valuables for 2 Coin'),
@@ -861,6 +1036,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       pick('fence8', 'Fence valuables for 8 Coin, +2 Heat')].join(' '));
     whisper(msg, broadcast(t.c, { type: 'Score', title: 'Fallout', content: L.join(NL) }));
     if (res.wraps) { announceWanted(t.ch, t.c, res, null, msg.playerid); }
+  }
+
+  function doMisdirect(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var flow = flowFor(msg, t, o, 'misdirect'); if (!flow) { return; }
+    var cid = t.ch.id, give = flow.misdirect || 0;
+    if (give < 1) { flow.done.misdirect = false; whisper(msg, 'BitDCrew: there is no Rep to give up for that score.'); return; }
+    var before = getNum(cid, 'rep', 0), after = Math.max(0, before - give);
+    setAttr(cid, 'rep', after);
+    whisper(msg, broadcast(t.c, {
+      type: 'Misdirection', title: 'Gave up ' + (before - after) + ' Rep',
+      content: 'Rep is now ' + after + '/' + REP_MAX + '. Name the faction that loses Status with your target instead of your crew, and say how you pin it on them. Status is not tracked here.'
+    }));
   }
 
   function doSeized(msg, o) {
@@ -937,9 +1125,15 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (want > put) { L.push('The crew\'s vaults had room for only ' + put + ' of the ' + want + ' Coin you chose.'); }
     L.push('Elsewhere (PC stashes or a bank): ' + elsewhere + ' Coin.');
     if (getNum(cid, wantedInfo(cid).attr, 0) > 0) {
-      L.push('The crew has wanted levels, so it cannot reach any bank funds until they are gone (Deep Cuts, Vaults & Banks).');
+      L.push('The crew has wanted levels, so it cannot reach any bank funds until they are gone (Deep Cuts, Vaults and Banks).');
     }
     sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Score', title: 'Score recorded', content: L.join(NL) }));
+    // the Score is done: the Heat and Hold step comes next
+    var dd = openDowntime(cid);
+    if (dd) {
+      if (dd.startHeat === null) { dd.startHeat = getNum(cid, 'heat', 0); }
+      whisper(msg, heatHoldText(t, dd));
+    }
   }
 
   // ---------------------------------------------------------------- status
@@ -962,6 +1156,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     } else {
       L.push('Hold ' + hold + '.');
     }
+    if (abilitiesOn(cid)['just passing through'] === true) {
+      L.push('Just Passing Through: +1d to pass yourselves off as ordinary citizens while Heat is 4 or less (' + (heat <= 4 ? 'active now' : 'not active, Heat is ' + heat) + ').');
+    }
+    if (dt && openDowntime(cid)) { L.push('Downtime is open. [Heat and Hold](' + CMD + ' hh --c ' + cid + ')'); }
     var tr = coinTrack(cid);
     L.push('Coin ' + getNum(cid, tr.attr, 0) + ' (the crew can hold ' + coinCapacity(cid) + ')');
     if (m.advancement) {
@@ -983,6 +1181,36 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     whisper(msg, broadcast(t.c, { type: '', title: 'Status', content: L.join(NL) }));
   }
 
+  // GM tool: which characters does the script see as Roll20 Party members? Also shows the raw tags it can read.
+  function doParty(msg, o) {
+    if (!playerIsGM(msg.playerid)) { whisper(msg, 'BitDCrew: only the GM can run the party check.'); return; }
+    var chars = findObjs({ _type: 'character' }), party = chars.filter(isPartyMember), L = [], seen = [], pcs = 0, crews = 0;
+    party.forEach(function (c) {
+      var st = getAttr(c.id, 'sheet_type', 'character');
+      if (st === 'character') { pcs++; } else if (st === 'crew') { crews++; }
+      L.push('Party member: ' + btn(c.get('name')) + ' (' + st + ')');
+    });
+    chars.forEach(function (c) {
+      var t; try { t = c.get('tags'); } catch (e) { t = undefined; }
+      var s = (t === undefined || t === null) ? '' : (typeof t === 'string' ? t : JSON.stringify(t));
+      if (s && s !== '[]') { seen.push(btn(c.get('name')) + ': ' + btn(s).slice(0, 50)); }
+    });
+    L.unshift('Characters checked: ' + chars.length + '. Party members found: ' + party.length + ' (' + pcs + ' player character' + (pcs === 1 ? '' : 's') + ', ' + crews + ' crew sheet' + (crews === 1 ? '' : 's') + ').');
+    if (!party.length) { L.push('None found. If you marked party members in Roll20 (Edit character, Party member), this script cannot see the flag.'); }
+    L.push(seen.length ? 'Tags the script can read: ' + seen.slice(0, 8).join('; ') : 'No character has any tags the script can read.');
+    log('BitDCrew party check: ' + party.length + ' party member(s) of ' + chars.length + ' characters; tags seen: ' + seen.length);
+    whisper(msg, broadcast({ name: 'Party check', image: '' }, { type: 'Party', title: 'Party check', content: L.join(NL) }));
+  }
+
+  function doDebug(msg, o) {
+    if (!playerIsGM(msg.playerid)) { whisper(msg, 'BitDCrew: only the GM can change debug logging.'); return; }
+    var mode = String(o.pos[0] || '').toLowerCase(), st = botState();
+    if (mode === 'on') { st.debug = true; }
+    else if (mode === 'off') { st.debug = false; }
+    else { whisper(msg, 'BitDCrew: debug logging is ' + (st.debug ? 'on' : 'off') + '. Use !bitdcrew debug on or off.'); return; }
+    whisper(msg, 'BitDCrew: debug logging is now ' + (st.debug ? 'on' : 'off') + '. Messages go to the API console.');
+  }
+
   // ---------------------------------------------------------------- router
 
   function route(msg, o) {
@@ -997,6 +1225,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'seized': return doSeized(msg, o);
       case 'tithe': return doTithe(msg, o);
       case 'deposit': return doDeposit(msg, o);
+      case 'misdirect': return doMisdirect(msg, o);
+      case 'hh': return doHeatHold(msg, o);
+      case 'hhact': return doHhAct(msg, o);
+      case 'party': return doParty(msg, o);
+      case 'debug': return doDebug(msg, o);
       case 'status': return doStatus(msg, o);
       default:
         whisper(msg, 'BitD Crew Token Action Maker v' + VERSION + ': select a crew token and run ' + MACRO_NAME +

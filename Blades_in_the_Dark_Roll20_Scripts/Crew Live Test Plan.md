@@ -26,7 +26,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 
 ## Before you start
 
-1. For crews A to D write down: `heat`, `wanted`, `wantedDC`, `rep`, `turf`, `crew_tier`, `hold`, `crewcoin`, `crewcoin_dc`, `crew_xp`, `dc_crew_xpclock_1` to `_4`, `crew_debt_dc`, the crew clocks, and the settings `setting_dc_downtime`, `setting_dc_advancement`, `setting_wanted_5th`. L16 puts them back.
+1. For crews A to D write down: `heat`, `wanted`, `wantedDC`, `rep`, `turf`, `crew_tier`, `hold`, `crewcoin`, `crewcoin_dc`, `crew_xp`, `dc_crew_xpclock_1` to `_4`, `crew_debt_dc`, the crew clocks, and the settings `setting_dc_downtime`, `setting_dc_advancement`, `setting_wanted_5th`. L20 puts them back.
 2. Open each crew's sheet once in your browser (sheet workers only run in a browser that has the sheet open).
 3. Make sure each crew has a token on the table and that its "Can be edited and controlled by" is set. For L12 you need one player account that controls crew B and one that does not (or log in as a player in a second browser).
 
@@ -141,10 +141,38 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 **Steps:** run the PC script's `~ Rebuild` on a PC token, then this script's on a crew token. Run the PC script's fix command `!bitd fixtext check` as GM.
 **Pass:** each token keeps its own 9 actions; the crew actions are untouched by the PC rebuild; `fixtext check` reports nothing caused by the crew script (it must not list attributes this script wrote). Edit a PC's stress to 9 and a crew's Heat to 9 in the same minute: each rule fires once, on its own sheet.
 
-## L16 Clean up
+## L16 Party probe (do this before L17 to L19)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Leave `CREW_TAM` in place.
+**Ground truth:** Roll20's own Party member checkbox (Edit character) and the star shown next to party members in the Journal. **Steps:** mark two player characters and one crew sheet as Party member. As GM run `!bitdcrew party`. Then remove the flag from one and run it again.
+**Pass:** the card lists exactly the marked characters with their sheet type (character, crew) and "Party members found" matches the stars. If it says "None found" while stars exist, the script cannot see the flag: copy the "Tags the script can read" line and report it, because the Payoff's "All party members" option depends on this.
+**Known fail states:** nothing listed (wrong property name); crew sheets counted as player characters.
+
+## L17 Score with the party count, and the new Payoff prompt (crew E, then A)
+
+**Steps:** `~ Rebuild` the crew. Click `4. Score`: the last prompt is "PCs for the Payoff (1 Coin each)" with "All party members" first, then 1 to 8. Run one Score with "All party members" (two PCs marked) and one with a typed 3. Then clear the party flags and choose "All party members".
+**Pass:** the Fallout card says "1 Coin per PC (2, the party)" and the payoff base is 2 + 3 x target Tier; the typed run says "(3)". With no party the script says so and applies nothing (Heat, Rep and the Downtime are unchanged).
+
+## L18 Heat and Hold and End Downtime (crew E; tick abilities by hand)
+
+**Steps:** tick **Just Passing Through** and **No Traces** on the crew (Veteran makes this legitimate). Set Heat 5, Coin 3, Rep 4, Turf 1, Tier 2. Run `4. Score`, walk to the Deposit, then use the Heat and Hold card that arrives. Click: Spend 1 Coin, Spend 1 Rep, Just Passing Through (twice), Assess hold. Set Heat 0 and click End Downtime. Repeat with Heat 3 at End Downtime. Open Adjust > Downtime: Heat and Hold, and Adjust > Downtime: start a new Downtime.
+**Pass:**
+- Spend 1 Coin: Heat -1 and `crewcoin_dc` -1 (never `crewcoin`); Spend 1 Rep: Heat -1, Rep -1. Both are logged on the reposted card.
+- Just Passing Through: Heat -1 once; the second click says it was already used and the button is gone. A new Downtime brings it back.
+- Assess hold: with Turf 1 and Tier 2 the hold becomes weak, matching the card's line.
+- End Downtime at Heat 0 with No Traces: Rep +1 and a public "Downtime ended" card. At Heat 3: no Rep and the card says why. Buttons from the ended Downtime are refused.
+- Status shows "Downtime is open" while one is open, and the Just Passing Through line (active at Heat 4 or less, inactive at 5).
+**Known fail states:** the card not arriving after the Deposit (check the console with `!bitdcrew debug on`); a button doing nothing (stale Downtime id after a new Score); Heat dropping by 2.
+
+## L19 Leverage and Misdirection (tick them on crew E)
+
+**Steps:** tick **Leverage**. Run `4. Score` with Target Tier 1 and a standard operation (Heat 4 at Tier 2). Then tick **Misdirection** and run a big Score (Heat 10). Click the Misdirection button, then click it again.
+**Pass:** Leverage: "Rep +2 ... Leverage: +1 Rep" and the sheet's Rep rises by 3; the final summary says Rep +3; a manual Adjust Rep +1 adds only 1. Misdirection: Rep +5 offers "give up 2 Rep" (half, rounded down); the click lowers Rep by 2 and tells you to name the faction; the second click says "Already done". With Leverage too the gain is 6 and the offer is 3. A gain of 1 offers nothing.
+**Known fail states:** Leverage on a Rep gain of 0; Misdirection counting the Rep that did not fit under 12.
+
+## L20 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities you ticked for L18 and L19, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 
-Token-action prompt wording and order in a real Roll20 query; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).
+Token-action prompt wording and order in a real Roll20 query; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; **whether the script can read Roll20's Party member flag at all** (L16), which comes from a forum report; the Heat and Hold card arriving after the Deposit;  whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).

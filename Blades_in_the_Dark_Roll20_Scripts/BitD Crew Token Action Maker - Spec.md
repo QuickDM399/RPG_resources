@@ -1,8 +1,8 @@
-# BitD Crew Token Action Maker - Spec (v0.1.0)
+# BitD Crew Token Action Maker - Spec (v0.2.0)
 
 Roll20 API script that builds token actions for **crew sheets** of the Evil Hat "Blades in the Dark" sheet v3.11, the companion of `BitD Token Action Maker.js` (player characters). Game 22049328, Mod Sandbox v1.5. Deep Cuts modules are per crew (`setting_dc_*`), read at click time.
 
-Status: built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
+Status: v0.2.0 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
 
 ## 1. Scope
 
@@ -10,6 +10,7 @@ Status: built and tested against a mock API only. **Nothing here has been run in
 - The user's seven crew types: Assassins, Hawkers, Bravos, Cult, Smugglers, Vigilantes, Shadows (and `crew test`, an Assassins crew). Emcees, River and Roots are not tested. The script never touches claims text or crew-type text.
 - Two rule sets, chosen per crew by `setting_dc_downtime`: **core** (off) and **Deep Cuts Downtime** (on). Advancement only changes how crew XP is ticked. Harm, Load and Action change nothing on a crew.
 - The Action module is now on in the game, with `crew new` as its test crew. It changes no crew rule this script computes (it swaps three ability texts and the Informants claim text, and lets a crew roll its Tier as a Threat Roll, which is the existing Tier roll). Tests cover an all-modules-on crew and an Action-only crew.
+- Decided against by the user: automating Patron, High Society, Fiends, Accord, Crow's Veil and Emberdeath.
 - Not built: Tier advancement (upgrade and cohort counts are ambiguous on this sheet; Tier is a plus/minus counter), Contacts, Upgrades and Claims menus, a bank ledger. A core-rules Payoff walk-through was dropped at the user's request (not needed).
 
 ## 2. Token actions (built by `~ Rebuild`, marker `bitd-crew-tam`)
@@ -19,9 +20,9 @@ Status: built and tested against a mock API only. **Nothing here has been run in
 | `1. Roll` | Prompts: Roll (Tier, Entanglement [core only], one entry per cohort), Bonus dice. Script composes the sheet's `blades` card. Pools: Tier = `crew_tier`; Entanglement = Wanted track; cohort = `crew_tier` minus `impaired`, plus 1 if `elite` or `expert` (sheet rule `calculateCohortDice`). Pool 0 or less = 2d6, take the lowest. |
 | `2. Engagement` | The sheet's own Engagement macro (number-of-dice prompt). |
 | `3. Fortune` | The sheet's own crew Fortune macro. |
-| `4. Score` | Core: 5 prompts, applies Heat. Deep Cuts: 7 prompts, applies Heat and Rep, then walks the Payoff with buttons. |
+| `4. Score` | Core: 5 prompts, applies Heat. Deep Cuts: 7 prompts (the last is the PC count: "All party members" or 1 to 8), applies Heat and Rep, starts a Downtime, walks the Payoff with buttons, then offers Heat and Hold. |
 | `5. Abilities` | Ticked crew abilities only, each a button running the sheet's own `Show` card. |
-| `6. Adjust` | Heat, Wanted, Incarceration, Rep, Turf, Coin, Tier, Hold, Mark crew XP; with Downtime on also Assess hold, Reduce Heat (Coin or Rep), Debt clock. |
+| `6. Adjust` | Heat, Wanted, Incarceration, Rep, Turf, Coin, Tier, Hold, Mark crew XP; with Downtime on also Assess hold, Reduce Heat (Coin or Rep), Debt clock, **Downtime: Heat and Hold** and **Downtime: start a new Downtime**. |
 | `7. Clocks` | Menu of named crew clocks with -1, +1 and the sheet's Show button. |
 | `8. Status` | Heat, Wanted, Rep, Turf, Tier, Hold, Coin and vault room, XP or advancement clocks, Debt clock, crew clocks, cohorts. |
 | `~ Rebuild` | `!bitdcrew setup` on the selected tokens; GM any crew, players only crews they control. Links token bar 1 to `heat` (max 9, shown to and editable by players). |
@@ -39,7 +40,12 @@ Token action text depends on the crew's modules and cohorts at Rebuild time. A s
 | R2 core | Score Heat: exposure 0/2/4/6, +1 high-profile or well-connected target, +1 hostile turf, +1 at war, +2 killing. | Core Heat p147. |
 | R2 DC | Score Heat: base 0 or 2 **plus crew Tier**, target +2, chaos +2 (combat, destruction, mayhem) and +2 at war, death +4, witnesses +2 or +4. | DC p80, Fallout table. |
 | R2b | Rep gained = 1 per 2 Heat generated (rounded down, user confirmed), +1 per Tier of the target above the crew's Tier. Applied to `rep`, capped at 12. | DC p81, Payoff. |
-| R2c | Payoff = 1 Coin per PC plus 3 x the target's Tier. Seized assets: +4 Coin for a load of cash; valuables fenced for 2, 4, 6 or 8 Coin cost 1 Heat per 4 Coin of value. Tithe at Tier 2 or lower: 1 Coin per 4 Coin earned (rounded down). Coin is applied only by the deposit buttons: all, half or none to the crew, up to its vault room (4 on hand plus vaults: standard 4/8/16, Deep Cuts 4/12/24 from the sheet's own vault text). The rest is "PC stashes or a bank, record by hand". | DC p81, Payoff, Tithe, Vaults & Banks. |
+| R2c | Payoff = 1 Coin per PC (the table chooses "All party members", counted from Roll20's Party flag at click time, or a number 1 to 8, because not every PC is on every score) plus 3 x the target's Tier. Seized assets: +4 Coin for a load of cash; valuables fenced for 2, 4, 6 or 8 Coin cost 1 Heat per 4 Coin of value. Tithe at Tier 2 or lower: 1 Coin per 4 Coin earned (rounded down). Coin is applied only by the deposit buttons: all, half or none to the crew, up to its vault room (4 on hand plus vaults: standard 4/8/16, Deep Cuts 4/12/24 from the sheet's own vault text). The rest is "PC stashes or a bank, record by hand". | DC p81, Payoff, Tithe, Vaults & Banks. |
+| R11 | **Just Passing Through** (Downtime on): "During Downtime, take -1 Heat." Heat and Hold button, once per Downtime, offered only when Heat is above 0. Status shows whether its +1d (Heat 4 or less) is active. | Core book, Smugglers (unchanged by Deep Cuts). Once per Downtime is the user's approved reading. |
+| R12 | **No Traces, Rep half** (Downtime on): End Downtime gives +1 Rep when Heat is exactly 0 at that moment. The Heat half (-1 to Heat taken) was built in v0.1.0. | DC p88: "When you end downtime with zero Heat, take +1 Rep." |
+| R13 | **Leverage**: +1 Rep on every Rep gain the script makes (the Score, No Traces at End Downtime), never on a gain of 0, never on a manual Adjust. | Sheet and core book: "Whenever you gain rep, gain +1 rep." |
+| R14 | **Misdirection**: after a Score's Rep is applied, a button gives up half the Rep actually gained, rounded down (user confirmed), once per Score. The Status change is not tracked. | Sheet wording (the core book has no Vigilantes text): "sacrifice half the rep gained to make another faction lose status with your target instead of your crew". |
+| R15 | **Downtime ledger**: one record per crew in `state.BitDCrewTAM.downtime`, started by a Deep Cuts Score or Adjust > Downtime: start a new Downtime, closed by End Downtime. Each Heat and Hold button carries its id. | User-approved design. |
 | R3 | Entanglement roll (core only): after the script posts the roll, it reads the dice and whispers the table result. Column by the Heat when rolled (0-3, 4/5, 6+), row by the highest die (lowest for zero dice): 1-3, 4/5, 6. | Core Entanglements p150. Deep Cuts has no entanglement roll (p82), so the option is not offered with Downtime on. |
 | R4 | Incarceration (Adjust): Wanted -1 (floor 0), Heat cleared. | Core Incarceration p148. |
 | R5 | Crew XP tracker full with **both** Deep Cuts modules off: reminder card only, with a Clear button. | Core Crew Advancement (about p48): "When you fill your crew advancement tracker, clear the marks and take a new special ability or mark two crew upgrade boxes." "each PC gets stash equal to the crew Tier+2". Not shown with Downtime on (DC p78 footnote and p83: other upgrades cost Coin there). |
@@ -53,7 +59,11 @@ Judgement calls made without a book sentence: rounding Rep down; applying Heat t
 
 ## 4. Command grammar
 
-`!bitdcrew <verb> [args] [--c <charId>] [--row <rowId>] [--idx <flowId>] [--n <step>]`. Verbs: `setup`, `roll`, `abilities`, `clocks`, `clock`, `adj`, `score`, `seized`, `tithe`, `deposit`, `status`. The character comes from `--c`, else the first selected token. GM: any crew. Player: only crews whose `controlledby` includes them or `all`. All numeric writes are clamped to the sheet's range. Payoff buttons carry a flow id kept in `state.BitDCrewTAM.flows` (last 40); each step applies once.
+`!bitdcrew <verb> [args] [--c <charId>] [--row <rowId>] [--idx <flowId>] [--n <step>]`. Verbs: `setup`, `roll`, `abilities`, `clocks`, `clock`, `adj`, `score`, `seized`, `tithe`, `deposit`, `misdirect`, `hh`, `hhact`, `status`, and two GM tools, `party` and `debug on|off`. The character comes from `--c`, else the first selected token. GM: any crew. Player: only crews whose `controlledby` includes them or `all`. All numeric writes are clamped to the sheet's range. Payoff buttons carry a flow id kept in `state.BitDCrewTAM.flows` (last 40); each step applies once.
+
+## 4b. Party link (probe only)
+
+Roll20's "Party member" flag is read as the character's `tags` containing `_roll20_internal_party_tag_` (array, JSON text or plain text). This comes from a Roll20 forum thread; **it has not been checked against the live game**. `!bitdcrew party` (GM only) lists the party members the script sees, with their sheet types, and the raw tags it can read, so it can be verified first. The only current use is the Score's "All party members" PC count. Planned for later (not built): the crew sheet marked as a party member is the active crew, and its bonuses apply to the party's player characters.
 
 ## 5. Coexistence with `BitD Token Action Maker.js`
 
@@ -76,5 +86,5 @@ The PC script's text fixer owns `upgrade_vault_description`, the four training u
 
 - `BitD Crew Token Action Maker.js` - the script (ES5, one IIFE, ASCII only).
 - `crew_mock_test.js` - `node crew_mock_test.js "BitD Crew Token Action Maker.js" translation.json "BitD Token Action Maker.js"` (the third argument loads the PC script too for the coexistence tests).
-- `crew_mutation_check.js` - same arguments; breaks the script in 43 places and requires the tests to fail each time.
+- `crew_mutation_check.js` - same arguments; breaks the script in 73 places and requires the tests to fail each time.
 - `Crew Live Test Plan.md` - what to click in the live game.

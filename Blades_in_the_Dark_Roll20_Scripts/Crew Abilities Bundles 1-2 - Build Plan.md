@@ -1,6 +1,34 @@
 # Crew Abilities, Bundles 1 and 2: Build Plan (v0.2.0)
 
-For approval. **Nothing is built yet.** This plan covers Bundle 1 (a Downtime "Heat & Hold" step) and Bundle 2 (Score hooks) from `Crew Special Abilities - Automation Analysis.md`, plus a small party-link foundation. The rules in section 3 need your approval before any code is written.
+**Status: approved with changes, then built as v0.2.0 (mock tested; nothing run in the live game).** Section 0 records what was approved and what was dropped. Where the original proposal below differs from section 0, section 0 wins.
+
+## 0. Approved scope and decisions
+
+| Row | Ability | Decision | In v0.2.0 |
+|---|---|---|---|
+| A | Patron | Do not automate, do not code | No |
+| B | High Society | Do not automate, do not code | No |
+| C | Just Passing Through | Approved | Heat and Hold button, once per Downtime; Status line for its +1d |
+| D | No Traces | Approved | End Downtime gives +1 Rep at Heat 0 (the Heat half existed) |
+| E | Fiends | Do not automate, do not code | No |
+| F | Accord | Do not automate, do not code | No |
+| G | Leverage | Approved | +1 Rep on every Rep gain the script makes |
+| H | Crow's Veil | Do not automate, do not code | No (so no Score pause step) |
+| I | Emberdeath | Do not automate, do not code | No (so no ritual buttons in `5. Abilities`) |
+| J | Misdirection | Approved | Button after the Score; gives up half the Rep gained, rounded down |
+| K | Downtime ledger | Not listed. Kept, because Just Passing Through and No Traces need it | Yes |
+
+| Decision | Answer |
+|---|---|
+| 1. Payoff count | Allow "All party members", and keep fixed counts 1 to 8 because not every PC is on every score. The prompt is "PCs for the Payoff (1 Coin each)" |
+| 2. Misdirection rounding | Round down |
+| 3. Optional Status button (Heat -1 per +2 Status with a Tier 3+ faction) | Leave out |
+| 4. After each Heat and Hold click | Repost the card (default) |
+| 5. Which crew applies to the party | The crew sheet marked "Party member" (a later feature, no code now) |
+
+**What the Heat and Hold card became:** Heat and Wanted, Reduce Heat by spending 1 Coin or 1 Rep, Just Passing Through (when ticked and Heat is above 0), Assess hold (the existing Deep Cuts rule, unchanged), End Downtime. **Not built** because their rows were dropped: Patron, High Society, Fiends and Accord buttons, the Crow's Veil pause, the ritual buttons, and any Fiends or Accord change to Assess hold.
+
+**Built beyond the rows:** the party probe (`!bitdcrew party`, GM only), the debug switch (`!bitdcrew debug on|off`), and the Payoff prompt change. Sections 4.1 to 4.7 below describe the original design; sections 4.4 (Crow's Veil pause), 4.5 and the Fiends and Accord parts of 4.3 were not built.
 
 ## 1. What your answers decided
 
