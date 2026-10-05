@@ -9,7 +9,8 @@ Status: built and tested against a mock API only. **Nothing here has been run in
 - Crew sheets only (`sheet_type` = `crew`). Every verb refuses character and faction sheets.
 - The user's seven crew types: Assassins, Hawkers, Bravos, Cult, Smugglers, Vigilantes, Shadows (and `crew test`, an Assassins crew). Emcees, River and Roots are not tested. The script never touches claims text or crew-type text.
 - Two rule sets, chosen per crew by `setting_dc_downtime`: **core** (off) and **Deep Cuts Downtime** (on). Advancement only changes how crew XP is ticked. Harm, Load and Action change nothing on a crew.
-- Not built: Tier advancement (upgrade and cohort counts are ambiguous on this sheet; Tier is a plus/minus counter), a core-rules Payoff walk-through, Contacts, Upgrades and Claims menus, a bank ledger.
+- The Action module is now on in the game, with `crew new` as its test crew. It changes no crew rule this script computes (it swaps three ability texts and the Informants claim text, and lets a crew roll its Tier as a Threat Roll, which is the existing Tier roll). Tests cover an all-modules-on crew and an Action-only crew.
+- Not built: Tier advancement (upgrade and cohort counts are ambiguous on this sheet; Tier is a plus/minus counter), Contacts, Upgrades and Claims menus, a bank ledger. A core-rules Payoff walk-through was dropped at the user's request (not needed).
 
 ## 2. Token actions (built by `~ Rebuild`, marker `bitd-crew-tam`)
 

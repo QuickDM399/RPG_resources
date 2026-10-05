@@ -191,6 +191,27 @@ function queries(action) {
   ok(has(E.run('!bitdcrew setup', pat, ta), /Rules used: Deep Cuts Downtime/) && has(E.run('!bitdcrew setup', pat, ta), /Advancement, Downtime/), 'setup lists modules', E.out);
 }
 
+// ---------------------------------------------------------------- T2c Action module on (the "crew new" test crew): crew rules are unchanged
+{
+  const { E, gm, pat } = table();
+  const a = E.crew('crew new', pat), ta = E.token(a);
+  ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
+  let o = E.run('!bitdcrew setup', pat, ta);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 9, 'all five modules on: setup lists them, Deep Cuts Downtime rules, 9 actions', o);
+  E.attr(a, 'crew_tier', 2);
+  o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
+  ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
+  o = E.run('!bitdcrew score 2 0 0 0 0 1 4', pat, ta);
+  ok(E.val(a, 'heat') === '4' && E.val(a, 'rep') === '2' && has(o, /Payoff: 1 Coin per PC \(4\)/), 'Downtime score flow is unchanged by the Action module', o.map(t => t.slice(0, 60)));
+  E.attr(a, 'heat', 8); o = E.edit(a, 'heat', 9);
+  ok(E.val(a, 'wanted') === '1' && has(o, /Bluecoats/), 'Heat 9 rule is unchanged by the Action module', o.map(t => t.slice(0, 40)));
+  // Action on, Downtime off: still the core crew rules (the Action module does not touch Heat, Wanted or the entanglement roll)
+  const b = E.crew('Cult', pat), tb = E.token(b); E.attr(b, 'setting_dc_action', '1');
+  o = E.run('!bitdcrew setup', pat, tb);
+  ok(has(o, /Deep Cuts modules on: Action\./) && has(o, /Rules used: core/), 'Action only: core crew rules', o);
+  ok(/Entanglement/.test(E.abil(b).find(x => x.name === '1. Roll').action) && count(E.abil(b).find(x => x.name === '4. Score').action, '?{') === 5, 'Action only: core Roll list and 5-prompt Score');
+}
+
 // ---------------------------------------------------------------- T3 bar 1 = Heat
 {
   const { E, pat } = table();

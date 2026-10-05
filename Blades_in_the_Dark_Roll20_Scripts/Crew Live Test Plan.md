@@ -20,8 +20,9 @@ For the local session that deploys the script (roll20-api-script-editor skill) a
 | B | Bravos | `-MEo2MoHcs1_bIktRx8g` | Old crew, `crew_type` is lowercase `bravos`, all modules off. The core-rules crew. |
 | C | Assassins | `-MEo28An-uFTAxOyQV9b` | Old crew, `crew_type` is capitalised `Assassins`, modules off. Checks that casing does not matter. |
 | D | Shadows | `-MeHGN5WWSLnEI9YFOpk` | For Slippery and the 5th Wanted box (L14). |
+| E | `crew new` | look up the id | The user's new test crew with **all five Deep Cuts modules on, including Action**. Run L1, L2, L5, L7 and L11 on it too; results must match A. |
 
-Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1.
+Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action module is expected to change nothing for crews; the mock tests check that, the live runs on E confirm it.
 
 ## Before you start
 
@@ -39,7 +40,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1.
 
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
-- A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
+- A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
 - The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Abilities`, `6. Adjust`, `7. Clocks`, `8. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
