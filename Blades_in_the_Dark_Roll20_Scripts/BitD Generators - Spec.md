@@ -102,7 +102,7 @@ Rows labelled with ranges ("1-3", "4,5", "6", "1, 2" ...) are chosen by one d6 t
 
 ## 6. Permissions and coexistence
 
-- `msg.type` must be `api` and the first word must be exactly `!bitdgen` (the other scripts match their first word exactly: `!bitd`, `!bitdpe`; the crew script's prefix is not recorded).
+- `msg.type` must be `api` and the first word must be exactly `!bitdgen`. The other scripts match their first word exactly too: `!bitd`, `!bitdpe`, and the crew script `!bitdcrew` (read from `BitD Crew Token Action Maker.js` on branch `claude/inspiring-cerf-xtgwwl`: variable and state key `BitDCrewTAM`, macro `CREW_TAM`, exact first-word match). None of these names collide with `!bitdgen`, `BitDGen`, `state.BitDGen` or `DUSK_ROLL`.
 - A non-GM gets `/w "<name>" The BitD generators are GM-only.` and nothing rolls or changes.
 - Only `state.BitDGen` is touched. The only global added is `BitDGen`. The macro code creates or repairs `DUSK_ROLL` only and never touches other macros (`BLADES_TAM`, `ODDS_CALL`).
 - `ensureMacro` was written from the Token Action Maker spec (macro owned by the first GM player, `visibleto` empty). The Position & Effect Tracker's own `ensureMacro` was not available to copy.
@@ -126,7 +126,7 @@ To refresh after the handouts change: a local session re-exports the handouts to
 
 ## 9. Not verified (needs the live game)
 
-Card rendering of whispered HTML; the refresh glyph; button clicks from a whispered card; macro creation and the dropdown; message size (the Score card is about 10,400 characters; the largest card in the tests is 10,570); permissions with a real player; collision with the crew script's prefix; the `check` command's size comparison (the recorded size is URL-encoded). See `Live checklist.md`.
+Card rendering of whispered HTML; the refresh glyph; button clicks from a whispered card; macro creation and the dropdown; message size (the Score card is about 10,400 characters; the largest card in the tests is 10,570); permissions with a real player; the `check` command's size comparison (the recorded size is URL-encoded). See `Live checklist.md`.
 
 ## 10. Files
 
@@ -135,7 +135,7 @@ Card rendering of whispered HTML; the refresh glyph; button clicks from a whispe
 | `BitD Generators.js` | The script (the only file that goes into the game) |
 | `Generator handouts.md` | Ground truth data snapshot |
 | `build_data.js` | Parses the data file, verifies it, writes the data block |
-| `mock_test_gen.js` | Offline test: 706 checks with forced dice. `node mock_test_gen.js "BitD Generators.js"` |
+| `mock_test_gen.js` | Offline test: 708 checks with forced dice. `node mock_test_gen.js "BitD Generators.js"` |
 | `mutants.js` | Breaks the script in 37 places and requires the tests to fail each time |
 | `Card samples.html` | The exact cards the script posts, rendered in a browser |
 | `Live checklist.md` | The live test for the local session |

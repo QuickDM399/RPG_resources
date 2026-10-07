@@ -359,15 +359,16 @@ const FACES = [1, 2, 3, 4, 5, 6];
   const E = makeEnv(); const gm = E.player('GM', true); E.player('Pat', false);
   E.store.macros.push({ id: 'm-other1', name: 'BLADES_TAM', action: '!bitd setup', visibleto: 'all', _playerid: gm });
   E.store.macros.push({ id: 'm-other2', name: 'ODDS_CALL', action: '!bitdpe new', visibleto: 'all', _playerid: gm });
-  E.env.state.BitDTAM = { keep: 1 }; E.env.state.BitDPE = { keep: 2 }; E.env.state.BoBMissions = { keep: 3 };
+  E.store.macros.push({ id: 'm-other3', name: 'CREW_TAM', action: '!bitdcrew setup', visibleto: 'all', _playerid: gm });
+  E.env.state.BitDTAM = { keep: 1 }; E.env.state.BitDPE = { keep: 2 }; E.env.state.BoBMissions = { keep: 3 }; E.env.state.BitDCrewTAM = { keep: 4 };
   E.ready();
   const m = E.store.macros.find(x => x.name === 'DUSK_ROLL');
   ok(m && m._playerid === gm && m.visibleto === '' && m.istokenaction === false, 'macro DUSK_ROLL created, owned by the GM, GM-only', m);
   ok(m && /^!bitdgen \?\{Generator\|NPC,npc\|/.test(m.action) && /Menu,menu\}$/.test(m.action), 'macro asks for a generator', m && m.action);
   ['npc', 'name', 'ghost', 'demon', 'horror', 'cult', 'street', 'building', 'score', 'rumor', 'overheard', 'news', 'occurrence', 'menu'].forEach(g => ok(m.action.indexOf(',' + g) > 0, 'macro offers ' + g));
   ok(!/GEN|BITD/i.test(m.name), 'macro name has no GEN or BITD');
-  eq(E.store.macros.filter(x => x.name === 'BLADES_TAM' || x.name === 'ODDS_CALL').map(x => x.action), ['!bitd setup', '!bitdpe new'], 'other scripts macros untouched');
-  eq([E.env.state.BitDTAM, E.env.state.BitDPE, E.env.state.BoBMissions], [{ keep: 1 }, { keep: 2 }, { keep: 3 }], 'other scripts state untouched');
+  eq(E.store.macros.filter(x => x.name === 'BLADES_TAM' || x.name === 'ODDS_CALL' || x.name === 'CREW_TAM').map(x => x.action), ['!bitd setup', '!bitdpe new', '!bitdcrew setup'], 'other scripts macros untouched (including the crew script CREW_TAM)');
+  eq([E.env.state.BitDTAM, E.env.state.BitDPE, E.env.state.BoBMissions, E.env.state.BitDCrewTAM], [{ keep: 1 }, { keep: 2 }, { keep: 3 }, { keep: 4 }], 'other scripts state untouched (including BitDCrewTAM)');
   ok(has(E.logs, /BitD Generators v0\.1\.0 ready/), 'ready log line with the version', E.logs);
   E.ready();
   eq(E.store.macros.filter(x => x.name === 'DUSK_ROLL').length, 1, 'a second start does not duplicate the macro');
@@ -385,12 +386,12 @@ const FACES = [1, 2, 3, 4, 5, 6];
 }
 {
   const { E, gm } = fresh();
-  ['!bitd', '!bitd setup', '!bitdpe new 1', '!bitdcrew', '!bitdgenx npc', '!missions', '!bob', '!bitdg', '!BITDGEN npc', 'bitdgen npc', '!bitdgen2'].forEach(c => {
+  ['!bitd', '!bitd setup', '!bitdpe new 1', '!bitdcrew', '!bitdcrew setup', '!bitdgenx npc', '!missions', '!bob', '!bitdg', '!BITDGEN npc', 'bitdgen npc', '!bitdgen2'].forEach(c => {
     const o = E.run(c, gm); ok(o.length === 0 && Object.keys(E.st().cards).length === 0 && E.rolled.length === 0, 'ignored: ' + c, o);
   });
   ok(E.say('!bitdgen npc', gm).length === 0, 'a non-api message is ignored');
   const exact = (content, word) => content.trim().split(/\s+/)[0] === word;
-  ['!bitd', '!bitdpe'].forEach(w => ok(!exact('!bitdgen npc', w), 'a script matching ' + w + ' exactly ignores !bitdgen'));
+  ['!bitd', '!bitdpe', '!bitdcrew'].forEach(w => ok(!exact('!bitdgen npc', w), 'a script matching ' + w + ' exactly ignores !bitdgen'));
   eq(E.newGlobals, ['BitDGen'], 'no other globals leaked');
 }
 

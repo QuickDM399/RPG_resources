@@ -1,6 +1,6 @@
 # BitD Generators: live checklist
 
-For the local session that has the Roll20 game. Nothing in this list has been run in Roll20. The script passed 706 offline checks and 37 deliberate breaks (see the spec), but the offline mock cannot show how Roll20 renders or delivers anything.
+For the local session that has the Roll20 game. Nothing in this list has been run in Roll20. The script passed 708 offline checks and 37 deliberate breaks (see the spec), but the offline mock cannot show how Roll20 renders or delivers anything.
 
 ## 0. Deliverable, ground truth, setup
 
@@ -31,7 +31,7 @@ Record Pass or Fail for each, with the card text or console line for any failure
 | L7 | **Edge, multi-roll.** Type `!bitdgen street props 3`. Press **+** on Props. Type `!bitdgen score`; on the Twist line press **Two**, then **Any** until a d4 of 4 appears (or press Roll all again repeatedly). | Props shows 3 different items, then 4. Each prop's dice note reads `list dN, d6 M`; check item M of prop list N in Streets & Buildings, "Props" (the nine unlabelled lists, in order). Twist "Two" gives two different complications, each tagged `(list 1)` to `(list 3)`; check each against Scores, "Twist or Complication" (three lists separated by rules). | Fewer or more props than asked; duplicates; "Two" gives one result; a list tag that disagrees with the handout. |
 | L8 | Press **Share to players** on an NPC card. In the player browser look at chat. | A public copy appears for everyone, labelled "shared", with **no buttons**. The player did not see any of the earlier whispered cards. | Players see whispered cards; the shared copy has buttons; the share posts as a whisper. |
 | L9 | **Negative, player.** As the player type `!bitdgen`, then `!bitdgen npc`, then `!bitdgen debug off`. | Each gets one whisper: "The BitD generators are GM-only." No card, nothing posted publicly, nothing in the API console except the normal chat lines. With debug on in the GM view, no dice lines are logged for the player's commands. | A card appears for the player; state changes (check that `debug` is still on); an error. |
-| L10 | **Negative, other scripts.** As GM type `!bitd`, `!bitdpe` and one command of the crew script; then `!bitdgen npc`. | Each other script responds exactly as before and `!bitdgen npc` posts only its own card. The other macros (`BLADES_TAM`, `ODDS_CALL`) are unchanged. Record the crew script's command prefix. | `!bitdgen` triggers another script (a script matching a prefix of `!bitd`) or another script triggers on `!bitdgen`. If it does, report the other script's name and match rule. |
+| L10 | **Negative, other scripts.** As GM type `!bitd`, `!bitdpe` and one command of the crew script; then `!bitdgen npc`. | Each other script responds exactly as before and `!bitdgen npc` posts only its own card. The other macros (`BLADES_TAM`, `ODDS_CALL`) are unchanged. The crew script is `!bitdcrew` (it matches its first word exactly, state key `BitDCrewTAM`, macro `CREW_TAM`), so run `!bitdcrew` too. | `!bitdgen` triggers another script (a script matching a prefix of `!bitd`) or another script triggers on `!bitdgen`. If it does, report the other script's name and match rule. |
 | L11 | **Message size.** Type `!bitdgen score` several times (it is the largest card, about 10,400 characters) and press a few buttons on it. | The whole card posts with every row and button visible, including the handout note at the bottom. | Card missing, truncated, or the API console reports an error or a size limit. If so, report the smallest size that fails; a fix would be to drop the list-choice buttons from the card. |
 | L12 | Press the Rare job toggle on an NPC card, then the refresh arrow. On a **Rumor** card press **Use other option**. | The Job line label says `(rare)` and a result comes from People, "Professions: Rare"; the refresh keeps rare. Use other option swaps the rumor text with the "Other option" text, and pressing it again swaps back. | Toggle does nothing; refresh drops back to common; flip rolls new dice. |
 | L13 | Press a refresh arrow on a card that is more than 25 cards old (post 26 cards with `!bitdgen horror`, then use the first). | One whisper: "That card has expired. Roll again." No dice rolled. | Error, a crash, or a re-roll of the wrong card. |
@@ -45,7 +45,6 @@ Record Pass or Fail for each, with the card text or console line for any failure
 
 - Result of each case above (Pass or Fail, with the evidence for any Fail).
 - The live script's name in the Mods page, size in characters, and hash (use the same rolling hash as the other scripts' notes).
-- The crew script's command prefix.
 - Anything the game showed that this offline build could not predict: how the card looks, how wide it is in the chat panel, button colours, whether the refresh glyph shows.
 - If any fix is made live, copy it back into `BitD Generators.js`, rerun `node mock_test_gen.js "BitD Generators.js"` and `node mutants.js`, and keep both green.
 
