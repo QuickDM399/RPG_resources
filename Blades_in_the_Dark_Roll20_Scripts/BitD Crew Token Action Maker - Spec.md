@@ -1,8 +1,8 @@
-# BitD Crew Token Action Maker - Spec (v0.2.0)
+# BitD Crew Token Action Maker - Spec (v0.2.1)
 
 Roll20 API script that builds token actions for **crew sheets** of the Evil Hat "Blades in the Dark" sheet v3.11, the companion of `BitD Token Action Maker.js` (player characters). Game 22049328, Mod Sandbox v1.5. Deep Cuts modules are per crew (`setting_dc_*`), read at click time.
 
-Status: v0.2.0 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
+Status: v0.2.1 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
 
 ## 1. Scope
 
@@ -44,7 +44,7 @@ Token action text depends on the crew's modules and cohorts at Rebuild time. A s
 | R11 | **Just Passing Through** (Downtime on): "During Downtime, take -1 Heat." Heat and Hold button, once per Downtime, offered only when Heat is above 0. Status shows whether its +1d (Heat 4 or less) is active. | Core book, Smugglers (unchanged by Deep Cuts). Once per Downtime is the user's approved reading. |
 | R12 | **No Traces, Rep half** (Downtime on): End Downtime gives +1 Rep when Heat is exactly 0 at that moment. The Heat half (-1 to Heat taken) was built in v0.1.0. | DC p88: "When you end downtime with zero Heat, take +1 Rep." |
 | R13 | **Leverage**: +1 Rep on every Rep gain the script makes (the Score, No Traces at End Downtime), never on a gain of 0, never on a manual Adjust. | Sheet and core book: "Whenever you gain rep, gain +1 rep." |
-| R14 | **Misdirection**: after a Score's Rep is applied, a button gives up half the Rep actually gained, rounded down (user confirmed), once per Score. The Status change is not tracked. | Sheet wording (the core book has no Vigilantes text): "sacrifice half the rep gained to make another faction lose status with your target instead of your crew". |
+| R14 | **Misdirection**: after a Score's Rep is applied, a button gives up half the Rep **earned**, rounded down (user confirmed), once per Score. "Earned" is the figure the Fallout card shows (Rep from Heat and target Tier, plus Leverage's +1), even when part of it did not fit under 12 (v0.2.1, user chose this over "half of what fit" after a live test where Rep was already at the top). The button costs real Rep, so a full track is no exploit. The card always says why the offer is missing: half of the Rep earned rounds down to 0, or the row is on the sheet but not ticked. A crew with no Misdirection row hears nothing. The final "Score recorded" line says "Rep +N earned, M fit on the track" when they differ. The Status change is not tracked. | Sheet wording (the core book has no Vigilantes text): "sacrifice half the rep gained to make another faction lose status with your target instead of your crew". |
 | R15 | **Downtime ledger**: one record per crew in `state.BitDCrewTAM.downtime`, started by a Deep Cuts Score or Adjust > Downtime: start a new Downtime, closed by End Downtime. Each Heat and Hold button carries its id. | User-approved design. |
 | R3 | Entanglement roll (core only): after the script posts the roll, it reads the dice and whispers the table result. Column by the Heat when rolled (0-3, 4/5, 6+), row by the highest die (lowest for zero dice): 1-3, 4/5, 6. | Core Entanglements p150. Deep Cuts has no entanglement roll (p82), so the option is not offered with Downtime on. |
 | R4 | Incarceration (Adjust): Wanted -1 (floor 0), Heat cleared. | Core Incarceration p148. |

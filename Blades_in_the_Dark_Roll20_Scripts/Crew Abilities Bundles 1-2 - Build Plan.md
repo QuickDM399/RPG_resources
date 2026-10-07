@@ -1,4 +1,4 @@
-# Crew Abilities, Bundles 1 and 2: Build Plan (v0.2.0)
+# Crew Abilities, Bundles 1 and 2: Build Plan (v0.2.1)
 
 **Status: approved with changes, then built as v0.2.0 (mock tested; nothing run in the live game).** Section 0 records what was approved and what was dropped. Where the original proposal below differs from section 0, section 0 wins.
 
@@ -15,13 +15,13 @@
 | G | Leverage | Approved | +1 Rep on every Rep gain the script makes |
 | H | Crow's Veil | Do not automate, do not code | No (so no Score pause step) |
 | I | Emberdeath | Do not automate, do not code | No (so no ritual buttons in `5. Abilities`) |
-| J | Misdirection | Approved | Button after the Score; gives up half the Rep gained, rounded down |
+| J | Misdirection | Approved | Button after the Score; gives up half the Rep earned (the card's figure, v0.2.1), rounded down |
 | K | Downtime ledger | Not listed. Kept, because Just Passing Through and No Traces need it | Yes |
 
 | Decision | Answer |
 |---|---|
 | 1. Payoff count | Allow "All party members", and keep fixed counts 1 to 8 because not every PC is on every score. The prompt is "PCs for the Payoff (1 Coin each)" |
-| 2. Misdirection rounding | Round down |
+| 2. Misdirection rounding | Round down. v0.2.1: half of the Rep earned as the card shows it, not half of what fit under 12 (user chose B after the first live test) |
 | 3. Optional Status button (Heat -1 per +2 Status with a Tier 3+ faction) | Leave out |
 | 4. After each Heat and Hold click | Repost the card (default) |
 | 5. Which crew applies to the party | The crew sheet marked "Party member" (a later feature, no code now) |

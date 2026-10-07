@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.1.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.2.1
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.1.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.2.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.1.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.2.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -166,8 +166,8 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 ## L19 Leverage and Misdirection (tick them on crew E)
 
 **Steps:** tick **Leverage**. Run `4. Score` with Target Tier 1 and a standard operation (Heat 4 at Tier 2). Then tick **Misdirection** and run a big Score (Heat 10). Click the Misdirection button, then click it again.
-**Pass:** Leverage: "Rep +2 ... Leverage: +1 Rep" and the sheet's Rep rises by 3; the final summary says Rep +3; a manual Adjust Rep +1 adds only 1. Misdirection: Rep +5 offers "give up 2 Rep" (half, rounded down); the click lowers Rep by 2 and tells you to name the faction; the second click says "Already done". With Leverage too the gain is 6 and the offer is 3. A gain of 1 offers nothing.
-**Known fail states:** Leverage on a Rep gain of 0; Misdirection counting the Rep that did not fit under 12.
+**Pass:** Leverage: "Rep +2 ... Leverage: +1 Rep" and the sheet's Rep rises by 3; the final summary says Rep +3; a manual Adjust Rep +1 adds only 1. Misdirection: Rep +5 earned offers "give up 2 Rep" (half, rounded down); the click lowers Rep by 2 and tells you to name the faction; the second click says "Already done". With Leverage too the gain is 6 and the offer is 3. Start the same Score with Rep at 11 or 12: the offer is still 2, and the final summary says "Rep +5 earned, N fit on the track". An earn of 1 shows "Misdirection is not offered" with the reason. Unticking the row shows "on the crew sheet but its circle is not ticked". A crew without the row hears nothing about it.
+**Known fail states:** Leverage on a Rep gain of 0; the offer shrinking when the track is nearly full; a missing offer with no reason on the card.
 
 ## L20 Clean up
 

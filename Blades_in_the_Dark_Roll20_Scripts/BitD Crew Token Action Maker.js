@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.2.0
+/* BitD Crew Token Action Maker  v0.2.1
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -14,14 +14,14 @@
  *   - Score (button 4): Heat from the score. Downtime on: Fallout, Rep and the walk through the Payoff (Deep Cuts p80-81).
  *   - Entanglement roll (core only) names the table result; Deep Cuts has no entanglement roll.
  *   - Deep Cuts Downtime crews: a Heat and Hold card with a once-per-Downtime ledger (Just Passing Through, Reduce Heat,
- *     Assess hold, End Downtime with No Traces' +1 Rep), Leverage's +1 Rep on every Rep gain, Misdirection after a Score.
+ *     Assess hold, End Downtime with No Traces' +1 Rep), Leverage's +1 Rep on every Rep gain, Misdirection after a Score (half the Rep earned, as the card shows it).
  *   - Party link: !bitdcrew party (GM) lists the characters Roll20 marks as Party members; the Score's PC count can use it.
  *   - !bitdcrew debug on|off (GM) writes the new flows to the API console.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.2.0';
+  var VERSION = '0.2.1';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -245,6 +245,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return on;
   }
   function crewAbilityOn(cid, name) { return abilitiesOn(cid)[normName(name)] === true; }
+  // true when the crew has a row with that name, ticked or not
+  function crewAbilityListed(cid, name) {
+    var want = normName(name);
+    return listRows(cid, 'crewability', 'name').some(function (r) { return normName(r.value) === want; });
+  }
 
   // Deep Cuts p88: Slippery makes the effective Wanted level one less than the actual value
   function slipperyOn(cid) { return mods(cid).downtime && crewAbilityOn(cid, 'Slippery'); }
@@ -991,7 +996,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (a[3]) { parts.push('at war +1'); }
     if (a[4]) { parts.push('killing +2'); }
     var res = addHeat(cid, total);
-    var L = ['Heat +' + total + ' (' + parts.join(', ') + ').', 'Heat now ' + bar(res.after, HEAT_MAX) + ' ' + res.after + '/' + HEAT_MAX + '.'];
+    var L = ['Heat +' + total + ' (' + parts.join(', ') + ').', 'Heat now ' + bar(res.after, HEAT_MAX) + ' ' + res.after + '/' + HEAT_MAX + '.',
+      'Downtime module off: this is the core Score, Heat only. Rep and the Payoff are not tracked.'];
     whisper(msg, broadcast(t.c, { type: 'Score', title: 'Heat', content: L.join(NL) }));
     if (res.wraps) { announceWanted(t.ch, t.c, res, null, null); }
   }
@@ -1022,12 +1028,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       (rg.bonus ? 'Leverage: +1 Rep. ' : '') + 'Rep now ' + rg.after + '/' + REP_MAX + (rg.full ? ' (the track is full)' : '') + '.');
     var payoff = pcs + 3 * tTier;
     L.push('Payoff: 1 Coin per PC (' + pcs + (fromParty ? ', the party' : '') + ') plus 3 x the target\'s Tier (' + tTier + ') = ' + payoff + ' Coin.');
-    // Misdirection: "sacrifice half the rep gained" so another faction loses Status instead of the crew (round down)
-    var give = Math.floor(rg.applied / 2);
-    var nonce = newFlow(cid, { base: payoff, tier: tier, heatGain: total, repGain: repGain + rg.bonus, misdirect: give });
-    if (crewAbilityOn(cid, 'Misdirection') && rg.applied >= 2) {
-      L.push('Misdirection: you may give up half the Rep gained (' + give + ') so another faction loses Status with your target instead of your crew.');
-      L.push('[Misdirection: give up ' + give + ' Rep](' + CMD + ' misdirect --c ' + cid + ' --idx ' + nonce + ')');
+    // Misdirection: "sacrifice half the rep gained" so another faction loses Status instead of the crew (round down).
+    // Half of the Rep earned, the figure the card shows, even when part of it did not fit on the track.
+    var earned = repGain + rg.bonus, give = Math.floor(earned / 2);
+    var nonce = newFlow(cid, { base: payoff, tier: tier, heatGain: total, repGain: earned, repFit: rg.applied, misdirect: give });
+    if (crewAbilityOn(cid, 'Misdirection')) {
+      if (give >= 1) {
+        L.push('Misdirection: you may give up half the Rep earned (' + give + ') so another faction loses Status with your target instead of your crew.');
+        L.push('[Misdirection: give up ' + give + ' Rep](' + CMD + ' misdirect --c ' + cid + ' --idx ' + nonce + ')');
+      } else {
+        L.push('Misdirection is not offered: half of the Rep earned (' + earned + '), rounded down, is 0.');
+      }
+    } else if (crewAbilityListed(cid, 'Misdirection')) {
+      L.push('Misdirection is on the crew sheet but its circle is not ticked, so it is not offered.');
     }
     var pick = function (code, label) { return '[' + label + '](' + CMD + ' seized ' + code + ' --c ' + cid + ' --idx ' + nonce + ')'; };
     L.push('Seized assets? Pick one:');
@@ -1119,7 +1132,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var room = Math.max(0, Math.min(coinCapacity(cid), tr.max) - cur), put = Math.min(want, room), next = cur + put;
     if (put > 0) { setAttr(cid, tr.attr, next); }
     var elsewhere = flow.net - put, L = [];
-    L.push('Heat +' + flow.heatGain + ', Rep +' + flow.repGain + '.');
+    L.push('Heat +' + flow.heatGain + ', Rep +' + flow.repGain + (flow.repFit !== undefined && flow.repFit < flow.repGain ? ' earned, ' + flow.repFit + ' fit on the track' : '') + '.');
     L.push('Earned ' + flow.earned + ' Coin' + (flow.paid ? ', tithe ' + flow.paid + ' paid' : '') + ', ' + flow.net + ' to deposit.');
     L.push('To the crew: ' + put + ' Coin (crew now holds ' + next + ').');
     if (want > put) { L.push('The crew\'s vaults had room for only ' + put + ' of the ' + want + ' Coin you chose.'); }

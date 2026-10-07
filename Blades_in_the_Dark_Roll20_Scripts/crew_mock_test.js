@@ -909,7 +909,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const mk = (name, rep) => { const c = dtCrew(E, pat, name, 2); tick(E, c, 'Misdirection'); if (rep !== undefined) E.attr(c, 'rep', rep); return c; };
   const a = mk('Vigilantes', 0), ta = E.token(a);
   let o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, ta);
-  ok(E.val(a, 'rep') === '5' && has(o, /Misdirection: you may give up half the Rep gained \(2\)/) && has(o, /\[Misdirection: give up 2 Rep\]\(!bitdcrew misdirect --c \S+ --idx \S+\)/), 'Rep +5: Misdirection offers to give up half, rounded down (2)', o.map(x => x.slice(0, 120)));
+  ok(E.val(a, 'rep') === '5' && has(o, /Misdirection: you may give up half the Rep earned \(2\)/) && has(o, /\[Misdirection: give up 2 Rep\]\(!bitdcrew misdirect --c \S+ --idx \S+\)/), 'Rep +5: Misdirection offers to give up half, rounded down (2)', o.map(x => x.slice(0, 120)));
   const n = idxOf(o);
   o = E.run('!bitdcrew misdirect --c ' + a + ' --idx ' + n, pat);
   ok(E.val(a, 'rep') === '3' && has(o, /Gave up 2 Rep/) && has(o, /Rep is now 3\/12/) && has(o, /Status is not tracked here/), 'the button lowers Rep by 2 and tells you to name the faction', o);
@@ -918,18 +918,49 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   o = E.run('!bitdcrew misdirect --c ' + a + ' --idx nope', pat); ok(has(o, /no longer available/), 'unknown walk-through id');
   // Leverage counts as Rep gained: 5 + 1 = 6, half is 3
   const b = mk('Vigilantes2', 0), tb = E.token(b); tick(E, b, 'Leverage');
-  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tb); ok(E.val(b, 'rep') === '6' && has(o, /give up half the Rep gained \(3\)/), 'Leverage Rep is part of the Rep gained', o.map(x => x.slice(0, 120)));
-  // too little, a full track, and an unticked ability
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tb); ok(E.val(b, 'rep') === '6' && has(o, /give up half the Rep earned \(3\)/), 'Leverage Rep is part of the Rep earned', o.map(x => x.slice(0, 120)));
+  // too little to halve, a (nearly) full track, and an unticked or missing ability
   const c = mk('Vigilantes3', 0), tc = E.token(c); E.attr(c, 'crew_tier', 0);
-  o = E.run('!bitdcrew score 2 0 0 0 0 0 1', pat, tc); ok(E.val(c, 'rep') === '1' && !has(o, /Misdirection/), 'a gain of 1 has no half to give up');
+  o = E.run('!bitdcrew score 2 0 0 0 0 0 1', pat, tc);
+  ok(E.val(c, 'rep') === '1' && !has(o, /give up/) && has(o, /Misdirection is not offered: half of the Rep earned \(1\), rounded down, is 0/), 'an earn of 1 has no half to give up, and the card says why', o.map(x => x.slice(0, 160)));
+  // B: the offer follows the Rep EARNED (5), not the Rep that fit under 12
   const d = mk('Vigilantes4', 11), td = E.token(d);
-  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, td); ok(E.val(d, 'rep') === '12' && !has(o, /Misdirection/), 'a full track leaves only 1 Rep gained: no button');
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, td);
+  ok(E.val(d, 'rep') === '12' && has(o, /give up half the Rep earned \(2\)/) && has(o, /\[Misdirection: give up 2 Rep\]/), 'Rep 11 and 5 earned: 1 fits, but the offer is still half of 5 (2)', o.map(x => x.slice(0, 160)));
+  const nd = idxOf(o); o = E.run('!bitdcrew misdirect --c ' + d + ' --idx ' + nd, pat);
+  ok(E.val(d, 'rep') === '10' && has(o, /Gave up 2 Rep/) && has(o, /Rep is now 10\/12/), 'the button takes 2 from the full track', o);
+  const d2 = mk('Vigilantes4b', 12), td2 = E.token(d2);
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, td2);
+  ok(E.val(d2, 'rep') === '12' && has(o, /\[Misdirection: give up 2 Rep\]/), 'a track already at 12 still gets the offer (the user\'s live case)', o.map(x => x.slice(0, 160)));
+  o = E.run('!bitdcrew misdirect --c ' + d2 + ' --idx ' + idxOf(o), pat); ok(E.val(d2, 'rep') === '10', 'and it costs real Rep, so a full track is no exploit');
+  // the user's live Score: Heat 8, Rep 6 + 1 Leverage = 7 earned, half is 3, from a track at 11
+  const u = mk('Vigilantes4c', 11), tu = E.token(u); tick(E, u, 'Leverage'); E.attr(u, 'crew_tier', 0);
+  o = E.run('!bitdcrew score 2 2 4 0 0 2 2', pat, tu);
+  ok(E.val(u, 'rep') === '12' && has(o, /give up half the Rep earned \(3\)/), 'live case: 7 earned, half is 3', o.map(x => x.slice(0, 200)));
   const e = mk('Vigilantes5', 10), te = E.token(e);
-  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, te); ok(E.val(e, 'rep') === '12' && has(o, /give up half the Rep gained \(1\)/), 'the Rep actually gained counts: 2 gained, half is 1', o.map(x => x.slice(0, 120)));
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, te); ok(E.val(e, 'rep') === '12' && has(o, /give up half the Rep earned \(2\)/), 'Rep 10, 5 earned: half is 2', o.map(x => x.slice(0, 120)));
   const f = dtCrew(E, pat, 'Vigilantes6', 2), tf = E.token(f); tick(E, f, 'Misdirection', false);
-  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tf); ok(!has(o, /Misdirection/), 'an unticked Misdirection is not offered');
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tf);
+  ok(!has(o, /give up/) && has(o, /Misdirection is on the crew sheet but its circle is not ticked/), 'an unticked Misdirection is not offered, and the card says so', o.map(x => x.slice(0, 160)));
+  const f2 = dtCrew(E, pat, 'Crew without it', 2), tf2 = E.token(f2);
+  o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tf2); ok(!has(o, /Misdirection/), 'a crew with no Misdirection row hears nothing about it', o.map(x => x.slice(0, 160)));
   const g = mk('Vigilantes7', 0), tg = E.token(g); o = E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tg); const ng = idxOf(o);
   E.attr(g, 'rep', 1); o = E.run('!bitdcrew misdirect --c ' + g + ' --idx ' + ng, pat); ok(E.val(g, 'rep') === '0' && has(o, /Gave up 1 Rep/), 'Rep never goes below 0');
+  // the final summary reports Rep earned and what fit
+  const sc = mk('Vigilantes9', 10), tsc = E.token(sc); let nsc = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tsc));
+  E.run('!bitdcrew seized none --c ' + sc + ' --idx ' + nsc, pat); E.run('!bitdcrew tithe skip --c ' + sc + ' --idx ' + nsc, pat); E.out.length = 0;
+  o = E.run('!bitdcrew deposit none --c ' + sc + ' --idx ' + nsc, pat);
+  ok(has(o, /Rep \+5 earned, 2 fit on the track\./), 'Score recorded says how much Rep was earned and how much fit', o.map(x => x.slice(0, 220)));
+  const sd = mk('Vigilantes10', 0), tsd = E.token(sd); const nsd = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, tsd));
+  E.run('!bitdcrew seized none --c ' + sd + ' --idx ' + nsd, pat); E.run('!bitdcrew tithe skip --c ' + sd + ' --idx ' + nsd, pat); E.out.length = 0;
+  o = E.run('!bitdcrew deposit none --c ' + sd + ' --idx ' + nsd, pat);
+  ok(has(o, /Heat \+10, Rep \+5\./) && !has(o, /fit on the track/), 'when it all fits, the summary stays plain', o.map(x => x.slice(0, 220)));
+  // a core crew's Heat card says which rule set ran
+  const cc = E.crew('Core crew', pat); const tcc = E.token(cc);
+  o = E.run('!bitdcrew score 2 0 0 0 0', pat, tcc);
+  ok(has(o, /title=Heat\}\}/) && has(o, /Downtime module off: this is the core Score, Heat only/), 'the core Score card says the Downtime module is off', o.map(x => x.slice(0, 200)));
+  const dc2 = dtCrew(E, pat, 'DT crew', 2); o = E.run('!bitdcrew score 2 0 0 0 0 0 1', pat, E.token(dc2));
+  ok(!has(o, /Downtime module off/), 'a Downtime crew never gets that note');
   // a second Score has its own button
   const h = mk('Vigilantes8', 0), th = E.token(h);
   const r1 = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, th)), r2 = idxOf(E.run('!bitdcrew score 2 2 2 0 2 1 4', pat, th));
