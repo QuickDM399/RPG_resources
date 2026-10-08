@@ -176,7 +176,7 @@ function queries(action) {
     ok(q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1), 'well-formed prompt in ' + x.name, q);
   })));
   // fixed native macros
-  ok(/\{\{title-engagement=1\}\}/.test(act(b, '2. Engagement')) && /@\{selected\|numberofdice\}/.test(act(b, '2. Engagement')) && /\{\{small-title=small-title\}\}/.test(act(b, '2. Engagement')), 'Engagement is the sheet macro');
+  ok(/^!bitdcrew engagement \?\{Plan type\|/.test(act(b, '2. Engagement')) && !/numberofdice/.test(act(b, '2. Engagement')) && count(act(b, '2. Engagement'), '?{') === 2, 'Engagement is the composed macro (plan type, net dice)', act(b, '2. Engagement'));
   ok(/\{\{type=fortune\}\}/.test(act(b, '3. Fortune')) && /@\{selected\|notes_query\}/.test(act(b, '3. Fortune')) && /\^\{roll\}/.test(act(b, '3. Fortune')), 'Fortune is the sheet crew macro');
   ok(act(b, '~ Rebuild') === '!bitdcrew setup' && act(b, '8. Status') === '!bitdcrew status' && act(b, '7. Clocks') === '!bitdcrew clocks' && act(b, '5. Abilities') === '!bitdcrew abilities', 'simple actions');
   // cohorts in the Roll list, names made safe for a prompt
@@ -967,6 +967,209 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(r1 !== r2 && E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r2, pat).length > 0 && !has(E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r1, pat), /no longer available/), 'each Score has its own Misdirection button');
 }
 
+// ---------------------------------------------------------------- T20 composed Engagement roll
+{
+  const { E, gm, pat, quinn } = table();
+  const claim = (c, i, name, on) => { E.attr(c, 'claim_' + i + '_name', name); E.attr(c, 'claim_' + i + '_check', on === false ? '0' : '1'); };
+  const mk = (name, dt) => { const c = E.crew(name, pat); if (dt !== false) E.attr(c, 'setting_dc_downtime', '1'); return c; };
+  const act = (c, name) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).find(x => x.name === name).action; };
+  const eng = (c, args, who) => {
+    const o = E.run('!bitdcrew engagement ' + args, who || pat, E.token(c));
+    const t = o.find(x => /title-engagement/.test(x)) || '';
+    return { o, t, n: dice(t), zero: /zerodice=/.test(t), notes: (/\{\{notes=([^}]*)\}\}/.exec(t) || [])[1] || '' };
+  };
+  // macro: plan type and net dice; a third prompt only when the crew has a murder-dependent ability row
+  const plain = mk('Plain crew');
+  const q1 = queries(act(plain, '2. Engagement'));
+  ok(q1.length === 2 && q1[0][0] === 'Plan type' && q1[0].length === 7 && /^Net dice/.test(q1[1][0]) && q1[1].slice(1).join() === '0,1,2,3,4,-1,-2,-3,-4', 'two prompts: plan type (6 options) and net dice', q1);
+  ok(q1[0].slice(1).map(x => x.split(',')[1]).join() === 'assault,deception,stealth,occult,social,transport', 'the six plan types from the core book');
+  const withPred = mk('Assassins'); E.attr(withPred, 'repeating_crewability_-P1_name', 'Predators'); E.attr(withPred, 'repeating_crewability_-P1_check', '0');
+  const q2 = queries(act(withPred, '2. Engagement'));
+  ok(q2.length === 3 && q2[1][0] === 'Is the goal murder' && q2[1].slice(1).join() === 'No,0|Yes,1'.replace('|', ','), 'a third prompt appears when a Predators row exists, ticked or not', q2);
+  ok(act(withPred, '2. Engagement') !== act(plain, '2. Engagement'), 'and the macro text differs');
+
+  // the card: a normal engagement roll posted by the player
+  let r = eng(plain, 'stealth 0');
+  ok(r.n === 1 && !r.zero && /\{\{type=action\}\}/.test(r.t) && /\{\{title-engagement=1\}\}/.test(r.t) && /\{\{title=\^\{engagement\}\}\}/.test(r.t) && /\{\{subtitle=\^\{roll_for\}\}\}/.test(r.t) && /\{\{short=short\}\}/.test(r.t) && /\{\{small-title=small-title\}\}/.test(r.t), 'one die for sheer luck, native engagement card fields', r.t);
+  ok(E.out.length === 1 && /^player\|/.test(E.out[0].who) && /charname=Plain crew/.test(E.out[0].text), 'posted publicly as the player');
+  ok(/Stealth plan: 1 luck = 1d\./.test(r.notes), 'the arithmetic is on the card', r.notes);
+  r = eng(plain, 'assault 2'); ok(r.n === 3 && /1 luck, \+2 net dice = 3d\./.test(r.notes), 'net dice add', r.notes);
+  r = eng(plain, 'occult -1'); ok(r.zero && r.n === 2 && /= 0d \(no dice: roll 2d and keep the lowest\)/.test(r.notes), 'a pool of 0 rolls 2d, keep the lowest', r.notes);
+  r = eng(plain, 'occult -4'); ok(r.zero && r.n === 2 && /-4 net dice = 0d/.test(r.notes), 'a negative pool is also 2d, keep the lowest');
+
+  // crew abilities (a row counts only when ticked)
+  const abil = (c, names) => names.forEach((nm, i) => { E.attr(c, 'repeating_crewability_-E' + i + '_name', nm); E.attr(c, 'repeating_crewability_-E' + i + '_check', '1'); });
+  const dk = mk('Bravos'); abil(dk, ['Door Kickers']);
+  ok(eng(dk, 'assault 0').n === 2 && eng(dk, 'stealth 0').n === 1 && eng(dk, 'social 0').n === 1, 'Door Kickers: +1d on an assault plan only');
+  ok(/\+1 Door Kickers = 2d/.test(eng(dk, 'assault 0').notes), 'and the card names it', eng(dk, 'assault 0').notes);
+  const ss = mk('Shadows'); abil(ss, ['Second Story']);
+  ok(eng(ss, 'stealth 0').n === 2 && eng(ss, 'assault 0').n === 1 && eng(ss, 'deception 0').n === 1, 'Second Story: +1d on a stealth plan only');
+  const off = mk('Unticked'); E.attr(off, 'repeating_crewability_-U_name', 'Door Kickers'); E.attr(off, 'repeating_crewability_-U_check', '0');
+  ok(eng(off, 'assault 0').n === 1, 'an unticked ability adds nothing');
+  const pr = mk('Assassins2'); abil(pr, ['Predators']);
+  ok(eng(pr, 'stealth 1 0').n === 2 && eng(pr, 'deception 1 0').n === 2 && eng(pr, 'stealth 0 0').n === 1 && eng(pr, 'deception 0 0').n === 1, 'Predators: stealth or deception, and only with a murder goal');
+  ok(eng(pr, 'assault 1 0').n === 1 && eng(pr, 'occult 1 0').n === 1 && eng(pr, 'social 1 0').n === 1 && eng(pr, 'transport 1 0').n === 1, 'Predators: no bonus on the other four plan types, even for murder');
+  ok(/Stealth plan with a murder goal: 1 luck, \+1 Predators = 2d/.test(eng(pr, 'stealth 1 0').notes), 'the card says the goal is murder', eng(pr, 'stealth 1 0').notes);
+  const unp = mk('Assassins3'); E.attr(unp, 'repeating_crewability_-P_name', 'Predators'); E.attr(unp, 'repeating_crewability_-P_check', '0');
+  ok(eng(unp, 'stealth 1 0').n === 1, 'an unticked Predators adds nothing (but the murder question is still asked)');
+  const df = mk('River'); abil(df, ['Deadly Focus']);
+  ok(eng(df, 'social 1 0').n === 2 && eng(df, 'transport 1 0').n === 2 && eng(df, 'social 0 0').n === 1, 'Deadly Focus: any plan, with a murder goal');
+  const both = mk('Both'); abil(both, ['Predators', 'Deadly Focus']);
+  ok(eng(both, 'stealth 1 0').n === 3 && eng(both, 'stealth 0 0').n === 1, 'Predators and Deadly Focus stack');
+
+  // claims: every claim at its plan(s), nothing elsewhere
+  const CLAIMS = { 'Ancient Altar': ['occult'], 'Bluecoat Confederates': ['assault'], 'City Records': ['stealth'], 'Cover Identities': ['deception', 'social'], 'Personal Clothier': ['social'], 'Secret Pathways': ['stealth'], 'Secret Routes': ['transport'] };
+  Object.keys(CLAIMS).forEach(nm => {
+    const c = mk('Claim ' + nm); claim(c, 3, nm);
+    const bad = ['assault', 'deception', 'stealth', 'occult', 'social', 'transport'].filter(pl => eng(c, pl + ' 0').n !== 1 + (CLAIMS[nm].indexOf(pl) >= 0 ? 1 : 0));
+    ok(bad.length === 0, 'claim ' + nm + ': +1d for ' + CLAIMS[nm].join(' and ') + ' only', bad);
+  });
+  const ci = mk('CoverBook'); claim(ci, 1, 'Cover Identities');
+  ok(eng(ci, 'social 0').n === 2 && eng(ci, 'transport 0').n === 1, 'Cover Identities follows the core book: social, not transport');
+  const nl = mk('Newline'); claim(nl, 2, 'Bluecoat\nConfederates'); claim(nl, 5, 'claim_secret_pathways'); claim(nl, 6, 'Secret\nRoutes');
+  ok(eng(nl, 'assault 0').n === 2 && eng(nl, 'stealth 0').n === 2 && eng(nl, 'transport 0').n === 2, 'claim names spanning lines or carrying a key prefix still match');
+  const uc = mk('UntickedClaim'); claim(uc, 4, 'City Records', false);
+  ok(eng(uc, 'stealth 0').n === 1, 'an unticked claim adds nothing');
+  const gov = mk('Governor'); claim(gov, 7, 'The Governor');
+  ok(eng(gov, 'stealth 1').n === 1 && eng(gov, 'stealth 0').zero, 'The Governor is -1d on every plan');
+  ok(/-1 The Governor/.test(eng(gov, 'stealth 1').notes), 'and the card shows it', eng(gov, 'stealth 1').notes);
+  // everything together
+  const all = mk('Stack'); abil(all, ['Door Kickers']); claim(all, 1, 'Bluecoat Confederates');
+  r = eng(all, 'assault 1'); ok(r.n === 4 && /1 luck, \+1 net dice, \+1 Door Kickers, \+1 Bluecoat Confederates = 4d/.test(r.notes), 'ability, claim and net dice stack', r.notes);
+  // works on a core crew (Downtime off) and for a GM on any crew
+  const core = mk('Core', false); abil(core, ['Second Story']);
+  ok(eng(core, 'stealth 0').n === 2, 'a crew with Downtime off rolls the same');
+  ok(eng(core, 'stealth 0', gm).n === 2, 'the GM can roll for any crew');
+
+  // validation: nothing is rolled
+  const bad = (c, args, re, why) => { const x = eng(c, args); ok(x.t === '' && has(x.o, re), why, x.o); };
+  bad(plain, 'raid 0', /answers are not valid/, 'unknown plan type');
+  bad(plain, 'stealth 5', /answers are not valid/, 'net dice above +4');
+  bad(plain, 'stealth -5', /answers are not valid/, 'net dice below -4');
+  bad(plain, 'stealth x', /answers are not valid/, 'net dice not a number');
+  bad(plain, 'stealth 1 0', /out of date.*Rebuild/, 'three answers for a crew with no murder row: stale macro');
+  bad(pr, 'stealth 0', /out of date.*Rebuild/, 'two answers for a crew with a murder row: stale macro');
+  bad(pr, 'stealth 2 0', /answers are not valid/, 'a murder answer other than 0 or 1');
+  bad(plain, '', /out of date/, 'no answers');
+  ok(E.out.length === 1 && !/^player\|/.test(E.out[0].who), 'a refusal is a whisper, not a roll');
+  const refused = eng(plain, 'stealth 0', quinn);
+  ok(refused.t === '' && has(refused.o, /only use this on crews you control/), 'a player cannot roll for a crew they do not control', refused.o);
+  // the new verb does not touch the sheet
+  const attrsOf = (c) => JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]));
+  const sheetBefore = attrsOf(plain); eng(plain, 'stealth 1'); eng(plain, 'occult -2');
+  ok(attrsOf(plain) === sheetBefore, 'a roll writes nothing to the crew sheet');
+}
+
+// ---------------------------------------------------------------- T21 Status reminders for abilities with no number to change
+{
+  const { E, pat } = table();
+  const c = E.crew('Mixed', pat), t = E.token(c);
+  const names = ['Zealotry', 'Thorn in your Side', 'Roots', 'All Hands', 'Like Part of the Family'];
+  names.forEach((nm, i) => { E.attr(c, 'repeating_crewability_-S' + i + '_name', nm); E.attr(c, 'repeating_crewability_-S' + i + '_check', '1'); });
+  let o = E.run('!bitdcrew status', pat, t);
+  ok(has(o, /Zealotry: your cohorts get \+1d to rolls against enemies of the faith/) && has(o, /Thorn in your Side: when you use Stealth or Assault plans against a higher Tier faction, your Tier counts as \+1/) && has(o, /Roots: during Downtime one of your contacts or cohorts/) && has(o, /All Hands: during Downtime, one of your cohorts may perform an additional Downtime activity to Acquire or Work/) && has(o, /Like Part of the Family: one of your vehicles is a cohort whose quality is equal to your Tier \+1/), 'each ticked reminder ability gets a Status line', o);
+  E.attr(c, 'repeating_crewability_-S1_check', '0'); E.attr(c, 'repeating_crewability_-S3_name', 'ALL  HANDS');
+  o = E.run('!bitdcrew status', pat, t);
+  ok(!has(o, /Thorn in your Side/) && has(o, /All Hands:/) && has(o, /Zealotry/), 'an unticked ability has no line; names match without case or spacing');
+  const d = E.crew('Bare', pat); o = E.run('!bitdcrew status', pat, E.token(d));
+  ok(!has(o, /Zealotry|Thorn|Roots:|All Hands|Like Part/), 'a crew without them hears nothing');
+  // the lines are plain text: no buttons, no state, nothing written
+  ok(E.val(c, 'heat') === undefined && !has(E.run('!bitdcrew status', pat, t), /Zealotry.*\]\(!/), 'reminders are text only');
+}
+
+// ---------------------------------------------------------------- T22 Edge for the party (Action module)
+{
+  const { E, gm, pat, quinn } = table();
+  const crew = (name, action, tick) => { const c = dtCrew(E, pat, name, 2); if (action !== false) E.attr(c, 'setting_dc_action', '1'); if (tick !== false) tick_(c); return c; };
+  const tick_ = (c) => { E.attr(c, 'repeating_crewability_-B_name', 'Bound in Darkness'); E.attr(c, 'repeating_crewability_-B_check', '1'); };
+  const ana = E.char('Ana', pat), bo = E.char('Bo', quinn), cy = E.char('Cy', ''), dee = E.char('Dee', '');
+  E.party(ana); E.party(bo); E.party(dee, 'string');          // Cy is not in the party
+  E.attr(ana, 'edge_amount', 0); E.attr(ana, 'stress', 3); E.attr(ana, 'repeating_ability_-X_name', 'Cloak');
+  const attrA = E.store.attrs.find(a => a._characterid === ana && a.name === 'edge_amount');
+  const tokA = E.token(ana); E.tok(tokA).bar2_link = attrA.id; E.tok(tokA).bar2_value = '0';
+  const edge = (cid) => E.val(cid, 'edge_amount');
+  const snap = (cid) => JSON.stringify(E.store.attrs.filter(a => a._characterid === cid && a.name !== 'edge_amount').map(a => [a.name, a.current]));
+  const before = snap(ana);
+
+  // the Adjust entry follows the Action module
+  const c1 = crew('Cult'), t1 = E.token(c1), c3 = crew('NoAction', false);
+  E.run('!bitdcrew setup', pat, t1); E.run('!bitdcrew setup', pat, E.token(c3));
+  ok(/Begin score: Edge for the party \(Bound in Darkness\),beginscore/.test(E.abil(c1).find(x => x.name === '6. Adjust').action) && !/beginscore/.test(E.abil(c3).find(x => x.name === '6. Adjust').action), 'Adjust has Begin score only when the Action module is on');
+  ok(queries(E.abil(c1).find(x => x.name === '6. Adjust').action).every(q => q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1)), 'the Adjust prompt is still well formed');
+
+  // the card
+  let o = E.run('!bitdcrew adj beginscore', pat, t1);
+  ok(has(o, /Begin score/) && has(o, /each PC that has not lost favor with your deity gains 1 Edge/) && has(o, /\[All party PCs \+1 Edge\]\(!bitdcrew edge all --c \S+ --idx \S+\)/) && has(o, /\[Ana \+1 Edge\]\(!bitdcrew edge pc --row \S+ --c \S+ --idx \S+\)/) && has(o, /\[Bo \+1 Edge\]/) && has(o, /\[Dee \+1 Edge\]/) && !has(o, /Cy/), 'the card lists All and each party PC, not Cy', o);
+  ok(edge(ana) === '0', 'opening the card changes nothing');
+  const n1 = idxOf(o);
+  o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx ' + n1, pat);
+  ok(edge(ana) === '1' && edge(bo) === '1' && edge(dee) === '1' && edge(cy) === undefined && has(o, /Ana Edge 0 to 1/) && has(o, /Bo Edge 0 to 1/), 'All gives each party PC 1 Edge and leaves Cy alone', o);
+  ok(E.tok(tokA).bar2_value === '1', 'Ana\'s token bar 2 is set explicitly');
+  o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx ' + n1, pat);
+  ok(edge(ana) === '1' && has(o, /Already done/), 'a second All on the same card does nothing');
+  ok(snap(ana) === before, 'no other attribute on the PC sheet was written');
+  // one at a time, then the rest
+  const n2 = idxOf(E.run('!bitdcrew adj beginscore', pat, t1));
+  o = E.run('!bitdcrew edge pc --row ' + ana + ' --c ' + c1 + ' --idx ' + n2, pat);
+  ok(edge(ana) === '2' && has(o, /Ana Edge 1 to 2/) && edge(bo) === '1', 'one PC button gives that PC 1 Edge', o);
+  o = E.run('!bitdcrew edge pc --row ' + ana + ' --c ' + c1 + ' --idx ' + n2, pat); ok(edge(ana) === '2' && has(o, /Already done/), 'the same PC button works once');
+  o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx ' + n2, pat);
+  ok(edge(ana) === '2' && edge(bo) === '2' && edge(dee) === '2' && !has(o, /Ana Edge/), 'All afterwards skips the PC already done', o);
+  const n3 = idxOf(E.run('!bitdcrew adj beginscore', pat, t1));
+  o = E.run('!bitdcrew edge pc --row ' + cy + ' --c ' + c1 + ' --idx ' + n3, pat); ok(edge(cy) === undefined && has(o, /no longer marked as a Party member/), 'a PC not in the party is refused', o);
+  E.attr(ana, 'edge_amount', 99); const n4 = idxOf(E.run('!bitdcrew adj beginscore', pat, t1));
+  E.run('!bitdcrew edge pc --row ' + ana + ' --c ' + c1 + ' --idx ' + n4, pat); ok(edge(ana) === '99', 'Edge stops at 99, the PC script\'s own limit');
+  E.attr(ana, 'edge_amount', 0);
+  // the flow belongs to one crew and one kind
+  o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx nope', pat); ok(has(o, /no longer available/), 'unknown card');
+  const c4 = crew('Other cult'); o = E.run('!bitdcrew edge all --c ' + c4 + ' --idx ' + n1, pat); ok(has(o, /no longer available/), 'another crew cannot use the card');
+  o = E.run('!bitdcrew edge bogus --c ' + c1 + ' --idx ' + idxOf(E.run('!bitdcrew adj beginscore', pat, t1)), pat); ok(has(o, /unknown Edge choice/), 'unknown choice');
+  // permissions
+  o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx ' + n1, quinn); ok(has(o, /only use this on crews you control/), 'a player who does not control the crew is refused');
+  ok(has(E.run('!bitdcrew adj beginscore', gm, t1), /All party PCs/), 'the GM can open the card');
+
+  // refusals say why and change nothing
+  const c2 = crew('Cult2', true, false), t2 = E.token(c2);
+  o = E.run('!bitdcrew adj beginscore', pat, t2); ok(has(o, /Bound in Darkness is not ticked/) && !has(o, /All party/), 'ability not ticked', o);
+  o = E.run('!bitdcrew adj beginscore', pat, E.token(c3)); ok(has(o, /Bound in Darkness is not ticked|Action module.*off/), 'Action module off', o);
+  const c5 = crew('Cult5', false, true); o = E.run('!bitdcrew adj beginscore', pat, E.token(c5)); ok(has(o, /Edge comes from the Deep Cuts Action module, and it is off for this crew/), 'ticked but the Action module is off', o);
+  { const T = table(); const E2 = T.E; const pc = E2.char('Eli', T.pat); const k = E2.crew('Cult6', T.pat); E2.attr(k, 'setting_dc_action', '1'); E2.attr(k, 'repeating_crewability_-B_name', 'Bound in Darkness'); E2.attr(k, 'repeating_crewability_-B_check', '1');
+    let o2 = E2.run('!bitdcrew adj beginscore', T.pat, E2.token(k));
+    ok(has(o2, /no player characters are marked as Party members/) && has(o2, /Nothing was applied/) && E2.val(pc, 'edge_amount') === undefined, 'no party: refused, nothing applied', o2);
+    E2.party(k); o2 = E2.run('!bitdcrew adj beginscore', T.pat, E2.token(k));
+    ok(has(o2, /no player characters are marked as Party members/), 'a crew sheet marked as a party member is not a PC and does not count', o2);
+  }
+
+  // the Fallout card offers to clear Edge when Downtime starts
+  const f1 = crew('Cult7'), tf = E.token(f1);
+  E.attr(ana, 'edge_amount', 2); E.attr(bo, 'edge_amount', 0); E.attr(dee, 'edge_amount', 1); E.tok(tokA).bar2_value = '2';
+  o = E.run('!bitdcrew score 2 0 0 0 0 0 4', pat, tf);
+  ok(has(o, /Edge is lost when Downtime starts \(Deep Cuts, Action\): Ana 2, Dee 1\./) && has(o, /\[Clear Edge for the party\]\(!bitdcrew edge clear --c \S+ --idx \S+\)/) && !has(o, /Bo 0/), 'Fallout lists who holds Edge and offers the button', o.map(x => x.slice(0, 200)));
+  ok(edge(ana) === '2', 'the Score itself clears nothing');
+  const nf = idxOf(o);
+  o = E.run('!bitdcrew edge clear --c ' + f1 + ' --idx ' + nf, pat);
+  ok(edge(ana) === '0' && edge(dee) === '0' && edge(bo) === '0' && has(o, /Ana loses 2 Edge/) && has(o, /Dee loses 1 Edge/) && !has(o, /Bo loses/), 'the button clears every party PC\'s Edge and names them', o);
+  ok(E.tok(tokA).bar2_value === '0', 'the token bar follows');
+  o = E.run('!bitdcrew edge clear --c ' + f1 + ' --idx ' + nf, pat); ok(has(o, /Already done/), 'once per Score');
+  E.attr(ana, 'edge_amount', 1); o = E.run('!bitdcrew edge all --c ' + f1 + ' --idx ' + nf, pat); ok(edge(ana) === '1' && has(o, /no longer available/), 'a Score card cannot be used as a Begin score card'); E.attr(ana, 'edge_amount', 0);
+  // nobody holding Edge at click time: say so, and the button stays usable
+  const f2 = crew('Cult8'), tf2 = E.token(f2); E.attr(ana, 'edge_amount', 1);
+  const nf2 = idxOf(E.run('!bitdcrew score 2 0 0 0 0 0 4', pat, tf2)); E.attr(ana, 'edge_amount', 0);
+  o = E.run('!bitdcrew edge clear --c ' + f2 + ' --idx ' + nf2, pat); ok(has(o, /no party PC has any Edge to clear/), 'nothing to clear: said so', o);
+  E.attr(ana, 'edge_amount', 3); o = E.run('!bitdcrew edge clear --c ' + f2 + ' --idx ' + nf2, pat); ok(edge(ana) === '0' && has(o, /Ana loses 3 Edge/), 'and the button still works afterwards');
+  // no line when nobody has Edge, when the Action module is off, or when it is not a Deep Cuts Score
+  E.attr(ana, 'edge_amount', 0); E.attr(dee, 'edge_amount', 0);
+  ok(!has(E.run('!bitdcrew score 2 0 0 0 0 0 4', pat, E.token(crew('Cult9'))), /Edge is lost|Clear Edge/), 'no Edge line when nobody has Edge');
+  E.attr(ana, 'edge_amount', 2);
+  ok(!has(E.run('!bitdcrew score 2 0 0 0 0 0 4', pat, E.token(crew('NoAct', false))), /Edge/), 'no Edge line when the Action module is off');
+  ok(!has(E.run('!bitdcrew score 2 0 0 0', pat, E.token(E.crew('Core', pat))), /Edge/), 'the core Score card never mentions Edge');
+  { const T = table(); const E2 = T.E; const k = dtCrew(E2, T.pat, 'Lonely', 2); E2.attr(k, 'setting_dc_action', '1');
+    const o2 = E2.run('!bitdcrew score 2 0 0 0 0 0 4', T.pat, E2.token(k));
+    ok(has(o2, /Edge is lost when Downtime starts, but no player characters are marked as Party members/), 'Action on and an empty party: the card says it cannot clear Edge', o2.map(x => x.slice(0, 200))); }
+  ok(snap(ana) === before, 'across all of this, no PC attribute but edge_amount was written');
+  E.flush();
+}
+
 // ---------------------------------------------------------------- T13 the two scripts together
 if (PC_SRC) {
   const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false), quinn = E.player('Quinn', false);
@@ -1022,6 +1225,25 @@ if (PC_SRC) {
   const ALLOWED = /^(heat|wanted|wantedDC|rep|turf|crew_tier|crewcoin|crewcoin_dc|hold|crew_xp|crew_debt_dc|dc_crew_xpclock_[1-4]|repeating_crewclock_.+_progress)$/;
   const seededNames = {}; E.store.attrs.forEach(a => { if (a._characterid === crew && !ALLOWED.test(a.name)) seededNames[a.name] = 1; });
   ok(Object.keys(seededNames).every(k => FIXER_ATTRS.indexOf(k) >= 0 || /^claim_|^repeating_crewability_|^sheet_type$|^setting_dc_downtime$|^stress$|^trauma$/.test(k)), 'the crew script wrote only crew-track attributes', Object.keys(seededNames));
+}
+
+// ---------------------------------------------------------------- T23 Edge written by the crew script is read by the PC script
+if (PC_SRC) {
+  const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false);
+  E.ready();
+  const pc = E.char('Ayla', pat), tp = E.token(pc), crew = dtCrew(E, pat, 'Cult', 2), tc = E.token(crew);
+  E.attr(crew, 'setting_dc_action', '1'); E.attr(crew, 'repeating_crewability_-B_name', 'Bound in Darkness'); E.attr(crew, 'repeating_crewability_-B_check', '1');
+  E.party(pc); E.attr(pc, 'setting_dc_action', '1'); E.run('!bitd setup', pat, tp);
+  const bar2 = E.tok(tp).bar2_link; const attr = E.store.attrs.find(a => a._characterid === pc && a.name === 'edge_amount');
+  ok(attr && bar2 === attr.id, 'the PC script linked bar 2 to edge_amount', [bar2, attr && attr.id]);
+  const n = idxOf(E.run('!bitdcrew adj beginscore', pat, tc));
+  E.run('!bitdcrew edge all --c ' + crew + ' --idx ' + n, pat);
+  ok(E.val(pc, 'edge_amount') === '1' && E.tok(tp).bar2_value === '1', 'the crew script moved the same attribute and the PC script\'s bar', [E.val(pc, 'edge_amount'), E.tok(tp).bar2_value]);
+  const o = E.run('!bitd status', pat, tp);
+  ok(has(o, /Edge 1/), 'the PC script reads it', o.map(x => x.slice(0, 120)));
+  E.run('!bitd adj edge-1', pat, tp);
+  ok(E.val(pc, 'edge_amount') === '0', 'and can spend it');
+  ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error');
 }
 
 // ---------------------------------------------------------------- T14 static checks on the source

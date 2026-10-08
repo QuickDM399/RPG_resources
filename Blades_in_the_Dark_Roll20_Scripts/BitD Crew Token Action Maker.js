@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.2.1
+/* BitD Crew Token Action Maker  v0.3.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -17,11 +17,15 @@
  *     Assess hold, End Downtime with No Traces' +1 Rep), Leverage's +1 Rep on every Rep gain, Misdirection after a Score (half the Rep earned, as the card shows it).
  *   - Party link: !bitdcrew party (GM) lists the characters Roll20 marks as Party members; the Score's PC count can use it.
  *   - !bitdcrew debug on|off (GM) writes the new flows to the API console.
+ *   - Engagement (button 2): a composed roll. Plan type, murder goal (only for crews with Predators or Deadly Focus) and net
+ *     dice are asked; ticked abilities and claims that add or remove engagement dice are counted and listed on the card.
+ *   - Action module: Adjust > Begin score gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
+ *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.2.1';
+  var VERSION = '0.3.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -40,6 +44,34 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   var HEAT_MAX = 9, REP_MAX = 12, TURF_MAX = 6, TIER_MAX = 4, CREW_XP_MAX = 10;
   var FLOW_MAX = 40;
+  // Edge lives on PC sheets (Deep Cuts, Action module); the PC script keeps the same attribute
+  var EDGE_ATTR = 'edge_amount', EDGE_MAX = 99;
+
+  // Engagement roll (core book, The Score): 1d for sheer luck, +1d per major advantage, -1d per major disadvantage,
+  // and the +1d (or -1d) from these abilities and claims. A source counts only when its row or box is ticked.
+  var PLAN_TYPES = ['assault', 'deception', 'stealth', 'occult', 'social', 'transport'];
+  var ENG_SOURCES = [
+    { kind: 'ability', name: 'Door Kickers', plans: ['assault'] },
+    { kind: 'ability', name: 'Second Story', plans: ['stealth'] },
+    { kind: 'ability', name: 'Predators', plans: ['stealth', 'deception'], murder: true },
+    { kind: 'ability', name: 'Deadly Focus', plans: PLAN_TYPES, murder: true },
+    { kind: 'claim', name: 'Ancient Altar', plans: ['occult'] },
+    { kind: 'claim', name: 'Bluecoat Confederates', plans: ['assault'] },
+    { kind: 'claim', name: 'City Records', plans: ['stealth'] },
+    { kind: 'claim', name: 'Cover Identities', plans: ['deception', 'social'] },
+    { kind: 'claim', name: 'Personal Clothier', plans: ['social'] },
+    { kind: 'claim', name: 'Secret Pathways', plans: ['stealth'] },
+    { kind: 'claim', name: 'Secret Routes', plans: ['transport'] },
+    { kind: 'claim', name: 'The Governor', plans: PLAN_TYPES, delta: -1 }
+  ];
+  // Status lines for ticked abilities that change no number the script tracks (wording from the sheet; All Hands is the Deep Cuts text)
+  var STATUS_REMINDERS = [
+    ['Zealotry', 'Zealotry: your cohorts get +1d to rolls against enemies of the faith (add it as Bonus dice on a cohort roll).'],
+    ['Thorn in your Side', 'Thorn in your Side: when you use Stealth or Assault plans against a higher Tier faction, your Tier counts as +1.'],
+    ['Roots', 'Roots: during Downtime one of your contacts or cohorts may take a Downtime action to acquire an asset, reduce Heat, or recover.'],
+    ['All Hands', 'All Hands: during Downtime, one of your cohorts may perform an additional Downtime activity to Acquire or Work.'],
+    ['Like Part of the Family', 'Like Part of the Family: one of your vehicles is a cohort whose quality is equal to your Tier +1.']
+  ];
 
   // glyphs kept as char codes so the source stays plain ASCII
   var G_ON = String.fromCharCode(0x25CF), G_OFF = String.fromCharCode(0x25CB);
@@ -251,6 +283,17 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return listRows(cid, 'crewability', 'name').some(function (r) { return normName(r.value) === want; });
   }
 
+  // the crew's ticked claims as a set of normalized names (a claim name can span lines on the sheet; a translation-key prefix is dropped)
+  function claimsOn(cid) {
+    var on = {};
+    for (var i = 1; i <= 15; i++) {
+      if (!isOn(cid, 'claim_' + i + '_check')) { continue; }
+      var nm = normName(getAttrByName(cid, 'claim_' + i + '_name')).replace(/_/g, ' ').replace(/^claim /, '');
+      if (nm) { on[nm] = true; }
+    }
+    return on;
+  }
+
   // Deep Cuts p88: Slippery makes the effective Wanted level one less than the actual value
   function slipperyOn(cid) { return mods(cid).downtime && crewAbilityOn(cid, 'Slippery'); }
   function effectiveWanted(cid) {
@@ -354,11 +397,13 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       '|Coin +1,coin+1|Coin +2,coin+2|Coin +4,coin+4|Coin -1,coin-1|Coin -2,coin-2|Coin -4,coin-4' +
       '|Tier +1,tier+1|Tier -1,tier-1|Hold: strong,hold-strong|Hold: weak,hold-weak' +
       '|Mark crew XP,xp+1' +
+      (m.action ? '|Begin score: Edge for the party (Bound in Darkness),beginscore' : '') +
       (dt ? '|Assess hold (Downtime rule),holdassess|Reduce Heat: spend 1 Coin,rh-coin|Reduce Heat: spend 1 Rep,rh-rep' +
         '|Debt clock +1,debt+1|Debt clock -1,debt-1|Downtime: Heat and Hold,hh|Downtime: start a new Downtime,dtstart' : '');
-    var engagement = '&{template:blades} {{charname=@{selected|character_name}}} {{type=action}} {{short=short}} ' +
-      '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} ' +
-      '@{selected|numberofdice} {{charimage=@{selected|chat_image}}} @{selected|title_text}';
+    // composed Engagement roll: the answers are asked here because prompts exist only in a token-action macro
+    var engagement = CMD + ' engagement ?{Plan type|Assault,assault|Deception,deception|Stealth,stealth|Occult,occult|Social,social|Transport,transport}' +
+      (hasMurderRow(cid) ? ' ?{Is the goal murder|No,0|Yes,1}' : '') +
+      ' ?{Net dice (advantages minus disadvantages plus PC abilities)|0|1|2|3|4|-1|-2|-3|-4}';
     var fortune = '&{template:blades} {{charname=@{selected|character_name}}} {{type=fortune}} {{subtitle=^{roll}}} ' +
       '{{title-fortune=1}} {{title=^{fortune}}} @{selected|numberofdice} {{notes=@{selected|notes_query}}} ' +
       '{{charimage=@{selected|chat_image}}} @{selected|title_text}';
@@ -618,6 +663,42 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     }
   }
 
+  // ---------------------------------------------------------------- engagement roll
+
+  function hasMurderRow(cid) { return crewAbilityListed(cid, 'Predators') || crewAbilityListed(cid, 'Deadly Focus'); }
+
+  // the ticked abilities and claims that change the engagement roll for this plan
+  function engagementBonuses(cid, plan, murder) {
+    var ab = abilitiesOn(cid), cl = claimsOn(cid), out = [];
+    ENG_SOURCES.forEach(function (src) {
+      var key = normName(src.name);
+      if ((src.kind === 'ability' ? ab[key] : cl[key]) !== true) { return; }
+      if (src.plans.indexOf(plan) < 0) { return; }
+      if (src.murder && !murder) { return; }
+      out.push({ name: src.name, delta: src.delta || 1 });
+    });
+    return out;
+  }
+
+  function doEngagement(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, ask = hasMurderRow(cid), want = ask ? 3 : 2;
+    if (o.pos.length !== want) { whisper(msg, 'BitDCrew: this token action is out of date (an ability was added or removed). Run ~ Rebuild.'); return; }
+    var plan = String(o.pos[0]).toLowerCase(), murderArg = ask ? String(o.pos[1]) : '0', net = parseInt(o.pos[want - 1], 10);
+    if (PLAN_TYPES.indexOf(plan) < 0 || (murderArg !== '0' && murderArg !== '1') || isNaN(net) || net < -4 || net > 4) {
+      whisper(msg, 'BitDCrew: those engagement answers are not valid.'); return;
+    }
+    var bonus = engagementBonuses(cid, plan, murderArg === '1'), pool = 1 + net, parts = ['1 luck'];
+    if (net) { parts.push((net > 0 ? '+' : '-') + Math.abs(net) + ' net dice'); }
+    bonus.forEach(function (b) { pool += b.delta; parts.push((b.delta > 0 ? '+' : '-') + Math.abs(b.delta) + ' ' + b.name); });
+    var line = cap(plan) + ' plan' + (murderArg === '1' ? ' with a murder goal' : '') + ': ' + parts.join(', ') + ' = ' + Math.max(pool, 0) + 'd' +
+      (pool <= 0 ? ' (no dice: roll 2d and keep the lowest)' : '') + '.';
+    dbg('engagement ' + cid + ' ' + line);
+    sendChat('player|' + msg.playerid, '&{template:blades} {{charname=' + clean(t.c.name) + '}} {{type=action}} {{short=short}} ' +
+      '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} {{' + diceField(pool) + '}} ' +
+      '{{notes=' + clean(line) + '}}' + tail(cid, t.c));
+  }
+
   // ---------------------------------------------------------------- abilities and clocks menus
 
   function doAbilities(msg, o) {
@@ -794,6 +875,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
         break;
       case 'hh': doHeatHold(msg, o); break;
       case 'dtstart': doDowntimeStart(msg, t); break;
+      case 'beginscore': doBeginScore(msg, t); break;
       default: whisper(msg, 'BitDCrew: unknown adjustment "' + clean(code) + '".');
     }
   }
@@ -1042,6 +1124,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     } else if (crewAbilityListed(cid, 'Misdirection')) {
       L.push('Misdirection is on the crew sheet but its circle is not ticked, so it is not offered.');
     }
+    // Deep Cuts, Action module: "Any remaining Edge you have is lost when Downtime starts" (p92). A button, never automatic.
+    if (mods(cid).action) {
+      var pcs0 = partyPcs();
+      if (!pcs0.length) {
+        L.push('Edge is lost when Downtime starts, but no player characters are marked as Party members, so it cannot be cleared here.');
+      } else {
+        var holders = pcs0.filter(function (pc) { return edgeOf(pc.id) > 0; });
+        if (holders.length) {
+          L.push('Edge is lost when Downtime starts (Deep Cuts, Action): ' + holders.map(function (pc) { return btn(pc.get('name')) + ' ' + edgeOf(pc.id); }).join(', ') + '.');
+          L.push('[Clear Edge for the party](' + CMD + ' edge clear --c ' + cid + ' --idx ' + nonce + ')');
+        }
+      }
+    }
     var pick = function (code, label) { return '[' + label + '](' + CMD + ' seized ' + code + ' --c ' + cid + ' --idx ' + nonce + ')'; };
     L.push('Seized assets? Pick one:');
     L.push([pick('none', 'No seized assets'), pick('cash', 'Seized load of cash +4 Coin'), pick('fence2', 'Fence valuables for 2 Coin'),
@@ -1149,6 +1244,93 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     }
   }
 
+  // ---------------------------------------------------------------- Edge for the party (Action module)
+  // Writes only edge_amount on PC sheets and the token bars linked to it, only on a button click.
+
+  function partyPcs() {
+    return partyCharacters().filter(function (c) { return getAttr(c.id, 'sheet_type', 'character') === 'character'; });
+  }
+  function edgeOf(pcId) { return getNum(pcId, EDGE_ATTR, 0); }
+
+  // a linked token bar is not refreshed by an API write, so every bar 2 linked to edge_amount is set to the value
+  function syncEdgeBars(pcId) {
+    var a = findObjs({ _type: 'attribute', _characterid: pcId, name: EDGE_ATTR })[0];
+    if (!a) { return; }
+    findObjs({ _type: 'graphic', represents: pcId }).forEach(function (g) {
+      if (g.get('bar2_link') !== a.id) { return; }
+      var cur = String(a.get('current'));
+      if (String(g.get('bar2_value')) !== cur) { g.set('bar2_value', cur); }
+    });
+  }
+  function setEdgeOf(pcId, n) {
+    n = clamp(n, 0, EDGE_MAX);
+    setAttr(pcId, EDGE_ATTR, n);
+    syncEdgeBars(pcId);
+    setTimeout(function () { syncEdgeBars(pcId); }, 1500);
+    return n;
+  }
+
+  // Deep Cuts, Action module, Bound in Darkness: "When you begin a score, each PC that has not lost favor with your deity gains 1 Edge."
+  function doBeginScore(msg, t) {
+    var cid = t.ch.id;
+    if (!mods(cid).action) { whisper(msg, 'BitDCrew: Edge comes from the Deep Cuts Action module, and it is off for this crew.'); return; }
+    if (!crewAbilityOn(cid, 'Bound in Darkness')) {
+      whisper(msg, 'BitDCrew: Bound in Darkness is not ticked on this crew sheet, so there is no Edge to hand out at the start of a score.'); return;
+    }
+    var pcs = partyPcs();
+    if (!pcs.length) {
+      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody to give Edge to. Mark them in Roll20 (Edit character, Party member). Nothing was applied.');
+      return;
+    }
+    var nonce = newFlow(cid, { kind: 'edge' }), L = [];
+    L.push('Bound in Darkness: when you begin a score, each PC that has not lost favor with your deity gains 1 Edge.');
+    L.push('[All party PCs +1 Edge](' + CMD + ' edge all --c ' + cid + ' --idx ' + nonce + ')');
+    L.push('Or one at a time, if someone lost favor: ' + pcs.map(function (pc) {
+      return '[' + btn(pc.get('name')) + ' +1 Edge](' + CMD + ' edge pc --row ' + pc.id + ' --c ' + cid + ' --idx ' + nonce + ')';
+    }).join(' '));
+    whisper(msg, broadcast(t.c, { type: 'Action', title: 'Begin score', content: L.join(NL) }));
+  }
+
+  function doEdge(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, code = String(o.pos[0] || ''), L = [];
+    if (code === 'clear') {
+      var sc = flowFor(msg, t, o, 'edgeclear'); if (!sc) { return; }
+      partyPcs().forEach(function (pc) {
+        var had = edgeOf(pc.id);
+        if (had > 0) { setEdgeOf(pc.id, 0); L.push(btn(pc.get('name')) + ' loses ' + had + ' Edge.'); }
+      });
+      if (!L.length) { sc.done.edgeclear = false; whisper(msg, 'BitDCrew: no party PC has any Edge to clear.'); return; }
+      L.push('Edge is lost when Downtime starts (Deep Cuts, Action).');
+      whisper(msg, broadcast(t.c, { type: 'Edge', title: 'Edge cleared', content: L.join(NL) }));
+      return;
+    }
+    var flow = o.idx ? botState().flows[o.idx] : null;
+    if (!flow || flow.cid !== cid || flow.kind !== 'edge') { whisper(msg, 'BitDCrew: that Begin score card is no longer available. Run Adjust, Begin score again.'); return; }
+    var pcs = partyPcs();
+    if (code === 'all') {
+      pcs.forEach(function (pc) {
+        var step = 'pc:' + pc.id;
+        if (flow.done[step]) { return; }
+        flow.done[step] = true;
+        var before = edgeOf(pc.id), after = setEdgeOf(pc.id, before + 1);
+        L.push(btn(pc.get('name')) + ' Edge ' + before + ' to ' + after + '.');
+      });
+      if (!L.length) { note(msg, t.c, 'Edge', 'Already done', 'Everyone on this card already has their Edge.'); return; }
+    } else if (code === 'pc') {
+      var pc1 = pcs.filter(function (c) { return c.id === o.row; })[0];
+      if (!pc1) { whisper(msg, 'BitDCrew: that character is no longer marked as a Party member.'); return; }
+      var step1 = 'pc:' + pc1.id;
+      if (flow.done[step1]) { note(msg, t.c, 'Edge', 'Already done', btn(pc1.get('name')) + ' already got Edge from this card.'); return; }
+      flow.done[step1] = true;
+      var b1 = edgeOf(pc1.id), a1 = setEdgeOf(pc1.id, b1 + 1);
+      L.push(btn(pc1.get('name')) + ' Edge ' + b1 + ' to ' + a1 + '.');
+    } else {
+      whisper(msg, 'BitDCrew: unknown Edge choice.'); return;
+    }
+    whisper(msg, broadcast(t.c, { type: 'Edge', title: 'Edge gained', content: L.join(NL) }));
+  }
+
   // ---------------------------------------------------------------- status
 
   function doStatus(msg, o) {
@@ -1172,6 +1354,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (abilitiesOn(cid)['just passing through'] === true) {
       L.push('Just Passing Through: +1d to pass yourselves off as ordinary citizens while Heat is 4 or less (' + (heat <= 4 ? 'active now' : 'not active, Heat is ' + heat) + ').');
     }
+    var on = abilitiesOn(cid);
+    STATUS_REMINDERS.forEach(function (r) { if (on[normName(r[0])] === true) { L.push(r[1]); } });
     if (dt && openDowntime(cid)) { L.push('Downtime is open. [Heat and Hold](' + CMD + ' hh --c ' + cid + ')'); }
     var tr = coinTrack(cid);
     L.push('Coin ' + getNum(cid, tr.attr, 0) + ' (the crew can hold ' + coinCapacity(cid) + ')');
@@ -1230,6 +1414,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     switch (o.verb) {
       case 'setup': case 'rebuild': return doSetup(msg, o);
       case 'roll': return doRoll(msg, o);
+      case 'engagement': return doEngagement(msg, o);
       case 'abilities': return doAbilities(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
@@ -1239,6 +1424,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'tithe': return doTithe(msg, o);
       case 'deposit': return doDeposit(msg, o);
       case 'misdirect': return doMisdirect(msg, o);
+      case 'edge': return doEdge(msg, o);
       case 'hh': return doHeatHold(msg, o);
       case 'hhact': return doHhAct(msg, o);
       case 'party': return doParty(msg, o);

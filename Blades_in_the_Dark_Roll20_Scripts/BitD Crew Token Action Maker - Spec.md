@@ -1,8 +1,8 @@
-# BitD Crew Token Action Maker - Spec (v0.2.1)
+# BitD Crew Token Action Maker - Spec (v0.3.0)
 
 Roll20 API script that builds token actions for **crew sheets** of the Evil Hat "Blades in the Dark" sheet v3.11, the companion of `BitD Token Action Maker.js` (player characters). Game 22049328, Mod Sandbox v1.5. Deep Cuts modules are per crew (`setting_dc_*`), read at click time.
 
-Status: v0.2.1 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
+Status: v0.3.0 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
 
 ## 1. Scope
 
@@ -18,13 +18,13 @@ Status: v0.2.1 built and tested against a mock API only. **Nothing here has been
 | Button | What it does |
 |---|---|
 | `1. Roll` | Prompts: Roll (Tier, Entanglement [core only], one entry per cohort), Bonus dice. Script composes the sheet's `blades` card. Pools: Tier = `crew_tier`; Entanglement = Wanted track; cohort = `crew_tier` minus `impaired`, plus 1 if `elite` or `expert` (sheet rule `calculateCohortDice`). Pool 0 or less = 2d6, take the lowest. |
-| `2. Engagement` | The sheet's own Engagement macro (number-of-dice prompt). |
+| `2. Engagement` | Composed roll. Prompts: Plan type (six), Is the goal murder (only when the crew sheet has a Predators or Deadly Focus row), Net dice (-4 to +4). The script adds the ticked abilities and claims that apply (R16), posts the sheet's own engagement card and lists the arithmetic in its notes line. The sheet's own Engagement button is untouched. |
 | `3. Fortune` | The sheet's own crew Fortune macro. |
 | `4. Score` | Core: 5 prompts, applies Heat. Deep Cuts: 7 prompts (the last is the PC count: "All party members" or 1 to 8), applies Heat and Rep, starts a Downtime, walks the Payoff with buttons, then offers Heat and Hold. |
 | `5. Abilities` | Ticked crew abilities only, each a button running the sheet's own `Show` card. |
-| `6. Adjust` | Heat, Wanted, Incarceration, Rep, Turf, Coin, Tier, Hold, Mark crew XP; with Downtime on also Assess hold, Reduce Heat (Coin or Rep), Debt clock, **Downtime: Heat and Hold** and **Downtime: start a new Downtime**. |
+| `6. Adjust` | Heat, Wanted, Incarceration, Rep, Turf, Coin, Tier, Hold, Mark crew XP; with Downtime on also Assess hold, Reduce Heat (Coin or Rep), Debt clock, **Downtime: Heat and Hold** and **Downtime: start a new Downtime**; with the Action module on also **Begin score: Edge for the party (Bound in Darkness)** (R18). |
 | `7. Clocks` | Menu of named crew clocks with -1, +1 and the sheet's Show button. |
-| `8. Status` | Heat, Wanted, Rep, Turf, Tier, Hold, Coin and vault room, XP or advancement clocks, Debt clock, crew clocks, cohorts. |
+| `8. Status` | Heat, Wanted, Rep, Turf, Tier, Hold, Coin and vault room, XP or advancement clocks, Debt clock, crew clocks, cohorts, and one reminder line for each ticked ability with no number to change (R17). |
 | `~ Rebuild` | `!bitdcrew setup` on the selected tokens; GM any crew, players only crews they control. Links token bar 1 to `heat` (max 9, shown to and editable by players). |
 
 Token action text depends on the crew's modules and cohorts at Rebuild time. A stale Score action (answer count does not match the module) is refused with "Run ~ Rebuild". Cohort names are copied at Rebuild (commas and brackets removed).
@@ -54,16 +54,20 @@ Token action text depends on the crew's modules and cohorts at Rebuild time. A s
 | R8 | With Downtime on: ticked **No Traces** takes 1 off the score's Heat; ticked **Slippery** shows effective Wanted one lower (and uses it for the Bluecoats line). | DC p88. |
 | R9 | Wanted track: `wanted` (0-4); `wantedDC` (0-5) when the crew's 5th Wanted box setting is on (the user adds it for crews with Slippery). | DC p88 ("and may go up to 5"); sheet markup. |
 | R10 | Crew XP: `crew_xp` (0-10), or with Advancement on the first unfilled of four clocks `dc_crew_xpclock_1..4` (size `dc_xp_clocksize`). | DC p78. |
+| R16 | **Engagement roll**: a Fortune-style roll of 1d for sheer luck, +1d per net Major Advantage (the table decides the book's list and gives one number, -4 to +4), plus these when ticked. Abilities: Door Kickers (assault), Second Story (stealth; user confirmed the reading), Predators (stealth or deception **and** a murder goal; user confirmed "stealth and deception"), Deadly Focus (any plan **and** a murder goal; River crew, sheet text only). Claims: Ancient Altar (occult), Bluecoat Confederates (assault), City Records (stealth), Cover Identities (deception and **social**, following the core book; the sheet says transport), Personal Clothier (social), Secret Pathways (stealth), Secret Routes (transport), The Governor (-1d on every plan; River crew, sheet text only). A pool of 0 or less rolls 2d and keeps the lowest. The answers are validated, and a macro with the wrong number of answers says "Run ~ Rebuild" and rolls nothing. | Core book, The Score, Engagement Roll (1d for sheer luck; +1d per Major Advantage; -1d per Major Disadvantage; the six plan types) and the ability and claim text in the core book and on the sheet. |
+| R17 | **Status reminders** for ticked abilities that change no tracked number: Zealotry, Thorn in your Side, Roots, All Hands (Deep Cuts wording), Like Part of the Family. Text only. | Sheet text; All Hands from Deep Cuts. |
+| R18 | **Begin score (Edge)**: Adjust entry, shown when the crew's Action module is on and refused unless Bound in Darkness is ticked. The card has **All party PCs +1 Edge** and one button per Party player character, once per PC per card (the table decides who "has not lost favor"). Writes `edge_amount` (0 to 99) on the PC sheet and sets any token bar 2 linked to it. Refuses, applying nothing, when no player character is marked as a Party member. The party is the game-wide Roll20 Party flag (user confirmed). | DC Action module, Bound in Darkness: "When you begin a score, each PC that has not lost favor with your deity gains 1 Edge." |
+| R19 | **Clear Edge**: with the Action module on, the Fallout card names the Party PCs who hold Edge and offers **Clear Edge for the party**, once per Score. A button, never automatic. When Action is on and nobody is marked as a Party member, the card says Edge cannot be cleared here. | DC p92: "Any remaining Edge you have is lost when Downtime starts." |
 
 Judgement calls made without a book sentence: rounding Rep down; applying Heat to the track again for each extra fill; single choice for seized assets (cash or one fenced amount); a tithe that is not paid just moves on (the book says ask the GM about debt, a favor or lost patience); Deep Cuts' bank rules are shown as a reminder only.
 
 ## 4. Command grammar
 
-`!bitdcrew <verb> [args] [--c <charId>] [--row <rowId>] [--idx <flowId>] [--n <step>]`. Verbs: `setup`, `roll`, `abilities`, `clocks`, `clock`, `adj`, `score`, `seized`, `tithe`, `deposit`, `misdirect`, `hh`, `hhact`, `status`, and two GM tools, `party` and `debug on|off`. The character comes from `--c`, else the first selected token. GM: any crew. Player: only crews whose `controlledby` includes them or `all`. All numeric writes are clamped to the sheet's range. Payoff buttons carry a flow id kept in `state.BitDCrewTAM.flows` (last 40); each step applies once.
+`!bitdcrew <verb> [args] [--c <charId>] [--row <rowId>] [--idx <flowId>] [--n <step>]`. Verbs: `setup`, `roll`, `abilities`, `clocks`, `clock`, `adj`, `score`, `seized`, `tithe`, `deposit`, `misdirect`, `engagement`, `edge`, `hh`, `hhact`, `status`, and two GM tools, `party` and `debug on|off`. The character comes from `--c`, else the first selected token. GM: any crew. Player: only crews whose `controlledby` includes them or `all`. All numeric writes are clamped to the sheet's range. Payoff buttons carry a flow id kept in `state.BitDCrewTAM.flows` (last 40); each step applies once.
 
 ## 4b. Party link (probe only)
 
-Roll20's "Party member" flag is read as the character's `tags` containing `_roll20_internal_party_tag_` (array, JSON text or plain text). This comes from a Roll20 forum thread; **it has not been checked against the live game**. `!bitdcrew party` (GM only) lists the party members the script sees, with their sheet types, and the raw tags it can read, so it can be verified first. The only current use is the Score's "All party members" PC count. Planned for later (not built): the crew sheet marked as a party member is the active crew, and its bonuses apply to the party's player characters.
+Roll20's "Party member" flag is read as the character's `tags` containing `_roll20_internal_party_tag_` (array, JSON text or plain text). This comes from a Roll20 forum thread; **it has not been checked against the live game**. `!bitdcrew party` (GM only) lists the party members the script sees, with their sheet types, and the raw tags it can read, so it can be verified first. It passed in the live game. Uses: the Score's "All party members" PC count, and the Edge cards (R18, R19), which act on the Party's player characters (sheet type `character`; a crew sheet marked as a party member does not count as a PC).
 
 ## 5. Coexistence with `BitD Token Action Maker.js`
 
@@ -76,15 +80,15 @@ Roll20's "Party member" flag is read as the character's `tags` containing `_roll
 | Global macro | `BLADES_TAM` | `CREW_TAM` |
 | Sheets | `character` | `crew` |
 
-The PC script's text fixer owns `upgrade_vault_description`, the four training upgrade descriptions, the Mastery description, the Informants claim description and seven crew ability descriptions. The crew script never writes any `*_description`, `claim_N_desc` or `claim_N_name`, and the tests check that on a crew sheet. Both scripts react to `change:attribute:current` and bar events; each acts only on its own attribute (`stress` or `heat`) and sheet type.
+The PC script's text fixer owns `upgrade_vault_description`, the four training upgrade descriptions, the Mastery description, the Informants claim description and seven crew ability descriptions. The crew script never writes any `*_description`, `claim_N_desc` or `claim_N_name`, and the tests check that on a crew sheet. On PC sheets it writes only `edge_amount` (and token bar 2 when linked to it), only on a button click; the PC script owns the sync of that bar for browser edits and reads the same attribute. Both scripts react to `change:attribute:current` and bar events; each acts only on its own attribute (`stress` or `heat`) and sheet type.
 
 ## 6. Sheet facts used (verified against `blades.html` v3.11)
 
-`heat` 0-9, `wanted` 0-4, `wantedDC` 0-5, `setting_wanted_5th`, `rep` 0-12, `turf` 0-6, `hold` weak/strong, `crew_tier` 0-4 (a checkbox group acting as a radio), `crew_xp` 0-10, `dc_crew_xpclock_1..4`, `dc_xp_clocksize`, `crewcoin` 0-16 and `crewcoin_dc` 0-24 (module-dependent; the sheet copies between them only when the toggle changes), `crew_debt_dc` and `crew_debt_dc_max`, `upgrade_vault_check_1/2`, repeating `crewability` (`name`, `check`, `Show`), `crewclock` (`name`, `size`, `progress`, `Show`), `cohort` and `cohort1_*` (`name`, `type`, `subtype`, `verb`, `impaired`). Roll templates `blades` and `bitd-broadcast`; translation keys used are checked against `translation.json` by the tests.
+Claims: `claim_1..15_name` and `claim_1..15_check` (names can span lines; the sheet's translation keys are `claim_<name>`). PC sheets: `edge_amount`, `sheet_type`. `heat` 0-9, `wanted` 0-4, `wantedDC` 0-5, `setting_wanted_5th`, `rep` 0-12, `turf` 0-6, `hold` weak/strong, `crew_tier` 0-4 (a checkbox group acting as a radio), `crew_xp` 0-10, `dc_crew_xpclock_1..4`, `dc_xp_clocksize`, `crewcoin` 0-16 and `crewcoin_dc` 0-24 (module-dependent; the sheet copies between them only when the toggle changes), `crew_debt_dc` and `crew_debt_dc_max`, `upgrade_vault_check_1/2`, repeating `crewability` (`name`, `check`, `Show`), `crewclock` (`name`, `size`, `progress`, `Show`), `cohort` and `cohort1_*` (`name`, `type`, `subtype`, `verb`, `impaired`). Roll templates `blades` and `bitd-broadcast`; translation keys used are checked against `translation.json` by the tests.
 
 ## 7. Files and how to run the tests
 
 - `BitD Crew Token Action Maker.js` - the script (ES5, one IIFE, ASCII only).
 - `crew_mock_test.js` - `node crew_mock_test.js "BitD Crew Token Action Maker.js" translation.json "BitD Token Action Maker.js"` (the third argument loads the PC script too for the coexistence tests).
-- `crew_mutation_check.js` - same arguments; breaks the script in 73 places and requires the tests to fail each time.
+- `crew_mutation_check.js` - same arguments; breaks the script in 116 places and requires the tests to fail each time.
 - `Crew Live Test Plan.md` - what to click in the live game.

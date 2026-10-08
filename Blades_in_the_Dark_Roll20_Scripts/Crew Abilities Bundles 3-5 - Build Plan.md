@@ -1,6 +1,29 @@
-# Crew Abilities, Bundles 3 to 5: Build Plan (proposal, nothing built)
+# Crew Abilities, Bundles 3 to 5: Build Plan (v0.3.0)
 
-Status: **proposal for approval.** No code has been written for anything below. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the text now on your sheet, and each row says which. Where I am inferring, the row says so.
+**Status: approved with changes, then built as v0.3.0 (mock tested; nothing run in the live game).** Section 0 records the answers. Where the proposal below differs from section 0, section 0 wins.
+
+## 0. Answers and what was built
+
+| Decision | Answer | In v0.3.0 |
+|---|---|---|
+| 1. Engagement prompts | 3 prompts | Plan type, murder goal (only when a Predators or Deadly Focus row exists), net dice |
+| 2. Claims in Engagement | Yes; Cover Identities follows the book (social) | All seven claims counted, Cover Identities on deception and social |
+| 3. River crew items | "Do them" | Deadly Focus (+1d with a murder goal, any plan) and The Governor (-1d, any plan) counted |
+| 4. Bundle 4 | Do not code The Good Stuff, Favors, As Good as Your Word, Hooked or Pack Rats (Pack Rats stays as the Deep Cuts text on the sheet) | Only item c, the Status reminders, was built: it was on my recommended list and not on your exclusion list. Say if you want it removed |
+| 5. Bundle 5 | Yes to Begin score, Clear Edge as a button, and the game-wide Party flag as "the party" | Built as proposed (R18, R19) |
+| 6. Bundle 6 | Yes, plan it next | See `Crew Abilities Bundle 6 - Claims Build Plan.md`. Not built |
+
+Rulings you gave: Second Story means a stealth plan; Predators means a stealth or deception plan with a murder goal; claims that reduce Heat still apply under Deep Cuts.
+
+**Not built, as decided:** The Good Stuff, Pack Rats, Hooked, Favors, As Good as Your Word, Forged in the Fire (enter +1 in each PC's Resistance bonus boxes), Conviction, Anointed, Blood Brothers, Synchronized, the rating bumps.
+
+The proposal as first written follows.
+
+---
+
+# Proposal (as written before the answers)
+
+Status at that time: proposal for approval. No code had been written for anything below. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the text now on your sheet, and each row says which. Where I am inferring, the row says so.
 
 Scope assumption carried over from Bundles 1 and 2: every new feature is Deep Cuts Downtime-on or Action-on only where the rule needs that module. The Engagement roll is a core rule, so it works on any crew.
 

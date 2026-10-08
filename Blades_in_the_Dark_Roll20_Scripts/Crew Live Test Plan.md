@@ -169,10 +169,38 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 **Pass:** Leverage: "Rep +2 ... Leverage: +1 Rep" and the sheet's Rep rises by 3; the final summary says Rep +3; a manual Adjust Rep +1 adds only 1. Misdirection: Rep +5 earned offers "give up 2 Rep" (half, rounded down); the click lowers Rep by 2 and tells you to name the faction; the second click says "Already done". With Leverage too the gain is 6 and the offer is 3. Start the same Score with Rep at 11 or 12: the offer is still 2, and the final summary says "Rep +5 earned, N fit on the track". An earn of 1 shows "Misdirection is not offered" with the reason. Unticking the row shows "on the crew sheet but its circle is not ticked". A crew without the row hears nothing about it.
 **Known fail states:** Leverage on a Rep gain of 0; the offer shrinking when the track is nearly full; a missing offer with no reason on the card.
 
-## L20 Clean up
+## L20 Composed Engagement roll (crews B, C and D, then E)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities you ticked for L18 and L19, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Steps:** run `~ Rebuild` on each crew first, because `2. Engagement` is now a script macro with prompts. Compare one roll with the sheet's own Engagement button on the same crew to confirm the card looks the same.
+- **Bravos (B):** tick the Door Kickers ability, and the Bluecoat Confederates claim if the sheet lists it. Run `2. Engagement`: Assault, Net dice 0. Then Stealth, then Assault with Net dice +1.
+- **Assassins (C):** tick Predators. After the Rebuild there is an extra prompt, "Is the goal murder". Try Stealth with Yes, Stealth with No, Deception with Yes, and Assault with Yes. Tick City Records and Cover Identities if listed and try Stealth, Social and Transport without a murder goal.
+- **Shadows (D):** tick Second Story and Secret Pathways. Run Stealth (both apply), then Assault. Run Stealth with Net dice -4.
+- **Stale macro:** on a crew whose `2. Engagement` was built before it had a Predators or Deadly Focus row, add that row (do not rebuild) and run `2. Engagement`.
+**Pass:** the dice counts are Bravos Assault 2 (3 with the claim ticked), Stealth 1; Assassins Stealth with Yes 2, No 1, Deception with Yes 2, Assault with Yes 1; Shadows Stealth 3, Assault 1, Net dice -4 shows the sheet's two-dice "lowest" layout. Each card is public, shows the crew name and image, uses the sheet's engagement title and position text, and the notes line reads like "Stealth plan: 1 luck, +1 Second Story, +1 Secret Pathways = 3d." A stale macro says "Run ~ Rebuild" and rolls nothing.
+**Known fail states:** the card shows no position text (the template needs a field I did not pass), the notes line missing, the prompts in the wrong order, the murder prompt missing after a Rebuild, a claim not counted (the claim name on the sheet differs from the one in the script: send me the exact text of the claim box), Cover Identities counting for Transport.
+
+## L21 Status reminders (any crew; add rows by hand)
+
+**Steps:** on a spare crew add ability rows named Zealotry, Thorn in your Side, Roots, All Hands and Like Part of the Family, tick them, and run `8. Status`. Untick one and run it again.
+**Pass:** one plain line per ticked ability, none for the unticked one, nothing on a crew without them.
+**Known fail states:** a line missing because the row name differs from the script's (tell me the exact text), a line for an unticked row.
+
+## L22 Begin score and Clear Edge (crew E with the Action module on; two or three player characters)
+
+**Setup:** tick **Bound in Darkness** on crew E. Mark two of your player characters as Party members and leave one unmarked. Run `!bitd setup` on the PCs' tokens so bar 2 is linked to Edge. Write down each PC's Edge. Run `~ Rebuild` on crew E.
+**Steps:**
+1. `6. Adjust` now lists "Begin score: Edge for the party (Bound in Darkness)". Run it.
+2. Click **All party PCs +1 Edge**. Then click it again.
+3. Run Begin score again. Click one PC's button, then that button again, then **All party PCs**.
+4. Untick Bound in Darkness and run it again. Switch the Action module off on the crew sheet, `~ Rebuild`, and check the entry is gone.
+5. Re-tick and re-enable, `~ Rebuild`, give a party PC some Edge, and run a Deep Cuts `4. Score` (answer the prompts, "All party members" for the PCs). Read the Fallout card. Click **Clear Edge for the party**, then click it again.
+**Pass:** step 2: each marked PC gains 1 Edge and the unmarked PC gains none; the PC's sheet and token bar 2 change at once (the bar may catch up within two seconds); the second click says "Already done". Step 3: that PC gets 1 only once, and **All** skips them. Step 4: "Bound in Darkness is not ticked" with nothing applied; no entry once Action is off. Step 5: the Fallout card says who holds Edge and offers the button; clicking it sets every party PC's Edge to 0 (sheet and bar), names who lost how much, and the second click says "Already done". With no PC marked as a Party member, Begin score says so and applies nothing.
+**Known fail states:** the sheet's Edge box not updating while the attribute changes (tell me), the bar not updating, Edge written to the unmarked PC, a player who does not control the crew able to click, the PC script's own Edge actions broken afterwards (spend one with `!bitd` and check).
+
+## L23 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L22, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 
-Token-action prompt wording and order in a real Roll20 query; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; **whether the script can read Roll20's Party member flag at all** (L16), which comes from a forum report; the Heat and Hold card arriving after the Deposit;  whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).
+Token-action prompt wording and order in a real Roll20 query (including the new Engagement and Adjust prompts); whether the composed Engagement card shows the sheet's position text and the notes line; that the PC sheet's Edge box follows an API write to `edge_amount`; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; **whether the script can read Roll20's Party member flag at all** (L16), which comes from a forum report; the Heat and Hold card arriving after the Deposit;  whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).
