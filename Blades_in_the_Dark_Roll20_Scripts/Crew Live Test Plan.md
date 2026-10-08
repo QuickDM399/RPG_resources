@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.2.1
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.4.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.2.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.4.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.2.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.4.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -197,9 +197,45 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 **Pass:** step 2: each marked PC gains 1 Edge and the unmarked PC gains none; the PC's sheet and token bar 2 change at once (the bar may catch up within two seconds); the second click says "Already done". Step 3: that PC gets 1 only once, and **All** skips them. Step 4: "Bound in Darkness is not ticked" with nothing applied; no entry once Action is off. Step 5: the Fallout card says who holds Edge and offers the button; clicking it sets every party PC's Edge to 0 (sheet and bar), names who lost how much, and the second click says "Already done". With no PC marked as a Party member, Begin score says so and applies nothing.
 **Known fail states:** the sheet's Edge box not updating while the attribute changes (tell me), the bar not updating, Edge written to the unmarked PC, a player who does not control the crew able to click, the PC script's own Edge actions broken afterwards (spend one with `!bitd` and check).
 
-## L23 Clean up
+## L23 Heat claims and Rep claims (Score)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L22, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** tick **Cover Operation** on a Hawkers, Assassins or Smugglers crew (a Deep Cuts crew, for example E), and **Victim Trophies** on an Assassins crew. `~ Rebuild`.
+**Steps:**
+1. Run `4. Score`: standard operation (base 2) at Tier 2, no other answers. Read the Fallout card. Then repeat with the claim unticked.
+2. Tick a second claim of the same kind (Bluecoat Intimidation) and repeat. Then run a smooth operation (base 0) at Tier 0.
+3. With Victim Trophies ticked, repeat step 1. Add Leverage and repeat.
+4. On a core crew (Downtime off) with Cover Operation ticked, run `4. Score` with exposure 4.
+5. Run `8. Status` on each.
+**Pass:** step 1: with the claim "Heat +2 (base 2, crew Tier +2, Cover Operation -2)" and Rep +1; without it Heat +4 and Rep +2. Step 2: two claims take Heat to 0 and the Rep line says +0; a smooth operation at Tier 0 shows no claim line. Step 3 (with Cover Operation unticked, so Heat is 4): "Rep +3 (1 per 2 Heat, Victim Trophies +1)", and with Leverage the Rep rises by 4 in total (Leverage once). Step 4: "Heat +2 (exposure 4, Cover Operation -2)". Step 5: a "Claims the script counts" line naming each.
+**Known fail states:** a claim not counted (send me the exact text in the claim's box on the sheet), the claim counted when unticked, Rep not following the reduced Heat, Leverage counted twice.
+
+## L24 Claims that are buttons: Publicity, Doskvol's Most Wanted, the +2 Coin claims
+
+**Setup:** on a Deep Cuts crew tick Publicity and Doskvol's Most Wanted (Vigilantes), or Envoy and Surplus Caches (Assassins, Hawkers), or Fixer, Local Graft, Loyal Fence. If the crew lacks the claim, tick any claim box and type the name. `~ Rebuild`.
+**Steps:**
+1. Run `4. Score` and read the Fallout card. Click a Rep button, then click it again. If you have Leverage ticked, check the Rep.
+2. Run another Score. Click a Coin button (Envoy), then another (Surplus Caches), then **No seized assets**. Read the Payoff card and the tithe.
+3. Click a Coin button after the seized step.
+**Pass:** the card says "Claims that apply only to some scores" and lists a button only for each ticked claim. Rep +2, once, not boosted by Leverage. Coin: "The Payoff is now N Coin", and Earned and the tithe include it. After the seized step: "the seized assets step is already done".
+**Known fail states:** a button label cut off (they are limited to 60 characters), a missing button for a ticked claim, Leverage adding to claim Rep.
+
+## L25 Claim income in Heat and Hold (Deep Cuts crew, claims Vice Den, Drug Den, Protection Racket and so on)
+
+**Setup:** tick one or two income claims. Set Heat to a known number. `~ Rebuild` is not needed. Open Heat and Hold (`6. Adjust` > Downtime: Heat and Hold).
+**Steps:**
+1. Read the card: there should be a "Claim income" line with a button for each ticked claim.
+2. Click one. A dice card appears in the public chat, then (a moment later) a whisper reads the result.
+3. Click **Add N Coin to the crew**, then click it again.
+4. Click the same income button again. Click the second claim with Heat higher than the die.
+5. Start a new Downtime (Adjust) and open the card.
+6. On a Tier 0 crew with a claim, roll once.
+7. If you can, click an income button and watch that the whisper arrives within a few seconds.
+**Pass:** the dice card has Tier dice (two dice at Tier 0), a notes line like "Vice Den income: 2 dice, highest die minus your Heat 1.", and the whisper reads "Highest die 5, minus Heat 1 = 4 Coin." The button adds the Coin up to the vault room (the rest is reported as not fitting), once. The same claim says "Already done" until a new Downtime. A die at or below the Heat gives 0 and no button. Tier 0 says "no dice, 2d keep the lowest" and uses the lower die.
+**Known fail states:** no whisper after the dice (then after about 20 seconds the script should say it could not read the roll; send me that console line, because the dice reading uses the same method as the Entanglement roll), the Coin added twice, the Coin ignoring the vault limit, Heat taken at the wrong time.
+
+## L26 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

@@ -1012,10 +1012,9 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(/Stealth plan with a murder goal: 1 luck, \+1 Predators = 2d/.test(eng(pr, 'stealth 1 0').notes), 'the card says the goal is murder', eng(pr, 'stealth 1 0').notes);
   const unp = mk('Assassins3'); E.attr(unp, 'repeating_crewability_-P_name', 'Predators'); E.attr(unp, 'repeating_crewability_-P_check', '0');
   ok(eng(unp, 'stealth 1 0').n === 1, 'an unticked Predators adds nothing (but the murder question is still asked)');
+  // River items are not automated (user: hold on anything River)
   const df = mk('River'); abil(df, ['Deadly Focus']);
-  ok(eng(df, 'social 1 0').n === 2 && eng(df, 'transport 1 0').n === 2 && eng(df, 'social 0 0').n === 1, 'Deadly Focus: any plan, with a murder goal');
-  const both = mk('Both'); abil(both, ['Predators', 'Deadly Focus']);
-  ok(eng(both, 'stealth 1 0').n === 3 && eng(both, 'stealth 0 0').n === 1, 'Predators and Deadly Focus stack');
+  ok(queries(act(df, '2. Engagement')).length === 2 && eng(df, 'social 0').n === 1 && eng(df, 'stealth 0').n === 1, 'Deadly Focus: no murder prompt and no bonus');
 
   // claims: every claim at its plan(s), nothing elsewhere
   const CLAIMS = { 'Ancient Altar': ['occult'], 'Bluecoat Confederates': ['assault'], 'City Records': ['stealth'], 'Cover Identities': ['deception', 'social'], 'Personal Clothier': ['social'], 'Secret Pathways': ['stealth'], 'Secret Routes': ['transport'] };
@@ -1031,8 +1030,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const uc = mk('UntickedClaim'); claim(uc, 4, 'City Records', false);
   ok(eng(uc, 'stealth 0').n === 1, 'an unticked claim adds nothing');
   const gov = mk('Governor'); claim(gov, 7, 'The Governor');
-  ok(eng(gov, 'stealth 1').n === 1 && eng(gov, 'stealth 0').zero, 'The Governor is -1d on every plan');
-  ok(/-1 The Governor/.test(eng(gov, 'stealth 1').notes), 'and the card shows it', eng(gov, 'stealth 1').notes);
+  ok(eng(gov, 'stealth 1').n === 2 && !/Governor/.test(eng(gov, 'stealth 1').notes), 'The Governor (River claim) changes nothing');
   // everything together
   const all = mk('Stack'); abil(all, ['Door Kickers']); claim(all, 1, 'Bluecoat Confederates');
   r = eng(all, 'assault 1'); ok(r.n === 4 && /1 luck, \+1 net dice, \+1 Door Kickers, \+1 Bluecoat Confederates = 4d/.test(r.notes), 'ability, claim and net dice stack', r.notes);
@@ -1168,6 +1166,145 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
     ok(has(o2, /Edge is lost when Downtime starts, but no player characters are marked as Party members/), 'Action on and an empty party: the card says it cannot clear Edge', o2.map(x => x.slice(0, 200))); }
   ok(snap(ana) === before, 'across all of this, no PC attribute but edge_amount was written');
   E.flush();
+}
+
+// ---------------------------------------------------------------- T24 Bundle 6: claims
+{
+  const { E, gm, pat, quinn } = table();
+  const claim = (c, i, name, on) => { E.attr(c, 'claim_' + i + '_name', name); E.attr(c, 'claim_' + i + '_check', on === false ? '0' : '1'); };
+  const mk = (name, tier) => dtCrew(E, pat, name, tier === undefined ? 2 : tier);
+  const fall = (o) => o.find(x => /title=Fallout/.test(x)) || '';
+  const heatLine = (o) => (/Heat \+(\d+) \(([^)]*)\)/.exec(fall(o)) || [])[0];
+  const run = (c, args) => E.run('!bitdcrew score ' + args, pat, E.token(c));
+
+  // A. "-2 heat per score" claims
+  let c = mk('Hawkers'); claim(c, 10, 'Cover Operation');
+  let o = run(c, '2 0 0 0 0 0 4');
+  ok(/Heat \+2 \(base 2, crew Tier \+2, Cover Operation -2\)/.test(heatLine(o)) && E.val(c, 'heat') === '2' && /Rep \+1 \(1 per 2 Heat\)/.test(fall(o)), 'Cover Operation: -2 off the Fallout Heat, and Rep follows the reduced Heat', o.map(x => x.slice(0, 200)));
+  c = mk('Unticked'); claim(c, 10, 'Cover Operation', false); o = run(c, '2 0 0 0 0 0 4');
+  ok(/Heat \+4 \(base 2, crew Tier \+2\)/.test(heatLine(o)), 'an unticked claim does nothing', heatLine(o));
+  ['Bluecoat Intimidation', 'Bluecoat Confidants', 'claim_cover_operation', 'Cover\nOperation'].forEach((nm, i) => {
+    const k = mk('H' + i); claim(k, 4, nm); const r = run(k, '2 0 0 0 0 0 4');
+    ok(/Heat \+2 \(base 2, crew Tier \+2, .* -2\)/.test(heatLine(r)), nm.replace('\n', ' ') + ' also takes 2 off', heatLine(r));
+  });
+  c = mk('Two'); claim(c, 1, 'Cover Operation'); claim(c, 2, 'Bluecoat Intimidation'); o = run(c, '2 0 0 0 0 0 4');
+  ok(/Heat \+0 \(base 2, crew Tier \+2, Cover Operation -2, Bluecoat Intimidation -2\)/.test(heatLine(o)) && E.val(c, 'heat') === '0' && /Rep \+0 /.test(fall(o)), 'two claims stack: 4 less 4 is 0', heatLine(o));
+  c = mk('Low', 1); claim(c, 1, 'Cover Operation'); o = run(c, '0 0 0 0 0 0 4');
+  ok(/Heat \+0 \(base 0, crew Tier \+1, Cover Operation -2, not below 0\)/.test(heatLine(o)), 'a total of 1 stops at 0', heatLine(o));
+  c = mk('Over'); claim(c, 1, 'Cover Operation'); claim(c, 2, 'Bluecoat Intimidation'); claim(c, 3, 'Bluecoat Confidants'); o = run(c, '2 0 0 0 0 0 4');
+  ok(/Bluecoat Confidants -2, not below 0\)/.test(heatLine(o)) && /Heat \+0 /.test(heatLine(o)), 'three claims on a total of 4: the note says Heat stops at 0', heatLine(o));
+  c = mk('Smooth', 0); claim(c, 1, 'Cover Operation'); o = run(c, '0 0 0 0 0 0 4');
+  ok(/Heat \+0 \(base 0, crew Tier \+0\)/.test(heatLine(o)), 'a total of 0 has no claim line', heatLine(o));
+  c = mk('NT'); claim(c, 1, 'Cover Operation'); E.attr(c, 'repeating_crewability_-N_name', 'No Traces'); E.attr(c, 'repeating_crewability_-N_check', '1');
+  o = run(c, '2 0 0 0 0 0 4'); ok(/Heat \+1 \(base 2, crew Tier \+2, No Traces -1, Cover Operation -2\)/.test(heatLine(o)), 'No Traces and a claim together', heatLine(o));
+  c = mk('Big'); claim(c, 1, 'Cover Operation'); o = run(c, '2 2 2 0 2 0 4');
+  ok(/Heat \+8 /.test(heatLine(o)) && /Rep \+4 /.test(fall(o)), 'Heat 10 less 2 = 8 gives Rep 4, not 5', fall(o).slice(0, 300));
+  c = mk('Fence'); claim(c, 1, 'Cover Operation'); o = run(c, '2 0 0 0 0 0 4'); const nf = idxOf(o);
+  E.run('!bitdcrew seized fence4 --c ' + c + ' --idx ' + nf, pat); ok(E.val(c, 'heat') === '3', 'fencing Heat is added after, and not reduced by the claim', E.val(c, 'heat'));
+  const core = E.crew('Core', pat); claim(core, 3, 'Cover Operation'); o = E.run('!bitdcrew score 4 0 0 0 0', pat, E.token(core));
+  ok(has(o, /Heat \+2 \(exposure 4, Cover Operation -2\)/) && E.val(core, 'heat') === '2', 'the core Score card applies it too', o.map(x => x.slice(0, 200)));
+  o = E.run('!bitdcrew score 2 0 0 0 0', pat, E.token(core)); ok(has(o, /Heat \+0 \(exposure 2, Cover Operation -2, not below 0\)|Heat \+0 \(exposure 2, Cover Operation -2\)/), 'core: floor at 0', o.map(x => x.slice(0, 200)));
+
+  // B. Victim Trophies: +1 Rep per score, inside the one Rep gain
+  c = mk('Assassins'); claim(c, 6, 'Victim Trophies'); o = run(c, '2 0 0 0 0 0 4');
+  ok(/Rep \+3 \(1 per 2 Heat, Victim Trophies \+1\)/.test(fall(o)) && E.val(c, 'rep') === '3', 'Victim Trophies adds 1 Rep', fall(o).slice(0, 300));
+  c = mk('Assassins2'); claim(c, 6, 'Victim Trophies'); E.attr(c, 'repeating_crewability_-L_name', 'Leverage'); E.attr(c, 'repeating_crewability_-L_check', '1');
+  o = run(c, '2 0 0 0 0 0 4'); ok(E.val(c, 'rep') === '4' && /Leverage: \+1 Rep/.test(fall(o)), 'with Leverage the +1 comes once for the whole gain', E.val(c, 'rep'));
+  c = mk('Assassins3', 0); claim(c, 6, 'Victim Trophies'); o = run(c, '0 0 0 0 0 0 4'); ok(E.val(c, 'rep') === '1', 'it counts even on a score with no Heat', E.val(c, 'rep'));
+  c = mk('Assassins4'); claim(c, 6, 'Victim Trophies'); E.attr(c, 'repeating_crewability_-M_name', 'Misdirection'); E.attr(c, 'repeating_crewability_-M_check', '1');
+  o = run(c, '2 2 2 0 2 0 4'); ok(/give up half the Rep earned \(3\)/.test(fall(o)), 'Misdirection counts the Victim Trophies Rep (6 + 1, half is 3)', fall(o).slice(0, 400));
+
+  // C. Publicity and Doskvol's Most Wanted: buttons, +2 Rep, no second Leverage
+  c = mk('Vigilantes'); claim(c, 2, 'Publicity'); claim(c, 3, 'Doskvol’s Most Wanted'.replace('’', "'")); E.attr(c, 'repeating_crewability_-L_name', 'Leverage'); E.attr(c, 'repeating_crewability_-L_check', '1');
+  o = run(c, '2 0 0 0 0 0 4'); const nr = idxOf(o);
+  ok(has(o, /Claims that apply only to some scores/) && has(o, /\[Publicity: takedown score, \+2 Rep\]\(!bitdcrew claim rep0 --c \S+ --idx \S+\)/) && has(o, /\[Doskvol's Most Wanted: score against the law, \+2 Rep\]\(!bitdcrew claim rep1 /), 'both buttons appear when ticked', o.map(x => x.slice(0, 300)));
+  const rep0 = E.val(c, 'rep');
+  o = E.run('!bitdcrew claim rep0 --c ' + c + ' --idx ' + nr, pat);
+  ok(E.val(c, 'rep') === String(Number(rep0) + 2) && has(o, /Publicity \+2 Rep/), 'Publicity: +2 Rep, not boosted by Leverage again', [rep0, E.val(c, 'rep')]);
+  o = E.run('!bitdcrew claim rep0 --c ' + c + ' --idx ' + nr, pat); ok(has(o, /Already done/) && E.val(c, 'rep') === String(Number(rep0) + 2), 'once per Score');
+  E.run('!bitdcrew claim rep1 --c ' + c + ' --idx ' + nr, pat); ok(E.val(c, 'rep') === String(Number(rep0) + 4), 'Doskvol\'s Most Wanted: +2 Rep');
+  E.run('!bitdcrew seized none --c ' + c + ' --idx ' + nr, pat); E.run('!bitdcrew tithe skip --c ' + c + ' --idx ' + nr, pat); E.out.length = 0;
+  o = E.run('!bitdcrew deposit none --c ' + c + ' --idx ' + nr, pat); ok(has(o, new RegExp('Rep \\+' + (Number(rep0) + 4) + '\\.')), 'the final summary counts the claim Rep', o.map(x => x.slice(0, 200)));
+  const full = mk('Full'); claim(full, 2, 'Publicity'); E.attr(full, 'rep', 11); const nfull = idxOf(run(full, '0 0 0 0 0 0 4'));
+  o = E.run('!bitdcrew claim rep0 --c ' + full + ' --idx ' + nfull, pat); ok(E.val(full, 'rep') === '12' && has(o, /the track is full/), 'Rep stops at 12', o);
+  const none = mk('NoClaims'); o = run(none, '2 0 0 0 0 0 4'); ok(!has(o, /Claims that apply only/), 'no claims, no line');
+  o = E.run('!bitdcrew claim rep0 --c ' + none + ' --idx ' + idxOf(o), pat); ok(has(o, /Publicity is not ticked/) && E.val(none, 'rep') === '2', 'a button for a claim that is not ticked is refused', o);
+  o = E.run('!bitdcrew claim rep0 --c ' + c + ' --idx nope', pat); ok(has(o, /no longer available/), 'unknown card');
+  o = E.run('!bitdcrew claim junk --c ' + c + ' --idx ' + nr, pat); ok(has(o, /unknown claim button/), 'unknown button');
+  o = E.run('!bitdcrew claim rep0 --c ' + c + ' --idx ' + nr, quinn); ok(has(o, /only use this on crews you control/), 'a non-controller is refused');
+
+  // D. +2 Coin claims: added to the Payoff before the seized step, so they count toward the tithe
+  c = mk('Hawkers2'); claim(c, 7, 'Envoy'); claim(c, 8, 'Surplus Caches'); claim(c, 9, 'Loyal Fence', false);
+  o = run(c, '2 0 0 0 0 0 4'); const nc = idxOf(o);
+  ok(has(o, /\[Envoy: high-class clients, \+2 Coin\]\(!bitdcrew claim coin0 /) && has(o, /\[Surplus Caches: product sale or supply, \+2 Coin\]\(!bitdcrew claim coin4 /) && !has(o, /Loyal Fence/) && !has(o, /Fixer/), 'only ticked Coin claims get buttons', o.map(x => x.slice(0, 400)));
+  o = E.run('!bitdcrew claim coin0 --c ' + c + ' --idx ' + nc, pat); ok(has(o, /Envoy \+2 Coin/) && has(o, /Payoff is now 6 Coin/), 'Envoy: Payoff 4 becomes 6', o);
+  o = E.run('!bitdcrew claim coin0 --c ' + c + ' --idx ' + nc, pat); ok(has(o, /Already done/), 'once per Score');
+  o = E.run('!bitdcrew claim coin4 --c ' + c + ' --idx ' + nc, pat); ok(has(o, /Payoff is now 8 Coin/), 'Surplus Caches: 8');
+  o = E.run('!bitdcrew seized none --c ' + c + ' --idx ' + nc, pat); ok(has(o, /Earned from the score: 8 Coin/) && has(o, /Tithe: you are Tier 2.*2 Coin/), 'the +4 counts toward Earned and the tithe (8 Coin, tithe 2)', o);
+  o = E.run('!bitdcrew claim coin1 --c ' + c + ' --idx ' + nc, pat); ok(has(o, /Fixer is not ticked/), 'unticked claim');
+  claim(c, 11, 'Fixer'); o = E.run('!bitdcrew claim coin1 --c ' + c + ' --idx ' + nc, pat); ok(has(o, /seized assets step is already done/), 'after the seized step the Payoff is fixed', o);
+  E.run('!bitdcrew tithe pay --c ' + c + ' --idx ' + nc, pat); E.out.length = 0; o = E.run('!bitdcrew deposit none --c ' + c + ' --idx ' + nc, pat);
+  ok(has(o, /Earned 8 Coin, tithe 2 paid, 6 to deposit/), 'the summary carries the claim Coin', o.map(x => x.slice(0, 200)));
+  const sc = mk('Hawkers3'); claim(sc, 1, 'Surplus Cache'); ok(has(run(sc, '2 0 0 0 0 0 4'), /Surplus Caches: product sale or supply/), 'the book spelling Surplus Cache also matches');
+
+  // E. Claim income in the Heat and Hold card
+  c = mk('Smugglers'); claim(c, 2, 'Vice Den'); claim(c, 5, 'claim_side_business'); claim(c, 6, 'Info Biz'); E.attr(c, 'heat', 1);
+  const tcc = E.token(c);
+  o = E.run('!bitdcrew hh', pat, tcc); const dn = idxOf(o);
+  ok(has(o, /Claim income \(roll your Tier in dice, highest die minus your Heat/) && has(o, /\[Vice Den income\]\(!bitdcrew hhact inc2 --c \S+ --idx \S+\)/) && has(o, /\[Side Business income\]\(!bitdcrew hhact inc5 /) && !has(o, /Info Biz/), 'the card lists the ticked income claims (Info Biz is not a core claim)', o.map(x => x.slice(0, 500)));
+  o = E.run('!bitdcrew hhact inc2 --c ' + c + ' --idx ' + dn, pat);
+  const roll = o.find(x => /title-fortune/.test(x)) || '';
+  ok(dice(roll) === 2 && /\{\{type=fortune\}\}/.test(roll) && /\{\{notes=Vice Den income: 2 dice, highest die minus your Heat 1\.\}\}/.test(roll) && E.out.some(x => /^player\|/.test(x.who) && /title-fortune/.test(x.text)) && has(o, /Vice Den \(rolled\)/), 'a Tier 2 crew rolls 2 dice, posted as the player; the claim shows as rolled', o.map(x => x.slice(0, 300)));
+  o = E.echo([3, 5]);
+  ok(has(o, /Dice 3, 5\. Highest die 5, minus Heat 1 = 4 Coin\./) && has(o, /\[Add 4 Coin to the crew\]\(!bitdcrew hhact incpay2 --c \S+ --idx /), 'the dice are read and the result offered with a button', o.map(x => x.slice(0, 300)));
+  o = E.run('!bitdcrew hhact incpay2 --c ' + c + ' --idx ' + dn, pat);
+  ok(E.val(c, 'crewcoin_dc') === '4' && has(o, /Vice Den income: \+4 Coin to the crew/), 'the button adds the Coin (the crew has room for 4)', o.map(x => x.slice(0, 300)));
+  o = E.run('!bitdcrew hhact incpay2 --c ' + c + ' --idx ' + dn, pat); ok(E.val(c, 'crewcoin_dc') === '4' && has(o, /Already done/), 'the Coin is added once');
+  o = E.run('!bitdcrew hhact inc2 --c ' + c + ' --idx ' + dn, pat); ok(has(o, /Already done/) && !o.some(x => /title-fortune/.test(x)), 'a claim rolls once per Downtime');
+  // the second claim: a die below the Heat earns nothing
+  E.attr(c, 'heat', 6); o = E.run('!bitdcrew hhact inc5 --c ' + c + ' --idx ' + dn, pat); o = E.echo([5, 2]);
+  ok(has(o, /Highest die 5, minus Heat 6 = 0 Coin\./) && has(o, /Nothing to add/) && !has(o, /Add 0/), 'Heat above the die: 0 Coin and no button', o.map(x => x.slice(0, 300)));
+  o = E.run('!bitdcrew hhact incpay5 --c ' + c + ' --idx ' + dn, pat); ok(E.val(c, 'crewcoin_dc') === '4', 'and the payment code does nothing for a 0 result');
+  // a new Downtime brings the claims back
+  E.run('!bitdcrew adj dtstart', pat, tcc); const dn2 = idxOf(E.run('!bitdcrew hh', pat, tcc));
+  ok(has(E.run('!bitdcrew hh', pat, tcc), /\[Vice Den income\]/), 'a new Downtime offers the claims again');
+  // no room: the rest is for the player to record
+  const d2 = mk('Room'); claim(d2, 1, 'Vice Den'); E.attr(d2, 'crewcoin_dc', 3); E.attr(d2, 'heat', 0); const td2 = E.token(d2);
+  const nd2 = idxOf(E.run('!bitdcrew hh', pat, td2)); E.run('!bitdcrew hhact inc1 --c ' + d2 + ' --idx ' + nd2, pat); E.echo([4, 6]);
+  o = E.run('!bitdcrew hhact incpay1 --c ' + d2 + ' --idx ' + nd2, pat); ok(E.val(d2, 'crewcoin_dc') === '4' && has(o, /\+1 Coin to the crew \(5 did not fit in the vaults/), 'only the vault room is added', o.map(x => x.slice(0, 300)));
+  // Tier 0: 2d, keep the lowest
+  const d3 = mk('Tier0', 0); claim(d3, 1, 'Drug Den'); E.attr(d3, 'heat', 0); const td3 = E.token(d3); const nd3 = idxOf(E.run('!bitdcrew hh', pat, td3));
+  o = E.run('!bitdcrew hhact inc1 --c ' + d3 + ' --idx ' + nd3, pat); const r3 = o.find(x => /title-fortune/.test(x)) || '';
+  ok(/zerodice=/.test(r3) && dice(r3) === 2 && /no dice, 2d keep the lowest/.test(r3), 'Tier 0 rolls 2d and keeps the lowest', r3);
+  o = E.echo([6, 2]); ok(has(o, /Lowest die 2, minus Heat 0 = 2 Coin/), 'the lowest die is used', o.map(x => x.slice(0, 200)));
+  // Heat is the Heat at the moment of the click
+  const d4 = mk('HeatMoment'); claim(d4, 1, 'Gambling Den'); E.attr(d4, 'heat', 2); const td4 = E.token(d4); const nd4 = idxOf(E.run('!bitdcrew hh', pat, td4));
+  E.run('!bitdcrew hhact inc1 --c ' + d4 + ' --idx ' + nd4, pat); E.attr(d4, 'heat', 5); o = E.echo([6, 3]); ok(has(o, /Highest die 6, minus Heat 2 = 4 Coin/), 'Heat is read when the roll is made', o.map(x => x.slice(0, 200)));
+  // dice that cannot be read, a roll that never comes back, a Downtime that ended
+  const d5 = mk('Unread'); claim(d5, 1, 'Vice Den'); const td5 = E.token(d5); const nd5 = idxOf(E.run('!bitdcrew hh', pat, td5));
+  E.run('!bitdcrew hhact inc1 --c ' + d5 + ' --idx ' + nd5, pat); o = E.echo(undefined); ok(has(o, /could not read the dice of the Vice Den roll/), 'unreadable dice: told to work it out by hand', o.map(x => x.slice(0, 200)));
+  const d6 = mk('Silent'); claim(d6, 1, 'Vice Den'); const td6 = E.token(d6); const nd6 = idxOf(E.run('!bitdcrew hh', pat, td6));
+  E.out.length = 0; E.run('!bitdcrew hhact inc1 --c ' + d6 + ' --idx ' + nd6, pat); E.out.length = 0; E.flush();
+  ok(E.out.some(x => /Vice Den roll could not be read/.test(x.text)), 'a roll that never comes back is reported after a while', E.out.map(x => x.text.slice(0, 120)));
+  const d7 = mk('Ended'); claim(d7, 1, 'Vice Den'); const td7 = E.token(d7); const nd7 = idxOf(E.run('!bitdcrew hh', pat, td7));
+  E.run('!bitdcrew hhact inc1 --c ' + d7 + ' --idx ' + nd7, pat); E.run('!bitdcrew hhact end --c ' + d7 + ' --idx ' + nd7, pat); o = E.echo([4, 4]);
+  ok(has(o, /no longer open, so there is no button/) && !has(o, /hhact incpay/), 'the Downtime ended before the dice: no button', o.map(x => x.slice(0, 200)));
+  // permissions and the unticked claim
+  o = E.run('!bitdcrew hhact inc2 --c ' + c + ' --idx ' + dn2, quinn); ok(has(o, /only use this on crews you control/), 'a non-controller cannot roll income');
+  claim(c, 2, 'Vice Den', false); o = E.run('!bitdcrew hhact inc2 --c ' + c + ' --idx ' + dn2, pat); ok(has(o, /no longer ticked/), 'a claim that was unticked since the card was posted');
+  o = E.run('!bitdcrew hhact incpay9 --c ' + c + ' --idx ' + dn2, pat); ok(has(o, /no income waiting/), 'payment with nothing rolled');
+  E.flush();
+
+  // F. Status lists what the script counts
+  c = mk('Statusy'); claim(c, 1, 'Cover Operation'); claim(c, 2, 'Victim Trophies'); claim(c, 3, 'Envoy'); claim(c, 4, 'Vice Den'); claim(c, 5, 'Secret Pathways'); claim(c, 6, 'Publicity');
+  o = E.run('!bitdcrew status', pat, E.token(c));
+  ok(has(o, /Claims the script counts: Cover Operation \(-2 Heat per score\); Victim Trophies \(\+1 Rep per score\); Publicity \(\+2 Rep, a button on the Fallout card\); Envoy \(\+2 Coin, a button on the Fallout card\); Vice Den \(income, a button in Heat and Hold\); Secret Pathways \(\+1d engagement, stealth plans\)\./), 'Status lists the claims in play', o.map(x => x.slice(0, 600)));
+  c = E.crew('CoreStatus', pat); claim(c, 1, 'Cover Operation'); claim(c, 2, 'Victim Trophies'); claim(c, 3, 'Vice Den'); claim(c, 4, 'Personal Clothier');
+  o = E.run('!bitdcrew status', pat, E.token(c)); ok(has(o, /Claims the script counts: Cover Operation \(-2 Heat per score\); Personal Clothier \(\+1d engagement, social plans\)\./), 'a core crew lists only the Heat and engagement claims', o.map(x => x.slice(0, 400)));
+  o = E.run('!bitdcrew status', pat, E.token(E.crew('Plain', pat))); ok(!has(o, /Claims the script counts/), 'no claims, no line');
+  // River claims are not automated
+  c = mk('River'); claim(c, 1, 'Chief Magistrate'); claim(c, 2, 'State Treasurer'); claim(c, 3, 'Editor-in-Chief'); o = run(c, '2 0 0 0 0 0 4');
+  ok(/Heat \+4 /.test(heatLine(o)) && !has(o, /Claims that apply only/) && !has(E.run('!bitdcrew status', pat, E.token(c)), /Claims the script counts/), 'River claims change nothing', heatLine(o));
 }
 
 // ---------------------------------------------------------------- T13 the two scripts together

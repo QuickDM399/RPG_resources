@@ -1,6 +1,27 @@
-# Crew Abilities, Bundle 6: Claims that change Score numbers (proposal, nothing built)
+# Crew Abilities, Bundle 6: Claims that change Score numbers (v0.4.0)
 
-Status: **proposal for approval.** No code has been written for this bundle. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the text now on your sheet; each row says which. Where I am inferring, it says so.
+**Status: approved with changes, then built as v0.4.0 (mock tested; nothing run in the live game).** Section 0 records the answers. Where the proposal below differs from section 0, section 0 wins.
+
+## 0. Answers and what was built
+
+| Decision | Answer | In v0.4.0 |
+|---|---|---|
+| 1. Scope A to E | Not stated; the detailed answers imply go-ahead. I built all five, as I recommended | Heat claims, Victim Trophies, Publicity and Doskvol's Most Wanted, the +2 Coin claims, income claims, the Status line |
+| 2. Stacking of Heat claims | Not answered | I stack them (my recommendation). No crew in your seven has two. Tell me if you want only the best one |
+| 3. Rep after a Heat claim | "If the ability says -Heat per score, it reduces Rep. If the Heat is reduced in Downtime it does not reduce Rep" | Rep comes from the Heat after the claims (as No Traces already does). Reduce Heat spending, Just Passing Through and fencing Heat never change a Score's Rep |
+| 4. Income dice | "Card" | Dice read back from the posted card, same method as the Entanglement roll |
+| 5. Income Coin | "Yes" (button only) | An **Add N Coin** button, up to the crew's vault room |
+| 6. Leverage on claim Rep | "No" | Publicity and Doskvol's Most Wanted are not boosted again. Victim Trophies is inside the Score's one Rep gain, so Leverage still counts once for it |
+| 7. River | "Hold on automating anything River" | Nothing River is automated, including the two Engagement items built earlier (removed). See `Crew Script - Deferred and Future Work.md` for what I found about River |
+| Hagfish Farm | "Record for a future part, automate correctly, not now" | Not built. Recorded in `Crew Script - Deferred and Future Work.md` |
+
+Info Biz (Emcees) is not offered as an income claim: it is not in the core book. The proposal as first written follows.
+
+---
+
+# Proposal (as written before the answers)
+
+Status at that time: proposal for approval. No code had been written for this bundle. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the text now on your sheet; each row says which. Where I am inferring, it says so.
 
 Ruling already in hand: **claims that reduce Heat still work with Deep Cuts** (your answer). Deep Cuts Part Two does not restate any claim text, so I treat the core wording as in force.
 

@@ -8,7 +8,7 @@
 |---|---|---|
 | 1. Engagement prompts | 3 prompts | Plan type, murder goal (only when a Predators or Deadly Focus row exists), net dice |
 | 2. Claims in Engagement | Yes; Cover Identities follows the book (social) | All seven claims counted, Cover Identities on deception and social |
-| 3. River crew items | "Do them" | Deadly Focus (+1d with a murder goal, any plan) and The Governor (-1d, any plan) counted |
+| 3. River crew items | "Do them", then later "hold on automating anything River" (v0.4.0) | Built in v0.3.0, **removed in v0.4.0**. Neither Deadly Focus nor The Governor changes anything now, and the murder prompt asks only for a Predators row |
 | 4. Bundle 4 | Do not code The Good Stuff, Favors, As Good as Your Word, Hooked or Pack Rats (Pack Rats stays as the Deep Cuts text on the sheet) | Only item c, the Status reminders, was built: it was on my recommended list and not on your exclusion list. Say if you want it removed |
 | 5. Bundle 5 | Yes to Begin score, Clear Edge as a button, and the game-wide Party flag as "the party" | Built as proposed (R18, R19) |
 | 6. Bundle 6 | Yes, plan it next | See `Crew Abilities Bundle 6 - Claims Build Plan.md`. Not built |
