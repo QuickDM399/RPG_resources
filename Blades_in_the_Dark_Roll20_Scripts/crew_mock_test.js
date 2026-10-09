@@ -125,14 +125,14 @@ function queries(action) {
   const a = E.crew('Bravos', pat), b = E.crew('Hawkers', quinn), ta = E.token(a), tb = E.token(b);
   let o = E.run('!bitdcrew setup', pat, ta);
   const names = E.abil(a).map(x => x.name);
-  ok(names.length === 10 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 10 token actions in order, with a gap at 5 (no Downtime button)', names);
+  ok(names.length === 11 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 11 token actions in order, with a gap at 5 (no Downtime button)', names);
   ok(E.abil(a).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'abilities flagged with the crew marker');
   E.run('!bitdcrew setup', pat, ta);
-  ok(E.abil(a).length === 10, 'rebuild is idempotent');
+  ok(E.abil(a).length === 11, 'rebuild is idempotent');
   o = E.run('!bitdcrew setup', pat, tb);
   ok(has(o, /only use this on crews you control/) && E.abil(b).length === 0, 'player refused on another crew, nothing written', o);
   E.run('!bitdcrew setup', gm, tb);
-  ok(E.abil(b).length === 10, 'GM can set up any crew');
+  ok(E.abil(b).length === 11, 'GM can set up any crew');
   // a user-made ability with a clashing name is skipped, not replaced
   E.store.abilities.push({ id: 'u1', _characterid: a, name: '9. Status', description: 'mine', action: 'x', istokenaction: true });
   o = E.run('!bitdcrew setup', pat, ta);
@@ -140,11 +140,11 @@ function queries(action) {
   o = E.run('!bitdcrew setup', pat);
   ok(has(o, /select one or more crew tokens/), 'setup without a token', o);
   o = E.run('!bitdcrew setup --c ' + a, pat);
-  ok(E.abil(a).length === 10 && !has(o, /select/), 'setup by id works without a token', o);
+  ok(E.abil(a).length === 11 && !has(o, /select/), 'setup by id works without a token', o);
   // crew controlled by everyone
   const c = E.crew('Smugglers', 'all'); const tc = E.token(c);
   E.run('!bitdcrew setup', quinn, tc);
-  ok(E.abil(c).length === 10, 'crew controlled by all: any player can set it up');
+  ok(E.abil(c).length === 11, 'crew controlled by all: any player can set it up');
   // crew-only gating: character and faction sheets refused by every verb
   const pc = E.char('Ayla', pat), tp = E.token(pc);
   const fac = E.char('Faction Status', ''); E.attr(fac, 'sheet_type', 'faction'); const tf = E.token(fac);
@@ -200,7 +200,7 @@ function queries(action) {
   const a = E.crew('crew new', pat), ta = E.token(a);
   ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
   let o = E.run('!bitdcrew setup', pat, ta);
-  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 11 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 11 actions with 5. Downtime', o);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 12 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 12 actions with 5. Downtime', o);
   E.attr(a, 'crew_tier', 2);
   o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
   ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
@@ -227,7 +227,7 @@ function queries(action) {
   E.run('!bitdcrew setup', pat, tb);
   ok(E.val(b, 'heat') === '0' && E.tok(tb).bar1_link && E.tok(tb).bar1_max === 9, 'a missing heat attribute is created at 0', E.tok(tb));
   const c = E.crew('Cult', pat); const o = E.run('!bitdcrew setup --c ' + c, pat);
-  ok(E.abil(c).length === 10 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
+  ok(E.abil(c).length === 11 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
   ok(has(E.run('!bitdcrew setup', pat, ta), /Bar 1 is linked to Heat on 1 token/), 'setup reports the bar');
 }
 
@@ -1425,8 +1425,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const { E, gm, pat, quinn } = table();
   const names = (c) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).map(x => x.name).join('|'); };
   const dtc = dtCrew(E, pat, 'Hawkers', 2), core = E.crew('Bravos', pat);
-  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 11 token actions with 5. Downtime after Score', names(dtc));
-  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
+  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 12 token actions with 5. Downtime after Score', names(dtc));
+  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
   ok(E.abil(dtc).find(x => x.name === '5. Downtime').action === '!bitdcrew hh' && E.abil(dtc).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'the Downtime button runs the Heat and Hold command, no prompt');
   const adjOf = (c) => queries(E.abil(c).find(x => x.name === '7. Adjust').action)[0];
   const optsD = adjOf(dtc).slice(1).map(x => x.split(',').slice(-1)[0]), optsC = adjOf(core).slice(1).map(x => x.split(',').slice(-1)[0]);
@@ -1504,7 +1504,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
 
   // the bar: 6b sorts right after 6 and before 7, character by character
   const core = E.crew('Bravos', pat), dtc = E.crew('Smugglers', pat); E.attr(dtc, 'setting_dc_downtime', '1');
-  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6b. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('7. Adjust') === n.indexOf('6b. Contacts') + 1, 'the token action bar sorts 6b. Contacts between Abilities and Adjust', n); });
+  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6b. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('6c. Claims') === n.indexOf('6b. Contacts') + 1 && n.indexOf('7. Adjust') === n.indexOf('6c. Claims') + 1, 'the token action bar sorts 6b. Contacts and 6c. Claims between Abilities and Adjust', n); });
   ok(E.abil(core).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts' && E.abil(dtc).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts', 'the button runs the contacts command, no prompt, on both kinds of crew');
 
   // the menu card
@@ -1556,6 +1556,118 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(after === before, 'the contacts command writes nothing to the crew sheet');
 }
 
+// ---------------------------------------------------------------- T27 6c. Claims
+{
+  const { E, gm, pat, quinn } = table();
+  const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB);
+  const TEXT = E.env.BitDCrewTAM._claimText;
+  // the claims each core crew type has on its sheet (from the sheet's crew data); every one needs book text
+  const SHEET_CLAIMS = {
+    assassins: ['training rooms', 'vice den', 'fixer', 'informants', 'hagfish farm', 'victim trophies', 'cover operation', 'protection racket', 'infirmary', 'envoy', 'cover identities', 'city records'],
+    bravos: ['barracks', 'terrorized citizens', 'informants', 'protection racket', 'fighting pits', 'infirmary', 'bluecoat intimidation', 'street fence', 'warehouses', 'bluecoat confederates'],
+    cult: ['cloister', 'vice den', 'offertory', 'ancient obelisk', 'ancient tower', 'spirit well', 'ancient gate', 'sanctuary', 'sacred nexus', 'ancient altar'],
+    hawkers: ['personal clothier', 'local graft', 'lookouts', 'informants', 'luxury venue', 'foreign market', 'vice den', 'surplus caches', 'cover operation', 'cover identities'],
+    shadows: ['interrogation chamber', 'loyal fence', 'gambling den', 'tavern', 'drug den', 'informants', 'lookouts', 'hagfish farm', 'infirmary', 'covert drops', 'secret pathways'],
+    smugglers: ['side business', 'luxury fence', 'vice den', 'tavern', 'ancient gate', 'secret routes', 'informants', 'fleet', 'cover operation', 'warehouse']
+  };
+  const bookText = (key, type) => { const e = (TEXT[key] || []).find(x => x[0].indexOf(type) >= 0); return e ? e[1] : undefined; };
+  const missing = []; Object.keys(SHEET_CLAIMS).forEach(ty => SHEET_CLAIMS[ty].forEach(k => { if (!bookText(k, ty)) missing.push(ty + ': ' + k); }));
+  ok(missing.length === 0, 'every claim on the six core crew types has book text for that crew', missing);
+  const alltext = [].concat.apply([], Object.keys(TEXT).map(k => TEXT[k].map(e => e[1])));
+  ok(alltext.length === 51 && alltext.every(x => /^[\x20-\x7e]+$/.test(x) && x.length > 30 && /^[A-Z+\-]/.test(x)), 'the data table is plain ASCII, sensibly formed, 51 texts', alltext.length);
+  ok(bookText('cover operation', 'assassins') === 'You get -2 heat per score. The cover of a legitimate operation helps deflect some of the heat from law enforcement.', 'verbatim: Cover Operation for Assassins');
+  ok(bookText('cover operation', 'smugglers') === 'You get -2 heat per score. What\'s your cover? Who did you seize it from?' && bookText('cover operation', 'hawkers') === bookText('cover operation', 'assassins') || bookText('cover operation', 'hawkers') !== undefined, 'Cover Operation is worded differently for Smugglers');
+  ok(/new targets\.$/.test(bookText('informants', 'assassins')) && /new clients\.$/.test(bookText('informants', 'hawkers')), 'Informants differs by crew in its last word');
+  ok(bookText('ancient gate', 'cult') !== bookText('ancient gate', 'smugglers') && /the spirits of the deathlands/.test(bookText('ancient gate', 'cult')), 'Ancient Gate differs between Cult and Smugglers');
+  ok(/"collection"/.test(bookText('victim trophies', 'assassins')) && /"protection\."$/.test(bookText('protection racket', 'assassins')), 'quotation marks restored in the text');
+  ok(!!TEXT['surplus caches'] && !!TEXT['covert drops'] && !!TEXT['warehouse'] && !!TEXT['warehouses'] && !TEXT['surplus cache'], 'the sheet\'s spelling is the key (Surplus Caches, Covert Drops, Warehouse)');
+
+  // helpers
+  const mkCrew = (name, type, claims, dt, act) => {
+    const c = E.crew(name, pat); if (type !== undefined) E.attr(c, 'crew_type', type);
+    if (dt) E.attr(c, 'setting_dc_downtime', '1'); if (act) E.attr(c, 'setting_dc_action', '1');
+    claims.forEach(cl => { E.attr(c, 'claim_' + cl[0] + '_name', cl[1]); if (cl[2] !== undefined) E.attr(c, 'claim_' + cl[0] + '_check', cl[2] ? '1' : '0'); if (cl[3] !== undefined) E.attr(c, 'claim_' + cl[0] + '_desc', cl[3]); });
+    return c;
+  };
+  const menu = (c, who) => E.run('!bitdcrew claims', who || pat, E.token(c));
+  const info = (c, arg, who) => E.run('!bitdcrew claiminfo --c ' + c + ' ' + arg, who || pat);
+  const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  const btns = (o) => (o[0].match(/\[[^\]]*\]\(!bitdcrew claiminfo [^)]*\)/g) || []);
+
+  // the menu
+  const asn = mkCrew('Assassins', 'Assassins', [[1, 'Training Rooms', true], [2, 'claim_vice_den', false], [3, 'Fixer', true, '+2 coin for\nlower-class targets'], [4, 'Informants', true], [7, 'Turf', true], [9, 'Turf', false], [10, 'Cover\nOperation', false]]);
+  let o = menu(asn);
+  ok(o.length === 1 && /^\/w "Pat" /.test(o[0]) && /\{\{type=Claims\}\}/.test(o[0]) && /\{\{title=Show to the table\}\}/.test(o[0]), 'the menu is a whisper to the clicker', o[0].slice(0, 120));
+  const b = btns(o);
+  ok(b.map(x => x.replace(/\]\(.*$/, '').slice(1)).join('|') === [ON + ' Training Rooms', OFF + ' Vice Den', ON + ' Fixer', ON + ' Informants', ON + ' Turf: 1 of 2 held', OFF + ' Cover Operation'].join('|').replace(/([●○]) /g, '$1 '), 'one button per claim in slot order, held or not held marked, the two turf slots merged into one button where the first sits', b);
+  ok(/--n 1\)$/.test(b[0]) && /--n 2\)$/.test(b[1]) && /--row turf\)$/.test(b[4]) && /--n 10\)$/.test(b[5]), 'buttons carry the slot, turf carries the group');
+  ok(body(o).indexOf(ON + ' held by the crew, ' + OFF + ' not held.') > 0, 'the card explains the markers');
+  ok(has(menu(mkCrew('Empty', 'x', [])), /There are no claims on this sheet\./), 'a sheet with no claims says so');
+  ok(has(menu(asn, quinn), /only use this on crews you control/) && has(menu(asn, gm), /Show to the table/), 'players only on crews they control; the GM on any');
+  ok(has(E.run('!bitdcrew claims', pat, E.token(E.char('Ayla', pat))), /crew sheets only/), 'a PC sheet is refused');
+  const odd = mkCrew('Odd', 'x', [[1, 'Bad [x](!bitdcrew adj heat+1) name', true], [2, 'claim_above_the_law', false], [3, 'claim_doskvol\'s_most_wanted', true]]);
+  const ob = btns(menu(odd)).map(x => x.replace(/\]\(.*$/, '').slice(1));
+  ok(ob.join('|') === [ON + ' Bad x!bitdcrew adj heat+1 name', OFF + ' Above the Law', ON + ' Doskvol\'s Most Wanted'].join('|'), 'names are tidied: brackets out, keys turned into words, small words kept lower case', ob);
+
+  // the card
+  o = info(asn, '--n 3');
+  ok(o.length === 1 && E.out.length === 1 && /^player\|/.test(E.out[0].who), 'a click is shown to the table, as the player');
+  ok(/\{\{type=Claim held\}\}/.test(o[0]) && o[0].indexOf('{{title=' + ON + ' Fixer}}') > 0 && /charname=Assassins/.test(o[0]), 'a held claim: header and title say so', o[0]);
+  ok(body(o) === 'Held by this crew.\nRules (core book): You get +2 coin in payoff for scores that involve lower-class clients. This well-respected agent will help arrange for a better payoff from poorer clients.\nOn the sheet: +2 coin for lower-class targets', 'the held line, the book text, and the sheet text on one line each', body(o));
+  o = info(asn, '--n 2');
+  ok(/\{\{type=Claim not held\}\}/.test(o[0]) && o[0].indexOf('{{title=' + OFF + ' Vice Den}}') > 0 && /Not held by this crew\./.test(o[0]) && /Rules \(core book\): Any time during downtime, roll dice equal to your Tier\. You earn coin equal to the highest result, minus your heat\.\n?/.test(o[0]) && !/Is this claim a den/.test(o[0]) && !/On the sheet/.test(o[0]), 'a claim not held, in the Assassins wording, with no sheet text line when the sheet has none', o[0]);
+  ok(/Cover Operation/.test(info(asn, '--n 10')[0]) && /helps deflect some of the heat/.test(info(asn, '--n 10')[0]), 'a name split over two lines on the sheet still finds its text');
+  // the crew type decides the wording; an unknown type is worked out from the claims
+  const hk = mkCrew('Hawkers', 'hawkers', [[5, 'Informants', true], [3, 'Local Graft', false]]);
+  ok(/new clients\./.test(info(hk, '--n 5')[0]) && /new targets\./.test(info(asn, '--n 4')[0]), 'Informants reads "clients" for Hawkers and "targets" for Assassins');
+  // the stated crew type decides when the claims alone cannot (Informants is on five crew types)
+  ok(/new clients\./.test(info(mkCrew('OnlyInf1', 'Hawkers', [[5, 'Informants', true]]), '--n 5')[0]) && /new targets\./.test(info(mkCrew('OnlyInf2', 'ASSASSINS', [[5, 'Informants', true]]), '--n 5')[0]) && /new targets\./.test(info(mkCrew('OnlyInf3', 'Bravos crew', [[5, 'Informants', true]]), '--n 5')[0]) && /new clients\./.test(info(mkCrew('OnlyInf4', ' smugglers ', [[5, 'Informants', true]]), '--n 5')[0]), 'the crew type text is matched without case or extra words');
+  const hk2 = mkCrew('Red Sashes', 'The Red Sashes', [[2, 'Personal Clothier', true], [3, 'Local Graft', true], [5, 'Informants', true], [12, 'Vice Den', true]]);
+  ok(/new clients\./.test(info(hk2, '--n 5')[0]) && /Is this claim a den you've overtaken/.test(info(hk2, '--n 12')[0]), 'a crew type the script does not recognise is matched by its claims');
+  const hk3 = mkCrew('NoType', undefined, [[2, 'Personal Clothier', true], [3, 'Local Graft', true], [5, 'Informants', true]]);
+  ok(/new clients\./.test(info(hk3, '--n 5')[0]), 'and so is a crew with no type');
+  // the sheet's own spellings
+  const sh = mkCrew('Shadows', 'shadows', [[13, 'Covert Drops', true]]), sm = mkCrew('Smugglers', 'smugglers', [[15, 'Warehouse', false], [13, 'Fleet', true]]), hw = mkCrew('H2', 'Hawkers', [[13, 'Surplus Caches', true]]), br = mkCrew('Bravos', 'bravos', [[14, 'Warehouses', true]]);
+  ok(/espionage or sabotage/.test(info(sh, '--n 13')[0]) && /smuggling runs/.test(info(sm, '--n 15')[0]) && /product sale or supply/.test(info(hw, '--n 13')[0]) && /after your battles/.test(info(br, '--n 14')[0]), 'Covert Drops, Warehouse (Smugglers), Surplus Caches and Warehouses (Bravos) all find their text');
+  ok(/Fleet|Your cohorts have their own vehicles/.test(info(sm, '--n 13')[0]), 'Fleet has book text');
+
+  // Deep Cuts replaces the wording when the module is on
+  const w0 = mkCrew('Bravos core', 'bravos', [[14, 'Warehouses', true]]), w1 = mkCrew('Bravos DT', 'bravos', [[14, 'Warehouses', true]], true);
+  o = info(w0, '--n 14'); const b0 = body(o).split('\n');
+  ok(b0.length === 3 && /^Rules in force \(core book\): You get \+1d to acquire asset rolls\./.test(b0[1]) && b0[2] === 'Deep Cuts text (Downtime module, off for this crew): The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)', 'Warehouses with Downtime off: the core text is in force and the Deep Cuts text is shown', b0);
+  o = info(w1, '--n 14'); const b1 = body(o).split('\n');
+  ok(b1.length === 3 && b1[1] === 'Rules in force (Deep Cuts, Downtime module): The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' && /^Core book text \(replaced while the module is on\): You get \+1d to acquire asset rolls\./.test(b1[2]), 'with Downtime on the Deep Cuts text is in force and the core text is marked replaced', b1);
+  const i0 = mkCrew('Hawkers act off', 'hawkers', [[5, 'Informants', true]]), i1 = mkCrew('Hawkers act on', 'hawkers', [[5, 'Informants', true]], false, true);
+  ok(/Rules in force \(core book\): You get \+1d to gather information/.test(body(info(i0, '--n 5'))) && /Deep Cuts text \(Action module, off for this crew\): You get \+1 tick on your long-term project clock when you work on an investigation during downtime\./.test(body(info(i0, '--n 5'))), 'Informants with the Action module off');
+  ok(/Rules in force \(Deep Cuts, Action module\): You get \+1 tick on your long-term project clock/.test(body(info(i1, '--n 5'))) && /Core book text \(replaced while the module is on\): You get \+1d to gather information/.test(body(info(i1, '--n 5'))), 'and with it on');
+  ok(!/Deep Cuts/.test(body(info(asn, '--n 3'))), 'a claim Deep Cuts does not change shows only its own text');
+
+  // claims the book does not have: the sheet text
+  const vg = mkCrew('Vigilantes', 'Vigilantes', [[3, 'Publicity', true, '+2 rep on\ntakedown scores'], [15, 'claim_doskvol\'s_most_wanted', false]]);
+  o = info(vg, '--n 3'); ok(body(o) === 'Held by this crew.\nNo book text for this claim: the core book has no entry for it.\nOn the sheet: +2 rep on takedown scores', 'a Vigilantes claim: no book text, the sheet text instead', body(o));
+  ok(/Doskvol's Most Wanted/.test(info(vg, '--n 15')[0]) && /No book text/.test(info(vg, '--n 15')[0]), 'the apostrophe claim name works');
+
+  // Turf
+  const tf = mkCrew('Turfy', 'Hawkers', [[1, 'Turf', true], [6, 'Turf', true], [7, 'Turf', false], [9, 'Turf', false]], false); E.attr(tf, 'turf', 2);
+  o = info(tf, '--row turf'); const tb = body(o).split('\n');
+  ok(/\{\{type=Claim held\}\}/.test(o[0]) && o[0].indexOf('{{title=' + ON + ' Turf: 2 of 4 held}}') > 0 && tb[0] === 'Turf claims held by this crew: 2 of 4.' && /^Rules \(core book\): As soon as you seize a claim/.test(tb[1]) && /Some claims count as turf\./.test(tb[1]) && /^Deep Cuts text \(Downtime module, off for this crew\): Your crew's hold on their Tier is measured by your number of turf claims\./.test(tb[2]) && tb[3] === 'Turf boxes marked on the sheet: 2.', 'the Turf card: how many are held, the core text, the Deep Cuts hold rule, the boxes on the sheet', tb);
+  E.attr(tf, 'setting_dc_downtime', '1'); const tb2 = body(info(tf, '--row turf')).split('\n');
+  ok(/^Rules in force \(Deep Cuts, Downtime module\): Your crew's hold/.test(tb2[1]) && /^Core book: As soon as you seize/.test(tb2[2]), 'with Downtime on the hold rule is the one in force');
+  const nt = mkCrew('NoTurfHeld', 'Hawkers', [[1, 'Turf', false]]); o = info(nt, '--row turf'); ok(/Claim not held/.test(o[0]) && /Turf claims held by this crew: 0 of 1/.test(o[0]), 'no turf held');
+  ok(has(info(asn, '--row turf'), /Turf claims held by this crew: 1 of 2/), 'turf on the Assassins sheet');
+
+  // refusals
+  ok(has(info(asn, '--n 99'), /no longer on the sheet/) && has(info(asn, '--n 5'), /no longer on the sheet/) && has(info(asn, '--n 7'), /no longer on the sheet/) && has(info(asn, ''), /no longer on the sheet/), 'an unknown slot, an empty slot, a turf slot asked for by number, and no slot are all refused');
+  ok(has(info(mkCrew('NoTurf', 'x', [[2, 'Fixer', true]]), '--row turf'), /no turf claims on this sheet/), 'a Turf button on a sheet with no turf');
+  ok(has(info(asn, '--n 3', quinn), /only use this on crews you control/) && has(info(asn, '--n 3', gm), /Claim held/), 'a player who does not control the crew is refused; the GM may');
+  // text from the sheet cannot roll dice or make buttons
+  const risky = mkCrew('Risky', 'x', [[1, 'Fixer', true, 'See [[2d6]] and [roll](!bitdcrew adj heat+1) @{x|heat} {{evil}}']]);
+  const rb = body(info(risky, '--n 1')); ok(!/[\[\]]/.test(rb) && !/@\{|\{\{|\}\}/.test(rb) && /See \(\(2d6\)\)/.test(rb), 'sheet text is made safe before it is posted', rb);
+  // nothing is written
+  const snap = (c) => JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]));
+  const before = snap(asn); menu(asn); info(asn, '--n 3'); info(asn, '--row turf'); ok(snap(asn) === before, 'the claims commands write nothing to the sheet');
+}
+
 // ---------------------------------------------------------------- T13 the two scripts together
 if (PC_SRC) {
   const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false), quinn = E.player('Quinn', false);
@@ -1567,10 +1679,10 @@ if (PC_SRC) {
   let o = E.run('!bitd setup', pat, tp); const pcMade = E.abil(pc).length;
   ok(pcMade === 9 && E.abil(pc).every(x => x.description === 'bitd-tam'), 'PC setup still makes its 9 PC actions', pcMade);
   o = E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(crew).length === 10 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 10 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
+  ok(E.abil(crew).length === 11 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 11 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
   ok(E.abil(crew).map(x => x.name).join() !== E.abil(pc).map(x => x.name).join(), 'the two sets have different names');
   E.run('!bitd setup', pat, tp); E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(pc).length === 9 && E.abil(crew).length === 10, 'rebuilding either leaves the other intact');
+  ok(E.abil(pc).length === 9 && E.abil(crew).length === 11, 'rebuilding either leaves the other intact');
   // each script ignores the other's command and refuses the other's sheets
   o = E.run('!bitdcrew status', pat, tp); ok(has(o, /crew sheets only/) && !has(o, /Stress/), 'crew script refuses a PC sheet', o);
   o = E.run('!bitd status', pat, tc); ok(has(o, /crew or faction sheet/), 'PC script refuses a crew sheet', o);
@@ -1635,12 +1747,12 @@ if (PC_SRC) {
 // ---------------------------------------------------------------- T14 static checks on the source
 {
   ok(!/[^\x00-\x7f]/.test(SRC), 'source is plain ASCII');
-  ok(!/`/.test(SRC) && !/=>/.test(SRC) && !/\b(let|const)\s+[a-zA-Z_$]/.test(SRC.replace(/'[^']*'/g, "''")), 'ES5 only: no template literals, arrows, let or const');
+  ok(!/`/.test(SRC) && !/=>/.test(SRC) && !/\b(let|const)\s+[a-zA-Z_$]/.test(SRC.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, "''")), 'ES5 only: no template literals, arrows, let or const');
   ok(/^\/\*[\s\S]*\*\/\s*var BitDCrewTAM = BitDCrewTAM \|\| \(function \(\) \{\s*'use strict';/.test(SRC) && /\}\(\)\);\s*$/.test(SRC), 'one IIFE with use strict');
   const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   ok(!/bitd-tam|BLADES_TAM|BitDTAM|!bitd[^c]|'!bitd'/.test(CODE.replace(/player characters use !bitd\)/, '').replace(/!bitdcrew/g, '')), 'no name shared with the PC script (command, marker, macro, variable)');
   ok(/MARK = 'bitd-crew-tam'/.test(SRC) && /CMD = '!bitdcrew'/.test(SRC) && /MACRO_NAME = 'CREW_TAM'/.test(SRC) && /STATE_KEY = 'BitDCrewTAM'/.test(SRC), 'the four crew identifiers');
-  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '').replace(/'repeating_contact_' \+ c\.row \+ '_description'/g, '')), 'the source never names a text attribute owned by the PC text fixer (the contact notes are read-only and not the fixer\'s)', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
+  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '').replace(/'repeating_contact_' \+ c\.row \+ '_description'/g, '').replace(/'claim_' \+ i \+ '_desc'/g, '')), 'the source never names a text attribute owned by the PC text fixer (the contact notes and the claim text on the sheet are read, never written)', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
   ok(!/sendChat\([^;]*,\s*function/.test(SRC) && !/sendChat\([^)]*\)\s*,\s*function/.test(SRC), 'no sendChat callback in the source');
   const keys = {}; (SRC.match(/\^\{([a-z_0-9]+)\}/g) || []).forEach(k => { keys[k.slice(2, -1)] = 1; });
   ['gang', 'elite', 'expert', 'rolls_their'].forEach(k => { keys[k] = 1; });

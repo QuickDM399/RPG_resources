@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.7.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.8.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.7.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.8.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.7.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.8.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -41,7 +41,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
 - A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
-- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6b. Contacts`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6b. Contacts`, `6c. Claims`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
 - Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
@@ -258,9 +258,23 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - Nothing on the sheet changes.
 **Known fail states:** the triangle on the wrong contacts (tell me what the checkbox's attribute is, because I am assuming the crew sheet's contact checkbox is the triangle flag), notes missing (a different notes field), a button missing, the card out of sheet order, the bar order wrong.
 
-## L27 Clean up
+## L27 Claims (a Deep Cuts crew and a core crew; try crew E and Bravos)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** tick a few claim boxes on the sheet, leave others unticked. `~ Rebuild`. Read `Crew Script - Claim Rules Text.md` first so you know what the cards should say.
+**Steps:** click `6c. Claims`. Click a held claim, a claim not held, a claim whose text differs by crew (Informants, Vice Den, Cover Operation or Ancient Gate), the **Turf** button, and, on Bravos or Smugglers, Warehouses or Warehouse. If you have a Vigilantes crew, click Publicity. Switch the Downtime module on or off on a crew with Warehouses and click it again.
+**Pass:**
+- The action bar order is `6. Abilities`, `6b. Contacts`, `6c. Claims`, `7. Adjust`.
+- A whispered card lists every claim on the sheet in sheet order, a filled circle for held and a hollow one for not held, one Turf button with a count ("Turf: 2 of 5 held"), and a line explaining the circles.
+- A click posts a public card: header "Claim held" or "Claim not held", the circle before the name, "Held by this crew." or "Not held by this crew.", the rules text from the book (check it against the text page), and "On the sheet: ..." with the sheet's own short text.
+- The Turf card shows the count, the core rule text, the Deep Cuts hold rule (marked "in force" with Downtime on) and the turf boxes marked.
+- Warehouses shows the core text in force with Downtime off and the Deep Cuts text in force with it on, the other beside it. Informants does the same with the Action module.
+- Publicity (Vigilantes): "No book text for this claim" and the sheet text.
+- Nothing on the sheet changes.
+**Known fail states:** a claim missing from the list or in the wrong order, the circle wrong (the held box and the card disagree), the wrong crew's wording (the Hawkers Informants should end "new clients", Assassins "new targets"), a name that does not match (send me the exact name in the claim box on the sheet), text that differs from the text page, or a long card cut off.
+
+## L28 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26 and claim boxes you ticked for L27, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

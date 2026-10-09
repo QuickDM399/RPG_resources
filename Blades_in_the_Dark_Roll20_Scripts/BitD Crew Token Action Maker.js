@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.7.0
+/* BitD Crew Token Action Maker  v0.8.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -24,6 +24,8 @@
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
  *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open.
+ *   - Claims (button 6c): a card with a button for each claim on the sheet, marked held or not held; a click shows the claim rules
+ *     text (core book, Deep Cuts where it replaces it, and the sheet text) to the table.
  *   - Contacts (button 6b): a card with a button for each contact; a click shows the contact notes to the table. Favorites (the
  *     checked box on the contact row) carry a triangle on the button and in the output.
  *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
@@ -32,7 +34,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.7.0';
+  var VERSION = '0.8.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -102,6 +104,77 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     { names: ['Surplus Caches', 'Surplus Cache'], label: 'product sale or supply' }
   ];
   var CLAIM_INCOME = ['Vice Den', 'Drug Den', 'Gambling Den', 'Fighting Pits', 'Foreign Market', 'Protection Racket', 'Side Business'];
+  // Claim rules text, verbatim from the core book (bladesinthedark_v8_2, the claim list of each crew chapter), keyed by the claim name as
+  // the sheet shows it, in lower case. Each claim lists [crew types, text] pairs because some claims are worded differently by crew.
+  // Vigilantes are not in the core book, so their claims have no entry here (the card shows the sheet text instead).
+  var CLAIM_TEXT = {
+    'ancient altar': [[['cult'], 'You get +1d to the engagement roll for occult plans. Its blessing is with you.']],
+    'ancient gate': [
+      [['cult'], 'Safe passage in the deathlands. When you leave the city through this gate, the spirits of the deathlands will not molest you unless directly provoked.'],
+      [['smugglers'], 'Safe passage in the deathlands. When you leave the city through this gate, spirits in the deathlands will not molest you unless directly provoked.']],
+    'ancient obelisk': [[['cult'], '-1 stress cost for all arcane powers and rituals. This effect applies to all cultists, everywhere - so long as the deity is well-pleased. You don\'t have to be on-site at the obelisk to benefit from its power.']],
+    'ancient tower': [[['cult'], 'You get +1d to Consort with arcane entities on-site. This tower was prepared by sorcery from the pre-cataclysm and acts as an arcane lens to focus eldritch energy across the black mirror into the void.']],
+    'barracks': [[['bravos'], 'Your Thug cohorts get +1 scale. Extra room means more gang members.']],
+    'bluecoat confederates': [[['bravos'], 'You get +1d to the engagement roll for assault plans. The street patrol around here helps you out now.']],
+    'bluecoat intimidation': [[['bravos'], 'You get -2 heat per score. The law doesn\'t want any trouble from you; they look the other way.']],
+    'city records': [[['assassins'], 'You get +1d to the engagement roll for stealth plans. You can use blueprints and other documents to determine a good approach for infiltrations.']],
+    'cloister': [[['cult'], 'Your Adept cohorts get +1 scale. More room for hopeful novices desperate to pledge their service.']],
+    'cover identities': [[['assassins', 'hawkers'], 'You get +1d to the engagement roll for deception and social plans. False identities help confuse the opposition.']],
+    'cover operation': [
+      [['assassins', 'hawkers'], 'You get -2 heat per score. The cover of a legitimate operation helps deflect some of the heat from law enforcement.'],
+      [['smugglers'], 'You get -2 heat per score. What\'s your cover? Who did you seize it from?']],
+    'covert drops': [[['shadows'], 'You get +2 coin in payoff for scores that involve espionage or sabotage. The perfect hidden exchange point is worth the extra coin to discerning clientele.']],
+    'drug den': [[['shadows'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. What\'s the drug of choice?']],
+    'envoy': [[['assassins'], 'You get +2 coin in payoff for scores that involve high-class clients. This well-connected liaison will help arrange for a better payoff from rich clients.']],
+    'fighting pits': [[['bravos'], 'During downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. The locals love to gamble away their hard-won coin on the blood-sports you host.']],
+    'fixer': [[['assassins'], 'You get +2 coin in payoff for scores that involve lower-class clients. This well-respected agent will help arrange for a better payoff from poorer clients.']],
+    'fleet': [[['smugglers'], 'Your cohorts have their own vehicles. Each cohort has a common vehicle, with quality equal to your Tier.']],
+    'foreign market': [[['hawkers'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. Some of your product makes its way out of the city.']],
+    'gambling den': [[['shadows'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. Cards, dice, or something more unusual on offer?']],
+    'hagfish farm': [[['assassins', 'shadows'], 'When you use the reduce heat downtime activity after a score that involves killing, you get +1d to the roll and quiet, convenient disposal of any corpses you left on the job.']],
+    'infirmary': [[['assassins', 'bravos', 'shadows'], 'You get +1d to healing treatment rolls. The infirmary also has beds for long-term convalescence.']],
+    'informants': [
+      [['assassins', 'bravos', 'shadows'], 'You get +1d to gather information for a score. Your eyes and ears on the streets are always on the lookout for new targets.'],
+      [['hawkers', 'smugglers'], 'You get +1d to gather information for a score. Your eyes and ears on the streets are always on the lookout for new clients.']],
+    'interrogation chamber': [[['shadows'], 'You get +1d to Command and Sway on-site. Grisly business, but effective.']],
+    'local graft': [[['hawkers'], 'You get +2 coin in payoff for scores that involve a show of force or socializing. A few city officials share bribe money with those who show that they\'re players on the scene.']],
+    'lookouts': [[['hawkers', 'shadows'], 'You get +1d to Hunt or Survey on your turf.']],
+    'loyal fence': [[['shadows'], 'You get +2 coin in payoff for scores that involve burglary or robbery. It requires a skilled eye and good contacts to move stolen goods.']],
+    'luxury fence': [[['smugglers'], 'You get +2 coin in payoff for scores that involve high-class targets. It requires a skilled eye and good contacts to move hot luxury goods.']],
+    'luxury venue': [[['hawkers'], '+1d to Consort and Sway rolls on-site. Silks, paintings, and crystal impress the clientele.']],
+    'offertory': [[['cult'], 'You get +2 coin in your payoff for scores that involve occult operations. The frightened locals offer you tribute when you perform your dark practices. They don\'t want to be next.']],
+    'personal clothier': [[['hawkers'], 'You get +1d to the engagement roll for social plans. You always arrive on the scene in the most current and alluring fashion.']],
+    'protection racket': [[['assassins', 'bravos'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. Some of the locals are terrified of you and will gladly pay for "protection."']],
+    'sacred nexus': [[['cult'], 'You get +1d to healing treatment rolls. Ancient arcane energy seeps into the wounded here, speeding their recovery, and marking them consecrated by its power.']],
+    'sanctuary': [[['cult'], '+1d to Command and Sway rolls on-site. Your sanctuary maintains its effect as long as your deity is well-pleased with your service.']],
+    'secret pathways': [[['shadows'], 'You get +1d to the engagement roll for stealth plans. You might have access to long-forgotten underground canals, rooftop walkways, or some other route of your choosing.']],
+    'secret routes': [[['smugglers'], 'You get +1d to the engagement roll for transport plans. You might have access to long-forgotten underground canals, dark streets normally hidden behind debris, or some other route of your choosing.']],
+    'side business': [[['smugglers'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. What kind of legitimate business is this? How do you get paid in secret?']],
+    'spirit well': [[['cult'], 'You get +1d to Attune rolls on-site. A spirit well draws ghosts and other things to its power, which you harness to aid your arts.']],
+    'street fence': [[['bravos'], 'You get +2 coin in your payoff for scores that involve lower-class targets. An expert can find the treasure amid the trash you loot from your poorer victims.']],
+    'surplus caches': [[['hawkers'], 'You get +2 coin in payoff for scores that involve product sale or supply. You have an abundance of product, which pads your pockets every now and then.']],
+    'tavern': [[['shadows', 'smugglers'], 'You get +1d to Consort and Sway rolls on-site. Some booze and friendly conversation can go a long way.']],
+    'terrorized citizens': [[['bravos'], 'You get +2 coin in your payoff for scores that involve battle or extortion. The frightened locals offer you tribute whenever you lash out. They don\'t want to be next.']],
+    'training rooms': [[['assassins'], 'Your Skulks cohorts get +1 scale. Extra training enables them to fight like a larger gang.']],
+    'vice den': [
+      [['assassins', 'cult'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat.'],
+      [['hawkers'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. Is this claim a den you\'ve overtaken from another purveyor, or a new establishment replacing something else?'],
+      [['smugglers'], 'Any time during downtime, roll dice equal to your Tier. You earn coin equal to the highest result, minus your heat. Perhaps you sell some of the contraband you smuggle here? Or do you not mix your operations?']],
+    'victim trophies': [[['assassins'], 'You get +1 rep per score. Word of your grisly "collection" gets around, and your boldness boosts your rep in the underworld.']],
+    'warehouse': [[['smugglers'], 'You get +1d to acquire asset rolls. You have space to hold all the various items and supplies you end up with from your smuggling runs. They can be useful on their own or for barter when you need it.']],
+    'warehouses': [[['bravos'], 'You get +1d to acquire asset rolls. You have space to hold all the various spoils you end up with after your battles. It can be useful on its own or for barter when you need it.']]
+  };
+  // Deep Cuts replaces the wording of these claims when the module is on (the sheet swaps its own text the same way). Core text is above.
+  var CLAIM_DC = {
+    'warehouses': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
+    'warehouse': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
+    'informants': { attr: 'setting_dc_action', module: 'Action', text: 'You get +1 tick on your long-term project clock when you work on an investigation during downtime.' }
+  };
+  // Turf has no claim text of its own: the core book rules for claims, and the Deep Cuts rule for hold (Assess Hold, p84)
+  var TURF_CORE = 'As soon as you seize a claim, you enjoy the listed benefit for as long as you hold the claim. Some claims count as turf. Others provide special benefits to the crew, such as bonus dice in certain circumstances, extra coin generated for the crew\'s treasury, or new opportunities for action.';
+  var TURF_DC = 'Your crew\'s hold on their Tier is measured by your number of turf claims. To have strong hold on your Tier, you must have a number of turf claims equal to or greater than your Tier. While your number of turf claims is lower than your Tier, your hold is weak.';
+  // the crew type is free text on the sheet, so it is matched by these stems
+  var CREW_STEMS = [['assassin', 'assassins'], ['bravo', 'bravos'], ['cult', 'cult'], ['hawker', 'hawkers'], ['shadow', 'shadows'], ['smuggler', 'smugglers'], ['vigilante', 'vigilantes']];
   // Status lines for ticked abilities that change no number the script tracks (wording from the sheet; All Hands is the Deep Cuts text)
   var STATUS_REMINDERS = [
     ['Zealotry', 'Zealotry: your cohorts get +1d to rolls against enemies of the faith (add it as Bonus dice on a cohort roll).'],
@@ -117,8 +190,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5).
   // The token action bar sorts character by character, so 6b. sorts between 6. and 7. and nothing needs renumbering.
-  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6b. Contacts', '7. Adjust',
-    '8. Clocks', '9. Status', '~ Rebuild'];
+  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6b. Contacts', '6c. Claims',
+    '7. Adjust', '8. Clocks', '9. Status', '~ Rebuild'];
   var TRIANGLE = String.fromCharCode(0x25B2);
   var NOTES_MAX = 2000;
 
@@ -499,10 +572,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     list.push(
       [ABILITY_NAMES[5], CMD + ' abilities'],
       [ABILITY_NAMES[6], CMD + ' contacts'],
-      [ABILITY_NAMES[7], CMD + ' adj ?{Adjust|' + adjust + '}'],
-      [ABILITY_NAMES[8], CMD + ' clocks'],
-      [ABILITY_NAMES[9], CMD + ' status'],
-      [ABILITY_NAMES[10], CMD + ' setup']
+      [ABILITY_NAMES[7], CMD + ' claims'],
+      [ABILITY_NAMES[8], CMD + ' adj ?{Adjust|' + adjust + '}'],
+      [ABILITY_NAMES[9], CMD + ' clocks'],
+      [ABILITY_NAMES[10], CMD + ' status'],
+      [ABILITY_NAMES[11], CMD + ' setup']
     );
     return list;
   }
@@ -1011,6 +1085,115 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       title: (c.fav ? TRIANGLE + ' ' : '') + c.name,
       content: notes || 'No notes on the sheet for this contact.'
     }));
+  }
+
+  // ---------------------------------------------------------------- claims
+
+  var SMALL_WORDS = ' the of and a an in on ';
+  // a claim name as text: the sheet may hold the translation key (the name with underscores) or the English text, which can span lines
+  function claimDisplay(raw) {
+    var r = String(raw === undefined || raw === null ? '' : raw), key = /_/.test(r) || r === r.toLowerCase();
+    var n = r.replace(/_/g, ' ').replace(/\s+/g, ' ').trim().replace(/^claim /i, '');
+    if (!key) { return n; }
+    return n.split(' ').map(function (w, i) {
+      return (i > 0 && SMALL_WORDS.indexOf(' ' + w + ' ') >= 0) ? w : w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  }
+
+  // the claims on the sheet in slot order: {slot, name, key, held, sheet}. A slot with no name is skipped.
+  function claimSlots(cid) {
+    var out = [];
+    for (var i = 1; i <= 15; i++) {
+      var name = chatNotes(claimDisplay(getAttrByName(cid, 'claim_' + i + '_name')), 100000).replace(/\s*\n\s*/g, ' ').slice(0, 80).trim();
+      if (!name) { continue; }
+      out.push({
+        slot: i, name: name, key: normName(name), held: isOn(cid, 'claim_' + i + '_check'),
+        sheet: chatNotes(getAttrByName(cid, 'claim_' + i + '_desc'), 400).replace(/\s*\n\s*/g, ' ')
+      });
+    }
+    return out;
+  }
+
+  // the crew type from its free text, else the type whose claim list overlaps this sheet most
+  function crewTypeKey(cid, slots) {
+    var tv = String(getAttr(cid, 'crew_type', '')).toLowerCase(), i, best = '', bestN = 0, counts = {};
+    for (i = 0; i < CREW_STEMS.length; i++) { if (tv.indexOf(CREW_STEMS[i][0]) >= 0) { return CREW_STEMS[i][1]; } }
+    slots.forEach(function (s) {
+      (CLAIM_TEXT[s.key] || []).forEach(function (e) { e[0].forEach(function (c) { counts[c] = (counts[c] || 0) + 1; }); });
+    });
+    Object.keys(counts).forEach(function (c) { if (counts[c] > bestN) { best = c; bestN = counts[c]; } });
+    return best;
+  }
+
+  function claimBookText(key, type) {
+    var entries = CLAIM_TEXT[key], i;
+    if (!entries) { return ''; }
+    for (i = 0; i < entries.length; i++) { if (entries[i][0].indexOf(type) >= 0) { return entries[i][1]; } }
+    return entries[0][1];
+  }
+
+  function postClaimCard(msg, t, held, title, lines) {
+    sendChat('player|' + msg.playerid, broadcast(t.c, {
+      type: held ? 'Claim held' : 'Claim not held',
+      title: (held ? G_ON : G_OFF) + ' ' + title,
+      content: lines.map(function (x) { return clean(x); }).join(NL)
+    }));
+  }
+
+  function doClaims(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, slots = claimSlots(cid), lines = [], turfDone = false;
+    var turfs = slots.filter(function (s) { return s.key === 'turf'; });
+    slots.forEach(function (s) {
+      if (s.key === 'turf') {
+        if (turfDone) { return; }
+        turfDone = true;
+        var h = turfs.filter(function (x) { return x.held; }).length;
+        lines.push('[' + btn((h ? G_ON : G_OFF) + ' Turf: ' + h + ' of ' + turfs.length + ' held') + '](' + CMD + ' claiminfo --c ' + cid + ' --row turf)');
+        return;
+      }
+      lines.push('[' + btn((s.held ? G_ON : G_OFF) + ' ' + s.name) + '](' + CMD + ' claiminfo --c ' + cid + ' --n ' + s.slot + ')');
+    });
+    whisper(msg, broadcast(t.c, {
+      type: 'Claims',
+      title: 'Show to the table',
+      content: slots.length ? lines.join(NL) + NL + G_ON + ' held by the crew, ' + G_OFF + ' not held.' : 'There are no claims on this sheet.'
+    }));
+  }
+
+  // the rules text of one claim, shown to the table
+  function doClaimInfo(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, slots = claimSlots(cid), type = crewTypeKey(cid, slots), L = [], dtOn = isOn(cid, 'setting_dc_downtime');
+    if (String(o.row || '') === 'turf') {
+      var turfs = slots.filter(function (s) { return s.key === 'turf'; }), held = turfs.filter(function (s) { return s.held; }).length;
+      if (!turfs.length) { whisper(msg, 'BitDCrew: there are no turf claims on this sheet. Run 6c. Claims again.'); return; }
+      L.push('Turf claims held by this crew: ' + held + ' of ' + turfs.length + '.');
+      L.push(dtOn ? 'Rules in force (Deep Cuts, Downtime module): ' + TURF_DC : 'Rules (core book): ' + TURF_CORE);
+      L.push(dtOn ? 'Core book: ' + TURF_CORE : 'Deep Cuts text (Downtime module, off for this crew): ' + TURF_DC);
+      L.push('Turf boxes marked on the sheet: ' + getNum(cid, 'turf', 0) + '.');
+      postClaimCard(msg, t, held > 0, 'Turf: ' + held + ' of ' + turfs.length + ' held', L);
+      return;
+    }
+    var n = parseInt(o.n, 10), s = slots.filter(function (x) { return x.slot === n && x.key !== 'turf'; })[0];
+    if (!s) { whisper(msg, 'BitDCrew: that claim is no longer on the sheet. Run 6c. Claims again.'); return; }
+    var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key];
+    L.push(s.held ? 'Held by this crew.' : 'Not held by this crew.');
+    if (dc) {
+      if (isOn(cid, dc.attr)) {
+        L.push('Rules in force (Deep Cuts, ' + dc.module + ' module): ' + dc.text);
+        if (book) { L.push('Core book text (replaced while the module is on): ' + book); }
+      } else {
+        if (book) { L.push('Rules in force (core book): ' + book); }
+        L.push('Deep Cuts text (' + dc.module + ' module, off for this crew): ' + dc.text);
+      }
+    } else if (book) {
+      L.push('Rules (core book): ' + book);
+    } else {
+      L.push('No book text for this claim: the core book has no entry for it.');
+    }
+    if (s.sheet) { L.push('On the sheet: ' + s.sheet); }
+    postClaimCard(msg, t, s.held, s.name, L);
   }
 
   function clockSize(cid, base) {
@@ -1788,6 +1971,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'abilities': return doAbilities(msg, o);
       case 'contacts': return doContacts(msg, o);
       case 'contact': return doContact(msg, o);
+      case 'claims': return doClaims(msg, o);
+      case 'claiminfo': return doClaimInfo(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
       case 'adj': return doAdjust(msg, o);
@@ -1848,5 +2033,5 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   register();
 
-  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS };
+  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS, _claimText: CLAIM_TEXT };
 }());
