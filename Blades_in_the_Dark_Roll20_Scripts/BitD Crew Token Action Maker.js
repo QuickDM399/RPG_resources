@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.5.0
+/* BitD Crew Token Action Maker  v0.6.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -23,13 +23,14 @@
  *   - Claims (Deep Cuts crews unless noted): "-2 heat per score" claims lower the Fallout Heat (core Score too), Victim Trophies
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
- *   - Action module: Adjust > Begin score gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
+ *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open.
+ *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
  *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.5.0';
+  var VERSION = '0.6.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -112,8 +113,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var G_ON = String.fromCharCode(0x25CF), G_OFF = String.fromCharCode(0x25CB);
   var RE_SQ = new RegExp('[' + String.fromCharCode(0x2018, 0x2019) + ']', 'g');
 
-  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Abilities', '6. Adjust',
-    '7. Clocks', '8. Status', '~ Rebuild'];
+  // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5)
+  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '7. Adjust',
+    '8. Clocks', '9. Status', '~ Rebuild'];
 
   // Core book, Entanglements: columns by Heat, rows by the roll result (1-3, 4/5, 6).
   var ENT_COLUMNS = [
@@ -354,7 +356,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return out;
   }
 
-  // one text per claim the script acts on, for 8. Status (the Deep Cuts claims only for Downtime crews)
+  // one text per claim the script acts on, for 9. Status (the Deep Cuts claims only for Downtime crews)
   function claimsInPlay(cid, dt) {
     var cl = claimsOn(cid), out = [];
     CLAIM_HEAT.forEach(function (n) { if (claimHas(cl, [n])) { out.push(n + ' (-' + HEAT_CLAIM + ' Heat per score)'); } });
@@ -471,9 +473,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       '|Coin +1,coin+1|Coin +2,coin+2|Coin +4,coin+4|Coin -1,coin-1|Coin -2,coin-2|Coin -4,coin-4' +
       '|Tier +1,tier+1|Tier -1,tier-1|Hold: strong,hold-strong|Hold: weak,hold-weak' +
       '|Mark crew XP,xp+1' +
-      (m.action ? '|Begin score: Edge for the party (Bound in Darkness),beginscore' : '') +
-      (dt ? '|Assess hold (Downtime rule),holdassess|Reduce Heat: spend 1 Coin,rh-coin|Reduce Heat: spend 1 Rep,rh-rep' +
-        '|Debt clock +1,debt+1|Debt clock -1,debt-1|Downtime: Heat and Hold,hh|Downtime: start a new Downtime,dtstart' : '');
+      (dt ? '|Debt clock +1,debt+1|Debt clock -1,debt-1' : '');
     // composed Engagement roll: the answers are asked here because prompts exist only in a token-action macro
     var engagement = CMD + ' engagement ?{Plan type|Assault,assault|Deception,deception|Stealth,stealth|Occult,occult|Social,social|Transport,transport}' +
       ' ?{Approach (bold or daring or overly complex)|Neither,0|Bold or daring (+1d),1|Overly complex or contingent (-1d),-1}' +
@@ -483,17 +483,22 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var fortune = '&{template:blades} {{charname=@{selected|character_name}}} {{type=fortune}} {{subtitle=^{roll}}} ' +
       '{{title-fortune=1}} {{title=^{fortune}}} @{selected|numberofdice} {{notes=@{selected|notes_query}}} ' +
       '{{charimage=@{selected|chat_image}}} @{selected|title_text}';
-    return [
+    var list = [
       [ABILITY_NAMES[0], CMD + ' roll ?{Roll|' + rollOpts.join('|') + '} ?{Bonus dice|0|1|2|3|4|5|6|-1|-2|-3}'],
       [ABILITY_NAMES[1], engagement],
       [ABILITY_NAMES[2], fortune],
-      [ABILITY_NAMES[3], scoreMacro(dt)],
-      [ABILITY_NAMES[4], CMD + ' abilities'],
-      [ABILITY_NAMES[5], CMD + ' adj ?{Adjust|' + adjust + '}'],
-      [ABILITY_NAMES[6], CMD + ' clocks'],
-      [ABILITY_NAMES[7], CMD + ' status'],
-      [ABILITY_NAMES[8], CMD + ' setup']
+      [ABILITY_NAMES[3], scoreMacro(dt)]
     ];
+    // the Downtime hub: the Heat and Hold card (Reduce Heat, Assess hold, income claims, End Downtime)
+    if (dt) { list.push([ABILITY_NAMES[4], CMD + ' hh']); }
+    list.push(
+      [ABILITY_NAMES[5], CMD + ' abilities'],
+      [ABILITY_NAMES[6], CMD + ' adj ?{Adjust|' + adjust + '}'],
+      [ABILITY_NAMES[7], CMD + ' clocks'],
+      [ABILITY_NAMES[8], CMD + ' status'],
+      [ABILITY_NAMES[9], CMD + ' setup']
+    );
+    return list;
   }
 
   // bar 1 = Heat: linked attribute, max = Heat boxes, shown to and editable by players
@@ -856,6 +861,12 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     sendChat('player|' + msg.playerid, '&{template:blades} {{charname=' + clean(t.c.name) + '}} {{type=action}} {{short=short}} ' +
       '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} {{' + diceField(pool) + '}}' +
       tail(cid, t.c));
+    // the engagement roll begins the score: Bound in Darkness (Action module) gives each Party PC 1 Edge, offered on a card for the table
+    if (mods(cid).action && crewAbilityOn(cid, 'Bound in Darkness')) {
+      var edgeCard = beginScoreCard(t);
+      if (edgeCard) { sendChat('player|' + msg.playerid, edgeCard); }
+      else { whisper(msg, 'BitDCrew: Bound in Darkness is ticked, but no player characters are marked as Party members, so no Edge was offered. Mark them in Roll20 (Edit character, Party member).'); }
+    }
   }
 
   function doEngagement(msg, o) {
@@ -1133,7 +1144,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // ---------------------------------------------------------------- Downtime ledger and the Heat and Hold card
   // One record per crew: what was used this Downtime (once-per-Downtime abilities) and what happened. A Deep Cuts Score
-  // starts one; so does Adjust > Downtime: start a new Downtime. End Downtime closes it.
+  // starts one; so does 5. Downtime when none is open. End Downtime closes it.
 
   function startDowntime(cid, why) {
     var st = botState(), prev = st.downtime[cid];
@@ -1150,10 +1161,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   function ledgerFor(msg, t, o) {
     var d = botState().downtime[t.ch.id];
     if (!d || !o.idx || d.id !== o.idx) {
-      whisper(msg, 'BitDCrew: that Downtime is no longer open. Open Heat and Hold again from Adjust, or start a new Downtime there.');
+      whisper(msg, 'BitDCrew: that Downtime is no longer open. Open it again with 5. Downtime, which starts a new one.');
       return null;
     }
-    if (d.ended) { note(msg, t.c, 'Downtime', 'Already ended', 'That Downtime was ended. Start a new one from Adjust.'); return null; }
+    if (d.ended) { note(msg, t.c, 'Downtime', 'Already ended', 'That Downtime was ended. Start a new one with 5. Downtime.'); return null; }
     return d;
   }
 
@@ -1562,25 +1573,33 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return n;
   }
 
-  // Deep Cuts, Action module, Bound in Darkness: "When you begin a score, each PC that has not lost favor with your deity gains 1 Edge."
-  function doBeginScore(msg, t) {
-    var cid = t.ch.id;
-    if (!mods(cid).action) { whisper(msg, 'BitDCrew: Edge comes from the Deep Cuts Action module, and it is off for this crew.'); return; }
-    if (!crewAbilityOn(cid, 'Bound in Darkness')) {
-      whisper(msg, 'BitDCrew: Bound in Darkness is not ticked on this crew sheet, so there is no Edge to hand out at the start of a score.'); return;
-    }
-    var pcs = partyPcs();
-    if (!pcs.length) {
-      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody to give Edge to. Mark them in Roll20 (Edit character, Party member). Nothing was applied.');
-      return;
-    }
+  // the Begin score card (and its flow), or null when no player character is marked as a Party member
+  function beginScoreCard(t) {
+    var cid = t.ch.id, pcs = partyPcs();
+    if (!pcs.length) { return null; }
     var nonce = newFlow(cid, { kind: 'edge' }), L = [];
     L.push('Bound in Darkness: when you begin a score, each PC that has not lost favor with your deity gains 1 Edge.');
     L.push('[All party PCs +1 Edge](' + CMD + ' edge all --c ' + cid + ' --idx ' + nonce + ')');
     L.push('Or one at a time, if someone lost favor: ' + pcs.map(function (pc) {
       return '[' + btn(pc.get('name')) + ' +1 Edge](' + CMD + ' edge pc --row ' + pc.id + ' --c ' + cid + ' --idx ' + nonce + ')';
     }).join(' '));
-    whisper(msg, broadcast(t.c, { type: 'Action', title: 'Begin score', content: L.join(NL) }));
+    return broadcast(t.c, { type: 'Action', title: 'Begin score', content: L.join(NL) });
+  }
+
+  // Deep Cuts, Action module, Bound in Darkness: "When you begin a score, each PC that has not lost favor with your deity gains 1 Edge."
+  // Offered after the engagement roll; this command (!bitdcrew adj beginscore) is the manual way.
+  function doBeginScore(msg, t) {
+    var cid = t.ch.id;
+    if (!mods(cid).action) { whisper(msg, 'BitDCrew: Edge comes from the Deep Cuts Action module, and it is off for this crew.'); return; }
+    if (!crewAbilityOn(cid, 'Bound in Darkness')) {
+      whisper(msg, 'BitDCrew: Bound in Darkness is not ticked on this crew sheet, so there is no Edge to hand out at the start of a score.'); return;
+    }
+    var card = beginScoreCard(t);
+    if (!card) {
+      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody to give Edge to. Mark them in Roll20 (Edit character, Party member). Nothing was applied.');
+      return;
+    }
+    whisper(msg, card);
   }
 
   function doEdge(msg, o) {
@@ -1598,7 +1617,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       return;
     }
     var flow = o.idx ? botState().flows[o.idx] : null;
-    if (!flow || flow.cid !== cid || flow.kind !== 'edge') { whisper(msg, 'BitDCrew: that Begin score card is no longer available. Run Adjust, Begin score again.'); return; }
+    if (!flow || flow.cid !== cid || flow.kind !== 'edge') { whisper(msg, 'BitDCrew: that Begin score card is no longer available. Roll 2. Engagement again, or type !bitdcrew adj beginscore.'); return; }
     var pcs = partyPcs();
     if (code === 'all') {
       pcs.forEach(function (pc) {

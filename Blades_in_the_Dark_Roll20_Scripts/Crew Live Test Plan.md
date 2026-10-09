@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.5.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.6.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.5.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.6.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.5.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.6.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -41,7 +41,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
 - A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
-- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Abilities`, `6. Adjust`, `7. Clocks`, `8. Status`, `~ Rebuild`.
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
 - Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
@@ -70,7 +70,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 
 ## L5 Heat bar and the Heat 9 rule (B core, A Deep Cuts, D)
 
-**Ground truth:** core p147: at 9 the crew gains a wanted level, clears Heat, excess rolls over. **Steps (B):** set Wanted 1, Heat 8. Type 9 into **bar 1 on the token**. Then repeat by clicking the 9th Heat box on the sheet. Then set Heat 7 and use `6. Adjust` > `Heat +1`, +1, +1.
+**Ground truth:** core p147: at 9 the crew gains a wanted level, clears Heat, excess rolls over. **Steps (B):** set Wanted 1, Heat 8. Type 9 into **bar 1 on the token**. Then repeat by clicking the 9th Heat box on the sheet. Then set Heat 7 and use `7. Adjust` > `Heat +1`, +1, +1.
 **Pass:** each time Heat becomes 0 and Wanted rises by 1 (2, then 3, then 4). A card "Wanted level" goes to the GM and controllers (not to a player who does not control the crew) and says "Heat reached 9: Wanted level +1". The **token bar shows 0**, not 9, within a few seconds. At Wanted 4, one more fill leaves Wanted at 4, clears Heat and says "already at its highest level (4)".
 **Steps (A):** the same with Heat 8 on the bar.
 **Pass (A):** the card also says "mark crew xp and pick Bluecoats as the entanglement", shows the Bluecoats line for the new Wanted level, the buy-off cost (Wanted + 4 Coin), and a **Mark crew XP** button that ticks the first unfilled `dc_crew_xpclock_N` clock.
@@ -100,20 +100,21 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 
 ## L8 Adjust entries (B core entries, A Deep Cuts entries)
 
-Click `6. Adjust` and pick each entry; check the sheet box and the card.
+Click `7. Adjust` and pick each entry; check the sheet box and the card.
 **Pass (both):** Heat ±1 (a +1 at 8 fills the track as in L5), Wanted ±1 (stops at 0 and 4), Incarceration (Wanted -1 and Heat 0, core p148), Rep ±1 (stops at 12), Turf ±1 (stops at 6), Tier ±1 (stops at 0 and 4), Hold strong and Hold weak, Coin +1/+2/+4/-1/-2/-4.
 **Pass (B):** Coin changes `crewcoin`, stops at 16. Mark crew XP raises `crew_xp`; the 10th mark posts the core reminder (new special ability or two upgrade boxes, stash Tier+2) with a Clear button.
-**Pass (A):** Coin changes `crewcoin_dc` and stops at 24, and `crewcoin` is not touched. Mark crew XP ticks `dc_crew_xpclock_1` to 6, then clock 2; when all four are full it says so. "Reduce Heat: spend 1 Coin" and "... 1 Rep" lower Heat by 1 and the cost by 1, and refuse with no Heat or nothing to spend. "Assess hold": with Turf 1 and Tier 2 hold becomes weak; with Turf 2 strong. "Debt clock +1/-1" ticks `crew_debt_dc` and posts the clock card. A has no core XP reminder at 10 `crew_xp`.
-**Known fail states:** the Debt, Reduce Heat or Assess hold entries missing on A (Rebuild after switching Downtime on) or present on B.
+**Pass (A):** Coin changes `crewcoin_dc` and stops at 24, and `crewcoin` is not touched. Mark crew XP ticks `dc_crew_xpclock_1` to 6, then clock 2; when all four are full it says so. "Debt clock +1/-1" ticks `crew_debt_dc` and posts the clock card. A has no core XP reminder at 10 `crew_xp`.
+The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hold, start a new Downtime and Begin score are no longer in it (they moved to `5. Downtime` and the engagement roll).
+**Known fail states:** the Debt entries missing on A (Rebuild after switching Downtime on) or present on B; any of the five moved entries still in the menu (the crew was not rebuilt).
 
 ## L9 Abilities menu (A and B)
 
-**Ground truth:** the sheet's `:` button next to an ability. **Steps:** tick two crew abilities and leave one unticked. Click `5. Abilities`, then click each ability button.
+**Ground truth:** the sheet's `:` button next to an ability. **Steps:** tick two crew abilities and leave one unticked. Click `6. Abilities`, then click each ability button.
 **Pass:** only the ticked abilities are listed. Each click posts the same "Special Ability" card as the sheet's own button, with the text the sheet shows (including the PC script's corrected wording for Crow's Veil and similar). **This Show button has been tested live for PC abilities only; the crew version is new.** **Known fail states:** a silent click (Roll20 sometimes ignores the first click; click again before failing it); the wrong crew's card.
 
 ## L10 Clocks (B)
 
-**Steps:** add two crew clocks on the sheet, sizes 6 and 4, one with no size chosen. Click `7. Clocks`. Use -1, +1 and Show.
+**Steps:** add two crew clocks on the sheet, sizes 6 and 4, one with no size chosen. Click `8. Clocks`. Use -1, +1 and Show.
 **Pass:** both clocks listed with their progress; the unset size is shown as 4. +1 raises the sheet's clock and posts the clock card; stops at full and at 0. Show posts the sheet's native card. **Known fail states:** the sheet's clock picture does not move (an attribute written but the sheet not refreshed: close and reopen the sheet).
 
 ## L11 Status (B and A)
@@ -122,7 +123,7 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 
 ## L12 Permissions
 
-**Steps:** as the player who controls B, use `~ Rebuild`, `6. Adjust`, `4. Score` on B. As the player who does **not** control B, select B's token (if you can) or paste `!bitdcrew status --c -MEo2MoHcs1_bIktRx8g` in chat. As GM, use every button on A and B. Set a crew's control to All Players and use it from a second player. Check the `CREW_TAM` macro appears on a player's macro bar.
+**Steps:** as the player who controls B, use `~ Rebuild`, `7. Adjust`, `4. Score` on B. As the player who does **not** control B, select B's token (if you can) or paste `!bitdcrew status --c -MEo2MoHcs1_bIktRx8g` in chat. As GM, use every button on A and B. Set a crew's control to All Players and use it from a second player. Check the `CREW_TAM` macro appears on a player's macro bar.
 **Pass:** the controlling player can do everything on B; the other player gets "you can only use this on crews you control" and nothing changes; the GM can act on any crew; "all players" crews work for every player; a player's Rebuild on B works and on A (if not theirs) is refused. **Known fail states:** `CREW_TAM` not on the player's bar (macro visibility: the PC macro has the same open question).
 
 ## L13 Module switch and stale actions (B)
@@ -132,8 +133,8 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 
 ## L14 Slippery and the 5th Wanted box (D, then A)
 
-**Steps:** on D switch Downtime on, tick Slippery, switch the 5th Wanted box on. Set Wanted 4 (`wantedDC` 4) and Heat 8. Rebuild. Click `6. Adjust` > Heat +1.
-**Pass:** the 5-box track gains the level (5/5) and `wanted` is unchanged; the Bluecoats line uses the effective Wanted (one lower); the Slippery sentence appears; `8. Status` shows "Wanted (5-box track) 5/5 (Slippery: effective 4)". Switch the 5th box off: Status shows the 4-box track again. **Ground truth to confirm:** with the 5th box on, which row do your players mark? The script assumes the 5-box row (`wantedDC`).
+**Steps:** on D switch Downtime on, tick Slippery, switch the 5th Wanted box on. Set Wanted 4 (`wantedDC` 4) and Heat 8. Rebuild. Click `7. Adjust` > Heat +1.
+**Pass:** the 5-box track gains the level (5/5) and `wanted` is unchanged; the Bluecoats line uses the effective Wanted (one lower); the Slippery sentence appears; `9. Status` shows "Wanted (5-box track) 5/5 (Slippery: effective 4)". Switch the 5th box off: Status shows the 4-box track again. **Ground truth to confirm:** with the 5th box on, which row do your players mark? The script assumes the 5-box row (`wantedDC`).
 **Also check No Traces on A** (Assassins ability, tick it): a Score with Heat total 10 takes 9 and the card says "No Traces -1".
 
 ## L15 Both scripts together
@@ -154,7 +155,7 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 
 ## L18 Heat and Hold and End Downtime (crew E; tick abilities by hand)
 
-**Steps:** tick **Just Passing Through** and **No Traces** on the crew (Veteran makes this legitimate). Set Heat 5, Coin 3, Rep 4, Turf 1, Tier 2. Run `4. Score`, walk to the Deposit, then use the Heat and Hold card that arrives. Click: Spend 1 Coin, Spend 1 Rep, Just Passing Through (twice), Assess hold. Set Heat 0 and click End Downtime. Repeat with Heat 3 at End Downtime. Open Adjust > Downtime: Heat and Hold, and Adjust > Downtime: start a new Downtime.
+**Steps:** tick **Just Passing Through** and **No Traces** on the crew (Veteran makes this legitimate). Set Heat 5, Coin 3, Rep 4, Turf 1, Tier 2. Run `4. Score`, walk to the Deposit, then use the Heat and Hold card that arrives. Click: Spend 1 Coin, Spend 1 Rep, Just Passing Through (twice), Assess hold. Set Heat 0 and click End Downtime. Repeat with Heat 3 at End Downtime. Click `5. Downtime` (it should show the same open Downtime), then End Downtime and click `5. Downtime` again (it should start a fresh one).
 **Pass:**
 - Spend 1 Coin: Heat -1 and `crewcoin_dc` -1 (never `crewcoin`); Spend 1 Rep: Heat -1, Rep -1. Both are logged on the reposted card.
 - Just Passing Through: Heat -1 once; the second click says it was already used and the button is gone. A new Downtime brings it back.
@@ -191,21 +192,23 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 
 ## L21 Status reminders (any crew; add rows by hand)
 
-**Steps:** on a spare crew add ability rows named Zealotry, Thorn in your Side, Roots, All Hands and Like Part of the Family, tick them, and run `8. Status`. Untick one and run it again.
+**Steps:** on a spare crew add ability rows named Zealotry, Thorn in your Side, Roots, All Hands and Like Part of the Family, tick them, and run `9. Status`. Untick one and run it again.
 **Pass:** one plain line per ticked ability, none for the unticked one, nothing on a crew without them.
 **Known fail states:** a line missing because the row name differs from the script's (tell me the exact text), a line for an unticked row.
 
-## L22 Begin score and Clear Edge (crew E with the Action module on; two or three player characters)
+## L22 Begin score after the engagement roll, and Clear Edge (crew E with the Action module on; two or three player characters)
 
 **Setup:** tick **Bound in Darkness** on crew E. Mark two of your player characters as Party members and leave one unmarked. Run `!bitd setup` on the PCs' tokens so bar 2 is linked to Edge. Write down each PC's Edge. Run `~ Rebuild` on crew E.
 **Steps:**
-1. `6. Adjust` now lists "Begin score: Edge for the party (Bound in Darkness)". Run it.
+1. Run `2. Engagement` (any answers). After the arithmetic card and the roll, a public **Begin score** card should appear.
 2. Click **All party PCs +1 Edge**. Then click it again.
-3. Run Begin score again. Click one PC's button, then that button again, then **All party PCs**.
-4. Untick Bound in Darkness and run it again. Switch the Action module off on the crew sheet, `~ Rebuild`, and check the entry is gone.
-5. Re-tick and re-enable, `~ Rebuild`, give a party PC some Edge, and run a Deep Cuts `4. Score` (answer the prompts, "All party members" for the PCs). Read the Fallout card. Click **Clear Edge for the party**, then click it again.
-**Pass:** step 2: each marked PC gains 1 Edge and the unmarked PC gains none; the PC's sheet and token bar 2 change at once (the bar may catch up within two seconds); the second click says "Already done". Step 3: that PC gets 1 only once, and **All** skips them. Step 4: "Bound in Darkness is not ticked" with nothing applied; no entry once Action is off. Step 5: the Fallout card says who holds Edge and offers the button; clicking it sets every party PC's Edge to 0 (sheet and bar), names who lost how much, and the second click says "Already done". With no PC marked as a Party member, Begin score says so and applies nothing.
-**Known fail states:** the sheet's Edge box not updating while the attribute changes (tell me), the bar not updating, Edge written to the unmarked PC, a player who does not control the crew able to click, the PC script's own Edge actions broken afterwards (spend one with `!bitd` and check).
+3. Roll the engagement again. On the new card click one PC's button, then that button again, then **All party PCs**.
+4. Untick Bound in Darkness and roll the engagement: no Begin score card. Re-tick it, switch the Action module off, `~ Rebuild`, roll again: still none.
+5. Re-enable the module, `~ Rebuild`, unmark every PC as a Party member, and roll: a hint says no Edge was offered. Re-mark them.
+6. With Predators ticked as well (stealth plan), check the Begin score card comes after you click Roll, not while the confirm card is open.
+7. Give a party PC some Edge and run a Deep Cuts `4. Score` ("All party members" for the PCs). Read the Fallout card. Click **Clear Edge for the party**, then click it again.
+**Pass:** step 1: the card lists All and each marked PC, not the unmarked one. Step 2: each marked PC gains 1 Edge, on the sheet and on token bar 2 (the bar may catch up within two seconds); the second click says "Already done". Step 3: that PC gets 1 only once and **All** skips them. Steps 4 and 5: no card (step 5 posts the hint). Step 7: the Fallout card says who holds Edge and offers the button; clicking it sets every party PC's Edge to 0 (sheet and bar), names who lost how much, and the second click says "Already done".
+**Known fail states:** no card after the roll (check the ability row and the module, and `!bitdcrew debug on`); the sheet's Edge box not updating while the attribute changes (tell me); the bar not updating; Edge written to the unmarked PC; a player who does not control the crew able to click; the PC script's own Edge actions broken afterwards (spend one with `!bitd`). The old command `!bitdcrew adj beginscore` still opens the card by hand.
 
 ## L23 Heat claims and Rep claims (Score)
 
@@ -215,7 +218,7 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 2. Tick a second claim of the same kind (Bluecoat Intimidation) and repeat. Then run a smooth operation (base 0) at Tier 0.
 3. With Victim Trophies ticked, repeat step 1. Add Leverage and repeat.
 4. On a core crew (Downtime off) with Cover Operation ticked, run `4. Score` with exposure 4.
-5. Run `8. Status` on each.
+5. Run `9. Status` on each.
 **Pass:** step 1: with the claim "Heat +2 (base 2, crew Tier +2, Cover Operation -2)" and Rep +1; without it Heat +4 and Rep +2. Step 2: two claims take Heat to 0 and the Rep line says +0; a smooth operation at Tier 0 shows no claim line. Step 3 (with Cover Operation unticked, so Heat is 4): "Rep +3 (1 per 2 Heat, Victim Trophies +1)", and with Leverage the Rep rises by 4 in total (Leverage once). Step 4: "Heat +2 (exposure 4, Cover Operation -2)". Step 5: a "Claims the script counts" line naming each.
 **Known fail states:** a claim not counted (send me the exact text in the claim's box on the sheet), the claim counted when unticked, Rep not following the reduced Heat, Leverage counted twice.
 
@@ -231,7 +234,7 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 
 ## L25 Claim income in Heat and Hold (Deep Cuts crew, claims Vice Den, Drug Den, Protection Racket and so on)
 
-**Setup:** tick one or two income claims. Set Heat to a known number. `~ Rebuild` is not needed. Open Heat and Hold (`6. Adjust` > Downtime: Heat and Hold).
+**Setup:** tick one or two income claims. Set Heat to a known number. Open Heat and Hold with `5. Downtime`.
 **Steps:**
 1. Read the card: there should be a "Claim income" line with a button for each ticked claim.
 2. Click one. A dice card appears in the public chat, then (a moment later) a whisper reads the result.

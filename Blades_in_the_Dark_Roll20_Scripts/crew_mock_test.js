@@ -125,7 +125,7 @@ function queries(action) {
   const a = E.crew('Bravos', pat), b = E.crew('Hawkers', quinn), ta = E.token(a), tb = E.token(b);
   let o = E.run('!bitdcrew setup', pat, ta);
   const names = E.abil(a).map(x => x.name);
-  ok(names.length === 9 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Abilities|6. Adjust|7. Clocks|8. Status|~ Rebuild', 'setup makes the 9 token actions in order', names);
+  ok(names.length === 9 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 9 token actions in order, with a gap at 5 (no Downtime button)', names);
   ok(E.abil(a).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'abilities flagged with the crew marker');
   E.run('!bitdcrew setup', pat, ta);
   ok(E.abil(a).length === 9, 'rebuild is idempotent');
@@ -134,9 +134,9 @@ function queries(action) {
   E.run('!bitdcrew setup', gm, tb);
   ok(E.abil(b).length === 9, 'GM can set up any crew');
   // a user-made ability with a clashing name is skipped, not replaced
-  E.store.abilities.push({ id: 'u1', _characterid: a, name: '8. Status', description: 'mine', action: 'x', istokenaction: true });
+  E.store.abilities.push({ id: 'u1', _characterid: a, name: '9. Status', description: 'mine', action: 'x', istokenaction: true });
   o = E.run('!bitdcrew setup', pat, ta);
-  ok(E.abil(a).filter(x => x.name === '8. Status').length === 1 && E.store.abilities.find(x => x.id === 'u1') && has(o, /Skipped/), 'user ability untouched and reported', o);
+  ok(E.abil(a).filter(x => x.name === '9. Status').length === 1 && E.store.abilities.find(x => x.id === 'u1') && has(o, /Skipped/), 'user ability untouched and reported', o);
   o = E.run('!bitdcrew setup', pat);
   ok(has(o, /select one or more crew tokens/), 'setup without a token', o);
   o = E.run('!bitdcrew setup --c ' + a, pat);
@@ -169,8 +169,8 @@ function queries(action) {
   ok(count(act(a, '4. Score'), '?{') === 7 && queries(act(a, '4. Score')).length === 7, 'Downtime on: score has 7 prompts', act(a, '4. Score'));
   ok(count(act(b, '4. Score'), '?{') === 5, 'Downtime off: score has 5 prompts', act(b, '4. Score'));
   ok(!/Entanglement/.test(act(a, '1. Roll')) && /Entanglement \(@\{selected\|wanted\}\),wanted/.test(act(b, '1. Roll')), 'Entanglement is offered only with Downtime off', [act(a, '1. Roll'), act(b, '1. Roll')]);
-  ok(/Reduce Heat: spend 1 Coin/.test(act(a, '6. Adjust')) && /Assess hold/.test(act(a, '6. Adjust')) && /Debt clock \+1/.test(act(a, '6. Adjust')), 'Downtime on: Adjust has Reduce Heat, Assess hold, Debt');
-  ok(!/Reduce Heat/.test(act(b, '6. Adjust')) && !/Assess hold/.test(act(b, '6. Adjust')) && !/Debt/.test(act(b, '6. Adjust')) && /Incarceration/.test(act(b, '6. Adjust')), 'Downtime off: no Downtime entries, Incarceration present');
+  ok(!/Reduce Heat|Assess hold|Heat and Hold|start a new Downtime|Begin score/.test(act(a, '7. Adjust')) && /Debt clock \+1/.test(act(a, '7. Adjust')) && /Incarceration/.test(act(a, '7. Adjust')), 'Downtime on: Adjust keeps the counters and Debt, and no longer carries Downtime or Score steps');
+  ok(!/Reduce Heat/.test(act(b, '7. Adjust')) && !/Assess hold/.test(act(b, '7. Adjust')) && !/Debt/.test(act(b, '7. Adjust')) && /Incarceration/.test(act(b, '7. Adjust')), 'Downtime off: no Downtime entries, Incarceration present');
   // every prompt is well formed: option text,value with at most one comma, no empty options
   [a, b].forEach(cid => E.abil(cid).forEach(x => queries(x.action).forEach(q => {
     ok(q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1), 'well-formed prompt in ' + x.name, q);
@@ -178,7 +178,7 @@ function queries(action) {
   // fixed native macros
   ok(/^!bitdcrew engagement \?\{Plan type\|/.test(act(b, '2. Engagement')) && !/numberofdice/.test(act(b, '2. Engagement')) && count(act(b, '2. Engagement'), '?{') === 5, 'Engagement is the composed macro (plan type and the four questions)', act(b, '2. Engagement'));
   ok(/\{\{type=fortune\}\}/.test(act(b, '3. Fortune')) && /@\{selected\|notes_query\}/.test(act(b, '3. Fortune')) && /\^\{roll\}/.test(act(b, '3. Fortune')), 'Fortune is the sheet crew macro');
-  ok(act(b, '~ Rebuild') === '!bitdcrew setup' && act(b, '8. Status') === '!bitdcrew status' && act(b, '7. Clocks') === '!bitdcrew clocks' && act(b, '5. Abilities') === '!bitdcrew abilities', 'simple actions');
+  ok(act(b, '~ Rebuild') === '!bitdcrew setup' && act(b, '9. Status') === '!bitdcrew status' && act(b, '8. Clocks') === '!bitdcrew clocks' && act(b, '6. Abilities') === '!bitdcrew abilities', 'simple actions');
   // cohorts in the Roll list, names made safe for a prompt
   E.attr(b, 'cohort1_name', 'Thugs'); E.attr(b, 'repeating_cohort_-RowA_name', 'Hounds, the (best) [of] {all}|x');
   E.attr(b, 'repeating_cohort_-RowB_name', '   ');
@@ -200,7 +200,7 @@ function queries(action) {
   const a = E.crew('crew new', pat), ta = E.token(a);
   ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
   let o = E.run('!bitdcrew setup', pat, ta);
-  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 9, 'all five modules on: setup lists them, Deep Cuts Downtime rules, 9 actions', o);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 10 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 10 actions with 5. Downtime', o);
   E.attr(a, 'crew_tier', 2);
   o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
   ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
@@ -869,8 +869,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   o = E.run('!bitdcrew status', pat, tb)[0]; ok(!/Downtime is open/.test(o) && !/Just Passing Through/.test(o), 'Status: nothing extra for a crew without the ability or the module');
   E.run('!bitdcrew hhact end --c ' + a + ' --idx ' + ledger(E, a).id, pat); o = E.run('!bitdcrew status', pat, ta)[0]; ok(!/Downtime is open/.test(o), 'Status: no open-Downtime link after End Downtime');
   E.run('!bitdcrew setup', pat, ta); E.run('!bitdcrew setup', pat, tb);
-  const adjA = E.abil(a).find(x => x.name === '6. Adjust').action, adjB = E.abil(b).find(x => x.name === '6. Adjust').action;
-  ok(/Downtime: Heat and Hold,hh/.test(adjA) && /Downtime: start a new Downtime,dtstart/.test(adjA) && !/Heat and Hold/.test(adjB) && !/dtstart/.test(adjB), 'Adjust has the two Downtime entries only for a Downtime crew');
+  const adjA = E.abil(a).find(x => x.name === '7. Adjust').action, adjB = E.abil(b).find(x => x.name === '7. Adjust').action;
+  ok(!/Heat and Hold|dtstart|rh-coin|rh-rep|holdassess/.test(adjA) && !/Heat and Hold|dtstart|rh-coin|rh-rep|holdassess|debt/.test(adjB), 'Adjust carries no Downtime step for either kind of crew (they moved to 5. Downtime)');
   queries(adjA).forEach(q2 => ok(q2.slice(1).every(p => p.length > 0 && count(p, ',') <= 1), 'Adjust prompt still well formed', q2));
   // boundaries: No Traces needs Heat of exactly 0; Just Passing Through's +1d needs Heat of 4 or less
   const h1 = dtCrew(E, pat, 'Assassins9', 2), th1 = E.token(h1); tick(E, h1, 'No Traces'); E.attr(h1, 'rep', 4); E.attr(h1, 'heat', 1);
@@ -1205,8 +1205,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   // the Adjust entry follows the Action module
   const c1 = crew('Cult'), t1 = E.token(c1), c3 = crew('NoAction', false);
   E.run('!bitdcrew setup', pat, t1); E.run('!bitdcrew setup', pat, E.token(c3));
-  ok(/Begin score: Edge for the party \(Bound in Darkness\),beginscore/.test(E.abil(c1).find(x => x.name === '6. Adjust').action) && !/beginscore/.test(E.abil(c3).find(x => x.name === '6. Adjust').action), 'Adjust has Begin score only when the Action module is on');
-  ok(queries(E.abil(c1).find(x => x.name === '6. Adjust').action).every(q => q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1)), 'the Adjust prompt is still well formed');
+  ok(!/beginscore|Begin score/.test(E.abil(c1).find(x => x.name === '7. Adjust').action) && !/beginscore/.test(E.abil(c3).find(x => x.name === '7. Adjust').action), 'Begin score is no longer an Adjust entry (it is offered after the engagement roll); the command still works by hand');
+  ok(queries(E.abil(c1).find(x => x.name === '7. Adjust').action).every(q => q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1)), 'the Adjust prompt is still well formed');
 
   // the card
   let o = E.run('!bitdcrew adj beginscore', pat, t1);
@@ -1418,6 +1418,70 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   // River claims are not automated
   c = mk('River'); claim(c, 1, 'Chief Magistrate'); claim(c, 2, 'State Treasurer'); claim(c, 3, 'Editor-in-Chief'); o = run(c, '2 0 0 0 0 0 4');
   ok(/Heat \+4 /.test(heatLine(o)) && !has(o, /Claims that apply only/) && !has(E.run('!bitdcrew status', pat, E.token(c)), /Claims the script counts/), 'River claims change nothing', heatLine(o));
+}
+
+// ---------------------------------------------------------------- T25 the Downtime button, and Begin score after the engagement roll
+{
+  const { E, gm, pat, quinn } = table();
+  const names = (c) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).map(x => x.name).join('|'); };
+  const dtc = dtCrew(E, pat, 'Hawkers', 2), core = E.crew('Bravos', pat);
+  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 10 token actions with 5. Downtime after Score', names(dtc));
+  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
+  ok(E.abil(dtc).find(x => x.name === '5. Downtime').action === '!bitdcrew hh' && E.abil(dtc).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'the Downtime button runs the Heat and Hold command, no prompt');
+  const adjOf = (c) => queries(E.abil(c).find(x => x.name === '7. Adjust').action)[0];
+  const optsD = adjOf(dtc).slice(1).map(x => x.split(',').slice(-1)[0]), optsC = adjOf(core).slice(1).map(x => x.split(',').slice(-1)[0]);
+  ok(optsD.length === 22 && optsC.length === 20, 'Adjust has 22 entries with Downtime on and 20 without', [optsD.length, optsC.length]);
+  ok(['heat+1', 'heat-1', 'wanted+1', 'wanted-1', 'incarc', 'rep+1', 'rep-1', 'turf+1', 'turf-1', 'coin+1', 'coin+2', 'coin+4', 'coin-1', 'coin-2', 'coin-4', 'tier+1', 'tier-1', 'hold-strong', 'hold-weak', 'xp+1'].every(c => optsC.indexOf(c) >= 0) && optsD.indexOf('debt+1') >= 0 && optsD.indexOf('debt-1') >= 0 && optsC.indexOf('debt+1') < 0, 'the corrections stay: counters, Incarceration, Hold, XP, and Debt for Downtime crews');
+  ok(['rh-coin', 'rh-rep', 'holdassess', 'hh', 'dtstart', 'beginscore'].every(c => optsD.indexOf(c) < 0), 'the Downtime and Score steps are gone from Adjust');
+  // the button: opens the Heat and Hold card, starting a Downtime if none is open
+  E.attr(dtc, 'heat', 3);
+  let o = E.run('!bitdcrew hh', pat, E.token(dtc));
+  ok(has(o, /Downtime started/) && has(o, /title=Downtime/) && has(o, /Reduce Heat by 1 for each Coin or Rep/) && has(o, /Assess hold/) && has(o, /End Downtime/), 'first click starts a Downtime and shows the Heat and Hold card', o.map(x => x.slice(0, 160)));
+  const led = idxOf(o);
+  o = E.run('!bitdcrew hh', pat, E.token(dtc)); ok(!has(o, /Downtime started/) && idxOf(o) === led, 'a second click shows the same open Downtime');
+  o = E.run('!bitdcrew hh', pat, E.token(core)); ok(has(o, /Heat and Hold is a Deep Cuts Downtime step/), 'the command refuses a core crew');
+  o = E.run('!bitdcrew hh', quinn, E.token(dtc)); ok(has(o, /only use this on crews you control/), 'a player who does not control the crew is refused');
+  // Reduce Heat from the card is logged for End Downtime (the old Adjust entries were not)
+  E.attr(dtc, 'crewcoin_dc', 2);
+  E.run('!bitdcrew hhact rh-coin --c ' + dtc + ' --idx ' + led, pat); o = E.run('!bitdcrew hhact end --c ' + dtc + ' --idx ' + led, pat);
+  ok(has(o, /Spent 1 Coin for Heat -1\./), 'what is done on the card shows in the End Downtime summary', o.map(x => x.slice(0, 200)));
+  // stale macros keep working
+  o = E.run('!bitdcrew adj dtstart', pat, E.token(dtc)); ok(has(o, /Downtime started/), 'an old Adjust entry still works until the crew is rebuilt');
+  o = E.run('!bitdcrew hh', pat, E.token(dtc)); ok(has(o, /Heat and Hold/) && !has(o, /Downtime started/), 'and the new button joins the Downtime it opened');
+  o = E.run('!bitdcrew hhact end --c ' + dtc + ' --idx ' + idxOf(o), pat); ok(has(o, /Downtime ended/), 'End Downtime still ends it');
+  o = E.run('!bitdcrew hh', pat, E.token(dtc)); ok(has(o, /Downtime started/), 'after End Downtime the button starts a fresh one');
+}
+
+// ---------------------------------------------------------------- T25b Begin score is offered after the engagement roll
+{
+  const { E, gm, pat, quinn } = table();
+  const crew = (name, action, tick) => { const c = dtCrew(E, pat, name, 2); if (action !== false) E.attr(c, 'setting_dc_action', '1'); if (tick !== false) { E.attr(c, 'repeating_crewability_-B_name', 'Bound in Darkness'); E.attr(c, 'repeating_crewability_-B_check', '1'); } return c; };
+  const ana = E.char('Ana', pat), bo = E.char('Bo', quinn), cy = E.char('Cy', '');
+  E.party(ana); E.party(bo); E.attr(ana, 'edge_amount', 0);
+  const c1 = crew('Cult'), t1 = E.token(c1);
+  let o = E.run('!bitdcrew engagement stealth 0 0 0 0', pat, t1);
+  ok(o.length === 3 && /type=Engagement/.test(o[0]) && /title-engagement/.test(o[1]) && /title=Begin score/.test(o[2]) && E.out.every(x => /^player\|/.test(x.who)), 'after the roll, a public Begin score card follows the arithmetic and the roll', o.map(x => x.slice(0, 90)));
+  ok(/\[All party PCs \+1 Edge\]\(!bitdcrew edge all --c \S+ --idx \S+\)/.test(o[2]) && /\[Ana \+1 Edge\]/.test(o[2]) && /\[Bo \+1 Edge\]/.test(o[2]) && !/Cy/.test(o[2]), 'it offers All and each Party PC', o[2]);
+  const n = idxOf([o[2]]); o = E.run('!bitdcrew edge all --c ' + c1 + ' --idx ' + n, pat);
+  ok(E.val(ana, 'edge_amount') === '1' && E.val(bo, 'edge_amount') === '1' && E.val(cy, 'edge_amount') === undefined, 'its buttons work as the old Adjust card did', o.map(x => x.slice(0, 120)));
+  // each engagement roll offers its own card
+  o = E.run('!bitdcrew engagement assault 0 0 0 0', pat, t1); const n2 = idxOf([o[2]]); ok(n2 && n2 !== n, 'every roll gets its own Begin score card');
+  // asked first, offered only after Roll
+  const c2 = crew('Cult2'); E.attr(c2, 'repeating_crewability_-P_name', 'Predators'); E.attr(c2, 'repeating_crewability_-P_check', '1');
+  o = E.run('!bitdcrew engagement stealth 0 0 0 0', pat, E.token(c2)); const nn = idxOf(o);
+  ok(o.length === 1 && /title=Confirm/.test(o[0]) && !has(o, /Begin score/), 'while the card asks questions there is no Begin score card yet', o.map(x => x.slice(0, 80)));
+  o = E.run('!bitdcrew engroll --c ' + c2 + ' --idx ' + nn, pat); ok(o.length === 3 && /title=Begin score/.test(o[2]), 'it comes after Roll', o.map(x => x.slice(0, 80)));
+  // not offered
+  o = E.run('!bitdcrew engagement stealth 0 0 0 0', pat, E.token(crew('NoAbility', true, false))); ok(!has(o, /Begin score/) && o.length === 2, 'Bound in Darkness not ticked: nothing');
+  o = E.run('!bitdcrew engagement stealth 0 0 0 0', pat, E.token(crew('NoAction', false, true))); ok(!has(o, /Begin score/) && o.length === 2, 'Action module off: nothing');
+  o = E.run('!bitdcrew engagement stealth 0 0 0 0', pat, E.token(E.crew('Core', pat))); ok(!has(o, /Begin score/) && o.length === 2, 'a core crew: nothing');
+  // ticked and enabled but nobody in the party: a hint, no card
+  { const T = table(); const E2 = T.E; const k = E2.crew('Lonely', T.pat); E2.attr(k, 'setting_dc_action', '1'); E2.attr(k, 'repeating_crewability_-B_name', 'Bound in Darkness'); E2.attr(k, 'repeating_crewability_-B_check', '1');
+    const o2 = E2.run('!bitdcrew engagement stealth 0 0 0 0', T.pat, E2.token(k));
+    ok(!o2.some(x => /title=Begin score/.test(x)) && o2.some(x => /Bound in Darkness is ticked, but no player characters are marked as Party members/.test(x)) && o2.length === 3, 'no Party PCs: the roll happens, a hint says why no Edge was offered', o2.map(x => x.slice(0, 100))); }
+  // the manual command still works
+  o = E.run('!bitdcrew adj beginscore', pat, t1); ok(has(o, /title=Begin score/) && has(o, /All party PCs/), 'the manual command is still there');
+  E.flush();
 }
 
 // ---------------------------------------------------------------- T13 the two scripts together

@@ -113,10 +113,10 @@ const M = [
   ["Zealotry reminder missing", "['Zealotry', 'Zealotry: your cohorts", "['Zealotri', 'Zealotry: your cohorts"],
   ["reminders shown for unticked abilities", "if (on[normName(r[0])] === true) { L.push(r[1]); }", "if (true) { L.push(r[1]); }"],
   ["Edge limit 999", "EDGE_MAX = 99;", "EDGE_MAX = 999;"],
-  ["Begin score offered without the Action module", "(m.action ? '|Begin score: Edge", "(true ? '|Begin score: Edge"],
+  
   ["Begin score ignores the Action module", "if (!mods(cid).action) { whisper(msg, 'BitDCrew: Edge comes from", "if (false) { whisper(msg, 'BitDCrew: Edge comes from"],
   ["Begin score ignores the ability", "if (!crewAbilityOn(cid, 'Bound in Darkness')) {", "if (false) {"],
-  ["Begin score with an empty party", "    if (!pcs.length) {\n      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody", "    if (false) {\n      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody"],
+  
   ["party PCs include crew sheets", "=== 'character'; });\n  }\n  function edgeOf", "=== 'character' || true; });\n  }\n  function edgeOf"],
   ["Edge goes to every character", "    var pcs = partyPcs();\n    if (code === 'all') {", "    var pcs = findObjs({ _type: 'character' });\n    if (code === 'all') {"],
   ["All gives 2 Edge", "var before = edgeOf(pc.id), after = setEdgeOf(pc.id, before + 1);\n        L.push(btn(pc.get('name')) + ' Edge ' + before", "var before = edgeOf(pc.id), after = setEdgeOf(pc.id, before + 2);\n        L.push(btn(pc.get('name')) + ' Edge ' + before"],
@@ -186,6 +186,16 @@ const M = [
   ["zero dice can be a critical", "var crit = !w.lowest && sixes >= 2, title, text;", "var crit = sixes >= 2, title, text;"],
   ["the position is whispered", "    sendChat('player|' + w.pid, broadcast(info(w.cid), { type: 'Engagement', title: title,", "    whisper(msg, broadcast(info(w.cid), { type: 'Engagement', title: title,"],
   ["other elements cannot be negative in the macro", "|0|1|2|3|-1|-2|-3}", "|0|1|2|3}"],
+  ["Begin score offered without the Action module", "if (mods(cid).action && crewAbilityOn(cid, 'Bound in Darkness')) {\n      var edgeCard", "if (crewAbilityOn(cid, 'Bound in Darkness')) {\n      var edgeCard"],
+  ["Begin score offered without Bound in Darkness", "if (mods(cid).action && crewAbilityOn(cid, 'Bound in Darkness')) {\n      var edgeCard", "if (mods(cid).action) {\n      var edgeCard"],
+  ["Begin score with an empty party", "    if (!card) {\n      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody", "    if (false) {\n      whisper(msg, 'BitDCrew: no player characters are marked as Party members, so there is nobody"],
+  ["Begin score card is whispered, not shown to the table", "if (edgeCard) { sendChat('player|' + msg.playerid, edgeCard); }", "if (edgeCard) { whisper(msg, edgeCard); }"],
+  ["empty party is silent after the engagement roll", "      else { whisper(msg, 'BitDCrew: Bound in Darkness is ticked, but", "      else if (false) { whisper(msg, 'BitDCrew: Bound in Darkness is ticked, but"],
+  ["Downtime button on a core crew", "if (dt) { list.push([ABILITY_NAMES[4], CMD + ' hh']); }", "if (true) { list.push([ABILITY_NAMES[4], CMD + ' hh']); }"],
+  ["Downtime button runs the wrong command", "list.push([ABILITY_NAMES[4], CMD + ' hh']);", "list.push([ABILITY_NAMES[4], CMD + ' status']);"],
+  ["Adjust still carries Heat and Hold", "(dt ? '|Debt clock +1,debt+1|Debt clock -1,debt-1' : '');", "(dt ? '|Debt clock +1,debt+1|Debt clock -1,debt-1|Downtime: Heat and Hold,hh' : '');"],
+  ["Debt clock on a core crew", "(dt ? '|Debt clock +1,debt+1|Debt clock -1,debt-1' : '');", "(true ? '|Debt clock +1,debt+1|Debt clock -1,debt-1' : '');"],
+  ["Adjust loses a counter", "'|Mark crew XP,xp+1' +", "'' +"],
   ['non-ASCII character in the source', "var NL = '\\n';", "var NL = '\\n'; var X = 'é';"]
 ];
 
