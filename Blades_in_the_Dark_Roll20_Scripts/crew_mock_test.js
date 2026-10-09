@@ -1360,6 +1360,31 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(has(o, /Earned 8 Coin, tithe 2 paid, 6 to deposit/), 'the summary carries the claim Coin', o.map(x => x.slice(0, 200)));
   const sc = mk('Hawkers3'); claim(sc, 1, 'Surplus Cache'); ok(has(run(sc, '2 0 0 0 0 0 4'), /Surplus Caches: product sale or supply/), 'the book spelling Surplus Cache also matches');
 
+  // D2. The five later +2 Coin claims (v0.8.1): Terrorized Citizens, Offertory, Street Fence, Luxury Fence, Covert Drops
+  const five = [['Terrorized Citizens', 'battle or extortion', 5], ['Offertory', 'occult operations', 6], ['Street Fence', 'lower-class targets', 7], ['Luxury Fence', 'high-class targets', 8], ['Covert Drops', 'espionage or sabotage', 9]];
+  five.forEach(([nm, lbl, ix]) => {
+    const k = mk('Coin' + ix); claim(k, 3, nm); const r = run(k, '2 0 0 0 0 0 4'), nk = idxOf(r);
+    ok(has(r, new RegExp('\\[' + nm + ': ' + lbl + ', \\+2 Coin\\]\\(!bitdcrew claim coin' + ix + ' ')), nm + ': a +2 Coin button on the Fallout card', r.map(x => x.slice(0, 400)));
+    const k1 = E.run('!bitdcrew claim coin' + ix + ' --c ' + k + ' --idx ' + nk, pat); ok(has(k1, new RegExp(nm + ' \\+2 Coin')) && has(k1, /Payoff is now 6 Coin/), nm + ': Payoff 4 becomes 6', k1);
+    ok(has(E.run('!bitdcrew claim coin' + ix + ' --c ' + k + ' --idx ' + nk, pat), /Already done/), nm + ': once per Score');
+    const k2 = E.run('!bitdcrew seized none --c ' + k + ' --idx ' + nk, pat); ok(has(k2, /Earned from the score: 6 Coin/), nm + ': the +2 counts toward Earned', k2);
+    const ku = mk('NoCoin' + ix); claim(ku, 3, nm, false); const ru = run(ku, '2 0 0 0 0 0 4');
+    ok(!has(ru, /Claims that apply only/), nm + ' unticked: no button');
+    ok(has(E.run('!bitdcrew claim coin' + ix + ' --c ' + ku + ' --idx ' + idxOf(ru), pat), new RegExp(nm + ' is not ticked')), nm + ': a button for an unticked claim is refused');
+  });
+  // sheet spellings: a multi-line name, a translation key and the book spelling Covert Drop
+  [['Terrorized\nCitizens', /Terrorized Citizens: battle or extortion/], ['claim_street_fence', /Street Fence: lower-class targets/], ['claim_luxury_fence', /Luxury Fence: high-class targets/], ['Covert Drop', /Covert Drops: espionage or sabotage/]].forEach(([nm, re]) => {
+    const k = mk('Spell'); claim(k, 6, nm); ok(has(run(k, '2 0 0 0 0 0 4'), re), 'the sheet name ' + JSON.stringify(nm) + ' is recognised');
+  });
+  c = mk('AllTen'); ['Envoy', 'Fixer', 'Local Graft', 'Loyal Fence', 'Surplus Caches', 'Terrorized Citizens', 'Offertory', 'Street Fence', 'Luxury Fence', 'Covert Drops'].forEach((nm, i) => claim(c, i + 1, nm));
+  o = run(c, '2 0 0 0 0 0 4'); const nall = idxOf(o);
+  ok((fall(o).match(/!bitdcrew claim coin\d+ /g) || []).length === 10 && !/\(!bitdcrew claim coin\d{2}/.test(fall(o)), 'all ten Coin claims get their own button', o.map(x => x.slice(0, 600)));
+  for (let i = 0; i < 10; i++) { E.run('!bitdcrew claim coin' + i + ' --c ' + c + ' --idx ' + nall, pat); }
+  o = E.run('!bitdcrew seized none --c ' + c + ' --idx ' + nall, pat); ok(has(o, /Earned from the score: 24 Coin/), 'ten claims stack: 4 + 10 x 2 = 24 Coin', o);
+  ok(has(E.run('!bitdcrew claim coin10 --c ' + c + ' --idx ' + nall, pat), /unknown claim button/) && has(E.run('!bitdcrew claim coin99 --c ' + c + ' --idx ' + nall, pat), /unknown claim button/), 'a coin index past the list is refused');
+  c = mk('StatusFive'); claim(c, 1, 'Street Fence'); claim(c, 2, 'Covert Drops');
+  o = E.run('!bitdcrew status', pat, E.token(c)); ok(has(o, /Street Fence \(\+2 Coin, a button on the Fallout card\); Covert Drops \(\+2 Coin, a button on the Fallout card\)/), 'Status lists the new Coin claims', o.map(x => x.slice(0, 500)));
+
   // E. Claim income in the Heat and Hold card
   c = mk('Smugglers'); claim(c, 2, 'Vice Den'); claim(c, 5, 'claim_side_business'); claim(c, 6, 'Info Biz'); E.attr(c, 'heat', 1);
   const tcc = E.token(c);

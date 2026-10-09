@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.8.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.8.1
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.8.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.8.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.8.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.8.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -224,7 +224,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 
 ## L24 Claims that are buttons: Publicity, Doskvol's Most Wanted, the +2 Coin claims
 
-**Setup:** on a Deep Cuts crew tick Publicity and Doskvol's Most Wanted (Vigilantes), or Envoy and Surplus Caches (Assassins, Hawkers), or Fixer, Local Graft, Loyal Fence. If the crew lacks the claim, tick any claim box and type the name. `~ Rebuild`.
+**Setup:** on a Deep Cuts crew tick Publicity and Doskvol's Most Wanted (Vigilantes), or Envoy and Surplus Caches (Assassins, Hawkers), or Fixer, Local Graft, Loyal Fence, or (v0.8.1) Terrorized Citizens or Street Fence (Bravos), Offertory (Cult), Luxury Fence (Smugglers), Covert Drops (Shadows). If the crew lacks the claim, tick any claim box and type the name. `~ Rebuild`.
 **Steps:**
 1. Run `4. Score` and read the Fallout card. Click a Rep button, then click it again. If you have Leverage ticked, check the Rep.
 2. Run another Score. Click a Coin button (Envoy), then another (Surplus Caches), then **No seized assets**. Read the Payoff card and the tithe.

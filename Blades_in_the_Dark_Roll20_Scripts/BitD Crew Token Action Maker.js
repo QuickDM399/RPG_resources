@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.8.0
+/* BitD Crew Token Action Maker  v0.8.1
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -34,7 +34,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.8.0';
+  var VERSION = '0.8.1';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -101,7 +101,12 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     { names: ['Fixer'], label: 'lower-class clients' },
     { names: ['Local Graft'], label: 'show of force or socializing' },
     { names: ['Loyal Fence'], label: 'burglary or robbery' },
-    { names: ['Surplus Caches', 'Surplus Cache'], label: 'product sale or supply' }
+    { names: ['Surplus Caches', 'Surplus Cache'], label: 'product sale or supply' },
+    { names: ['Terrorized Citizens'], label: 'battle or extortion' },
+    { names: ['Offertory'], label: 'occult operations' },
+    { names: ['Street Fence'], label: 'lower-class targets' },
+    { names: ['Luxury Fence'], label: 'high-class targets' },
+    { names: ['Covert Drops', 'Covert Drop'], label: 'espionage or sabotage' }
   ];
   var CLAIM_INCOME = ['Vice Den', 'Drug Den', 'Gambling Den', 'Fighting Pits', 'Foreign Market', 'Protection Racket', 'Side Business'];
   // Claim rules text, verbatim from the core book (bladesinthedark_v8_2, the claim list of each crew chapter), keyed by the claim name as
@@ -1666,7 +1671,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // Publicity, Doskvol's Most Wanted (Rep) and the +2 Coin claims (Payoff): one click each per Score
   function doClaim(msg, o) {
     var t = target(msg, o); if (!t) { return; }
-    var cid = t.ch.id, code = String(o.pos[0] || ''), m = /^(rep|coin)(\d)$/.exec(code);
+    var cid = t.ch.id, code = String(o.pos[0] || ''), m = /^(rep|coin)(\d+)$/.exec(code);
     var def = m ? (m[1] === 'rep' ? CLAIM_REP_BUTTONS : CLAIM_COIN_BUTTONS)[parseInt(m[2], 10)] : null;
     if (!def) { whisper(msg, 'BitDCrew: unknown claim button.'); return; }
     var names = def.names || [def.name], label = names[0];

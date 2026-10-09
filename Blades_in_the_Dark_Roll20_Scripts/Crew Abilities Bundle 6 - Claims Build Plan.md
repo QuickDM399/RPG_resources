@@ -85,6 +85,8 @@ The core book's wording for the income claims (Vice Den and Foreign Market quote
 
 - **Hagfish Farm** (see above).
 - **River crew claims** (Chief Magistrate +1 heat per score, Detective Inspector max 1d on Reduce Heat, Editor-in-Chief max 1 Rep per score, State Treasurer max 2 Coin per score). They are not in the sheet data for your seven crews. If you run River I can add them; the Rep and Coin ceilings would cap the Score's numbers.
+
+**Added later (v0.8.1):** the section 1 table missed five more +2 Coin claims whose wording differs ("in your payoff", "battle or extortion"): Terrorized Citizens (Bravos), Offertory (Cult), Street Fence (Bravos), Luxury Fence (Smugglers) and Covert Drops (Shadows). They are now buttons like the other five.
 - **Upgrades and other claims** with a Score effect, if any exist beyond this list. I searched the sheet's claim text for "heat", "rep", "payoff" and "per score", and read the core book's claim lists for "+2 coin"; the table in section 1 is what turned up, so a claim I missed is possible.
 
 ## 4. Risks
