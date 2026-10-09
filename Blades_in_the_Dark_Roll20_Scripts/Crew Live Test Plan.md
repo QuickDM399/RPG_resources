@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.4.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.4.1
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.4.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.4.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.4.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.4.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -176,8 +176,8 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 - **Assassins (C):** tick Predators. After the Rebuild there is an extra prompt, "Is the goal murder". Try Stealth with Yes, Stealth with No, Deception with Yes, and Assault with Yes. Tick City Records and Cover Identities if listed and try Stealth, Social and Transport without a murder goal.
 - **Shadows (D):** tick Second Story and Secret Pathways. Run Stealth (both apply), then Assault. Run Stealth with Net dice -4.
 - **Stale macro:** on a crew whose `2. Engagement` was built before it had a Predators or Deadly Focus row, add that row (do not rebuild) and run `2. Engagement`.
-**Pass:** the dice counts are Bravos Assault 2 (3 with the claim ticked), Stealth 1; Assassins Stealth with Yes 2, No 1, Deception with Yes 2, Assault with Yes 1; Shadows Stealth 3, Assault 1, Net dice -4 shows the sheet's two-dice "lowest" layout. Each card is public, shows the crew name and image, uses the sheet's engagement title and position text, and the notes line reads like "Stealth plan: 1 luck, +1 Second Story, +1 Secret Pathways = 3d." A stale macro says "Run ~ Rebuild" and rolls nothing.
-**Known fail states:** the card shows no position text (the template needs a field I did not pass), the notes line missing, the prompts in the wrong order, the murder prompt missing after a Rebuild, a claim not counted (the claim name on the sheet differs from the one in the script: send me the exact text of the claim box), Cover Identities counting for Transport.
+**Pass:** the dice counts are Bravos Assault 2 (3 with the claim ticked), Stealth 1; Assassins Stealth with Yes 2, No 1, Deception with Yes 2, Assault with Yes 1; Shadows Stealth 3, Assault 1, Net dice -4 shows the sheet's two-dice "lowest" layout. Two public cards appear: a short readable card (type Engagement, title "3d") whose text reads like "Stealth plan: 1 luck, +1 Second Story, +1 Secret Pathways = 3d.", then the engagement roll card with the crew name and image and the sheet's engagement title. The native button's card has no position text either, so none is expected A stale macro says "Run ~ Rebuild" and rolls nothing.
+**Known fail states:** the arithmetic card missing or unreadable, the prompts in the wrong order, the murder prompt missing after a Rebuild, a claim not counted (the claim name on the sheet differs from the one in the script: send me the exact text of the claim box), Cover Identities counting for Transport.
 
 ## L21 Status reminders (any crew; add rows by hand)
 
@@ -239,4 +239,4 @@ Restore every value you recorded under "Before you start". Remove test clocks an
 
 ## Not verifiable offline (summary)
 
-Token-action prompt wording and order in a real Roll20 query (including the new Engagement and Adjust prompts); whether the composed Engagement card shows the sheet's position text and the notes line; that the PC sheet's Edge box follows an API write to `edge_amount`; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; **whether the script can read Roll20's Party member flag at all** (L16), which comes from a forum report; the Heat and Hold card arriving after the Deposit;  whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).
+Token-action prompt wording and order in a real Roll20 query (including the new Engagement and Adjust prompts); whether the income roll's notes line is readable (the Engagement one was not); that the PC sheet's Edge box follows an API write to `edge_amount`; the crew ability Show button; bar-edit events on a crew token; reading dice from the posted Entanglement card; how the crew sheet displays API-written clock progress, Tier and coin; player-side behaviour including the `CREW_TAM` macro on a player's bar; **whether the script can read Roll20's Party member flag at all** (L16), which comes from a forum report; the Heat and Hold card arriving after the Deposit;  whether the sheet's `setting_wanted_5th` hides the 4-box track; and the entanglement table layout, which came from extracted text (check it once against p150).

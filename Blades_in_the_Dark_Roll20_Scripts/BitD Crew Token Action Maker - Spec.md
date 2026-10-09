@@ -1,8 +1,8 @@
-# BitD Crew Token Action Maker - Spec (v0.4.0)
+# BitD Crew Token Action Maker - Spec (v0.4.1)
 
 Roll20 API script that builds token actions for **crew sheets** of the Evil Hat "Blades in the Dark" sheet v3.11, the companion of `BitD Token Action Maker.js` (player characters). Game 22049328, Mod Sandbox v1.5. Deep Cuts modules are per crew (`setting_dc_*`), read at click time.
 
-Status: v0.4.0 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
+Status: v0.4.1 built and tested against a mock API only. **Nothing here has been run in the live game.** See `Crew Live Test Plan.md`.
 
 ## 1. Scope
 
@@ -18,7 +18,7 @@ Status: v0.4.0 built and tested against a mock API only. **Nothing here has been
 | Button | What it does |
 |---|---|
 | `1. Roll` | Prompts: Roll (Tier, Entanglement [core only], one entry per cohort), Bonus dice. Script composes the sheet's `blades` card. Pools: Tier = `crew_tier`; Entanglement = Wanted track; cohort = `crew_tier` minus `impaired`, plus 1 if `elite` or `expert` (sheet rule `calculateCohortDice`). Pool 0 or less = 2d6, take the lowest. |
-| `2. Engagement` | Composed roll. Prompts: Plan type (six), Is the goal murder (only when the crew sheet has a Predators row), Net dice (-4 to +4). The script adds the ticked abilities and claims that apply (R16), posts the sheet's own engagement card and lists the arithmetic in its notes line. The sheet's own Engagement button is untouched. |
+| `2. Engagement` | Composed roll. Prompts: Plan type (six), Is the goal murder (only when the crew sheet has a Predators row), Net dice (-4 to +4). The script adds the ticked abilities and claims that apply (R16), posts a short card with the arithmetic and the dice count, then the sheet's own engagement card (dice only, as the sheet's button does: it carries no position text). The arithmetic is not put in the roll card's notes line because that line renders as dark text on the dark card (seen live in v0.4.0). The sheet's own Engagement button is untouched. |
 | `3. Fortune` | The sheet's own crew Fortune macro. |
 | `4. Score` | Core: 5 prompts, applies Heat. Deep Cuts: 7 prompts (the last is the PC count: "All party members" or 1 to 8), applies Heat and Rep, starts a Downtime, walks the Payoff with buttons, then offers Heat and Hold. |
 | `5. Abilities` | Ticked crew abilities only, each a button running the sheet's own `Show` card. |
@@ -96,5 +96,5 @@ Claims: `claim_1..15_name` and `claim_1..15_check` (names can span lines; the sh
 
 - `BitD Crew Token Action Maker.js` - the script (ES5, one IIFE, ASCII only).
 - `crew_mock_test.js` - `node crew_mock_test.js "BitD Crew Token Action Maker.js" translation.json "BitD Token Action Maker.js"` (the third argument loads the PC script too for the coexistence tests).
-- `crew_mutation_check.js` - same arguments; breaks the script in 147 places and requires the tests to fail each time.
+- `crew_mutation_check.js` - same arguments; breaks the script in 149 places and requires the tests to fail each time.
 - `Crew Live Test Plan.md` - what to click in the live game.

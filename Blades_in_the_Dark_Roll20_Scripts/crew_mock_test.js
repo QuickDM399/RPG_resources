@@ -976,7 +976,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const eng = (c, args, who) => {
     const o = E.run('!bitdcrew engagement ' + args, who || pat, E.token(c));
     const t = o.find(x => /title-engagement/.test(x)) || '';
-    return { o, t, n: dice(t), zero: /zerodice=/.test(t), notes: (/\{\{notes=([^}]*)\}\}/.exec(t) || [])[1] || '' };
+    const card = o.find(x => /template:bitd-broadcast/.test(x) && /\{\{type=Engagement\}\}/.test(x)) || '';
+    return { o, t, card, n: dice(t), zero: /zerodice=/.test(t), notes: (/\{\{content=([^}]*)\}\}/.exec(card) || [])[1] || '' };
   };
   // macro: plan type and net dice; a third prompt only when the crew has a murder-dependent ability row
   const plain = mk('Plain crew');
@@ -991,7 +992,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   // the card: a normal engagement roll posted by the player
   let r = eng(plain, 'stealth 0');
   ok(r.n === 1 && !r.zero && /\{\{type=action\}\}/.test(r.t) && /\{\{title-engagement=1\}\}/.test(r.t) && /\{\{title=\^\{engagement\}\}\}/.test(r.t) && /\{\{subtitle=\^\{roll_for\}\}\}/.test(r.t) && /\{\{short=short\}\}/.test(r.t) && /\{\{small-title=small-title\}\}/.test(r.t), 'one die for sheer luck, native engagement card fields', r.t);
-  ok(E.out.length === 1 && /^player\|/.test(E.out[0].who) && /charname=Plain crew/.test(E.out[0].text), 'posted publicly as the player');
+  ok(E.out.length === 2 && E.out.every(x => /^player\|/.test(x.who)) && /type=Engagement/.test(E.out[0].text) && /title-engagement/.test(E.out[1].text) && /charname=Plain crew/.test(E.out[1].text), 'two public cards as the player: the arithmetic, then the roll', E.out.map(x => x.text.slice(0, 80)));
+  ok(!/notes=/.test(r.t) && /\{\{title=1d\}\}/.test(r.card) && /\{\{content=Stealth plan: 1 luck = 1d\.\}\}/.test(r.card), 'the roll card carries no notes line (it is unreadable there); the arithmetic card has the dice count as its title', r.card);
   ok(/Stealth plan: 1 luck = 1d\./.test(r.notes), 'the arithmetic is on the card', r.notes);
   r = eng(plain, 'assault 2'); ok(r.n === 3 && /1 luck, \+2 net dice = 3d\./.test(r.notes), 'net dice add', r.notes);
   r = eng(plain, 'occult -1'); ok(r.zero && r.n === 2 && /= 0d \(no dice: roll 2d and keep the lowest\)/.test(r.notes), 'a pool of 0 rolls 2d, keep the lowest', r.notes);

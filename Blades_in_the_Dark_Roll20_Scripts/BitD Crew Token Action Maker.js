@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.4.0
+/* BitD Crew Token Action Maker  v0.4.1
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -28,7 +28,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.4.0';
+  var VERSION = '0.4.1';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -801,9 +801,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var line = cap(plan) + ' plan' + (murderArg === '1' ? ' with a murder goal' : '') + ': ' + parts.join(', ') + ' = ' + Math.max(pool, 0) + 'd' +
       (pool <= 0 ? ' (no dice: roll 2d and keep the lowest)' : '') + '.';
     dbg('engagement ' + cid + ' ' + line);
+    // the arithmetic goes on its own card: a notes line on the engagement roll card is dark text on a dark card and cannot be read
+    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Engagement', title: Math.max(pool, 0) + 'd', content: clean(line) }));
     sendChat('player|' + msg.playerid, '&{template:blades} {{charname=' + clean(t.c.name) + '}} {{type=action}} {{short=short}} ' +
-      '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} {{' + diceField(pool) + '}} ' +
-      '{{notes=' + clean(line) + '}}' + tail(cid, t.c));
+      '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} {{' + diceField(pool) + '}}' +
+      tail(cid, t.c));
   }
 
   // ---------------------------------------------------------------- abilities and clocks menus

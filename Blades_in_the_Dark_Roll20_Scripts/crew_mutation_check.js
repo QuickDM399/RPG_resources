@@ -158,6 +158,8 @@ const M = [
   ["unread income roll is silent", "if (watching.indexOf(w) < 0) { return; }\n      watching.splice", "return;\n      watching.splice"],
   ["Status hides the claims", "if (cip.length) { L.push('Claims the script counts: '", "if (false) { L.push('Claims the script counts: '"],
   ["core crews list Deep Cuts claims", "    if (dt) {\n      if (claimHas(cl, [CLAIM_REP_AUTO]))", "    if (true) {\n      if (claimHas(cl, [CLAIM_REP_AUTO]))"],
+  ["Engagement arithmetic card missing", "    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Engagement', title: Math.max(pool, 0) + 'd', content: clean(line) }));\n", ""],
+  ["Engagement arithmetic put back on the unreadable notes line", "{{' + diceField(pool) + '}}' +\n      tail(cid, t.c));", "{{' + diceField(pool) + '}} {{notes=' + clean(line) + '}}' +\n      tail(cid, t.c));"],
   ['non-ASCII character in the source', "var NL = '\\n';", "var NL = '\\n'; var X = 'é';"]
 ];
 
