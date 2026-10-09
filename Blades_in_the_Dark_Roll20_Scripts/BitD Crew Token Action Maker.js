@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.6.0
+/* BitD Crew Token Action Maker  v0.7.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -24,13 +24,15 @@
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
  *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open.
+ *   - Contacts (button 6b): a card with a button for each contact; a click shows the contact notes to the table. Favorites (the
+ *     checked box on the contact row) carry a triangle on the button and in the output.
  *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
  *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.6.0';
+  var VERSION = '0.7.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -113,9 +115,12 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var G_ON = String.fromCharCode(0x25CF), G_OFF = String.fromCharCode(0x25CB);
   var RE_SQ = new RegExp('[' + String.fromCharCode(0x2018, 0x2019) + ']', 'g');
 
-  // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5)
-  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '7. Adjust',
+  // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5).
+  // The token action bar sorts character by character, so 6b. sorts between 6. and 7. and nothing needs renumbering.
+  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6b. Contacts', '7. Adjust',
     '8. Clocks', '9. Status', '~ Rebuild'];
+  var TRIANGLE = String.fromCharCode(0x25B2);
+  var NOTES_MAX = 2000;
 
   // Core book, Entanglements: columns by Heat, rows by the roll result (1-3, 4/5, 6).
   var ENT_COLUMNS = [
@@ -493,10 +498,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (dt) { list.push([ABILITY_NAMES[4], CMD + ' hh']); }
     list.push(
       [ABILITY_NAMES[5], CMD + ' abilities'],
-      [ABILITY_NAMES[6], CMD + ' adj ?{Adjust|' + adjust + '}'],
-      [ABILITY_NAMES[7], CMD + ' clocks'],
-      [ABILITY_NAMES[8], CMD + ' status'],
-      [ABILITY_NAMES[9], CMD + ' setup']
+      [ABILITY_NAMES[6], CMD + ' contacts'],
+      [ABILITY_NAMES[7], CMD + ' adj ?{Adjust|' + adjust + '}'],
+      [ABILITY_NAMES[8], CMD + ' clocks'],
+      [ABILITY_NAMES[9], CMD + ' status'],
+      [ABILITY_NAMES[10], CMD + ' setup']
     );
     return list;
   }
@@ -955,6 +961,55 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       type: '^{special_ability}',
       title: 'Show to the table',
       content: buttons.length ? buttons.join(' ') : 'No crew abilities are ticked on this sheet. Tick the circle next to an ability to list it here.'
+    }));
+  }
+
+  // ---------------------------------------------------------------- contacts
+
+  // text from a sheet note, made safe to post: no brackets (inline rolls and chat buttons), no macro openers, no template braces
+  function chatNotes(text, max) {
+    var t = String(text === undefined || text === null ? '' : text).replace(/\r/g, '')
+      .replace(/\[/g, '(').replace(/\]/g, ')').replace(/([@%?&])\{/g, '$1 {').replace(/\{\{|\}\}/g, '').replace(/\|/g, '/');
+    t = t.split('\n').map(function (l) { return l.replace(/\s+$/, ''); }).join(NL).replace(/\n{3,}/g, NL + NL).trim();
+    if (t.length > max) { t = t.slice(0, max).replace(/\s+\S*$/, '') + ' ... (the notes were cut at ' + max + ' characters)'; }
+    return t;
+  }
+
+  // the crew contacts in sheet order: {row, name, fav}. A row with no name is skipped. The checked box on the row is the favorite flag.
+  function contactList(cid) {
+    var out = [];
+    listRows(cid, 'contact', 'name').forEach(function (r) {
+      // one safe line: the name goes in a card title as well as on a button
+      var name = chatNotes(r.value, 100000).replace(/\s*\n\s*/g, ' ').slice(0, 120).trim();
+      if (!name) { return; }
+      out.push({ row: r.row, name: name, fav: String(getAttrByName(cid, 'repeating_contact_' + r.row + '_check')) === '1' });
+    });
+    return out;
+  }
+
+  function doContacts(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, list = contactList(cid);
+    var lines = list.map(function (c) {
+      return '[' + btn((c.fav ? TRIANGLE + ' ' : '') + c.name) + '](' + CMD + ' contact --c ' + cid + ' --row ' + c.row + ')';
+    });
+    whisper(msg, broadcast(t.c, {
+      type: 'Contacts',
+      title: 'Show to the table',
+      content: list.length ? lines.join(NL) + NL + TRIANGLE + ' marks a favorite contact.' : 'There are no contacts on this sheet.'
+    }));
+  }
+
+  // the notes of one contact, shown to the table
+  function doContact(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, row = String(o.row || ''), c = contactList(cid).filter(function (x) { return x.row === row; })[0];
+    if (!c) { whisper(msg, 'BitDCrew: that contact is no longer on the sheet. Run 6b. Contacts again.'); return; }
+    var notes = chatNotes(getAttrByName(cid, 'repeating_contact_' + c.row + '_description'), NOTES_MAX);
+    sendChat('player|' + msg.playerid, broadcast(t.c, {
+      type: c.fav ? 'Favorite contact' : 'Contact',
+      title: (c.fav ? TRIANGLE + ' ' : '') + c.name,
+      content: notes || 'No notes on the sheet for this contact.'
     }));
   }
 
@@ -1731,6 +1786,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'engadd': return doEngAdd(msg, o);
       case 'engroll': return doEngRoll(msg, o);
       case 'abilities': return doAbilities(msg, o);
+      case 'contacts': return doContacts(msg, o);
+      case 'contact': return doContact(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
       case 'adj': return doAdjust(msg, o);

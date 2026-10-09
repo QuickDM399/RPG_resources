@@ -125,14 +125,14 @@ function queries(action) {
   const a = E.crew('Bravos', pat), b = E.crew('Hawkers', quinn), ta = E.token(a), tb = E.token(b);
   let o = E.run('!bitdcrew setup', pat, ta);
   const names = E.abil(a).map(x => x.name);
-  ok(names.length === 9 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 9 token actions in order, with a gap at 5 (no Downtime button)', names);
+  ok(names.length === 10 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 10 token actions in order, with a gap at 5 (no Downtime button)', names);
   ok(E.abil(a).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'abilities flagged with the crew marker');
   E.run('!bitdcrew setup', pat, ta);
-  ok(E.abil(a).length === 9, 'rebuild is idempotent');
+  ok(E.abil(a).length === 10, 'rebuild is idempotent');
   o = E.run('!bitdcrew setup', pat, tb);
   ok(has(o, /only use this on crews you control/) && E.abil(b).length === 0, 'player refused on another crew, nothing written', o);
   E.run('!bitdcrew setup', gm, tb);
-  ok(E.abil(b).length === 9, 'GM can set up any crew');
+  ok(E.abil(b).length === 10, 'GM can set up any crew');
   // a user-made ability with a clashing name is skipped, not replaced
   E.store.abilities.push({ id: 'u1', _characterid: a, name: '9. Status', description: 'mine', action: 'x', istokenaction: true });
   o = E.run('!bitdcrew setup', pat, ta);
@@ -140,11 +140,11 @@ function queries(action) {
   o = E.run('!bitdcrew setup', pat);
   ok(has(o, /select one or more crew tokens/), 'setup without a token', o);
   o = E.run('!bitdcrew setup --c ' + a, pat);
-  ok(E.abil(a).length === 9 && !has(o, /select/), 'setup by id works without a token', o);
+  ok(E.abil(a).length === 10 && !has(o, /select/), 'setup by id works without a token', o);
   // crew controlled by everyone
   const c = E.crew('Smugglers', 'all'); const tc = E.token(c);
   E.run('!bitdcrew setup', quinn, tc);
-  ok(E.abil(c).length === 9, 'crew controlled by all: any player can set it up');
+  ok(E.abil(c).length === 10, 'crew controlled by all: any player can set it up');
   // crew-only gating: character and faction sheets refused by every verb
   const pc = E.char('Ayla', pat), tp = E.token(pc);
   const fac = E.char('Faction Status', ''); E.attr(fac, 'sheet_type', 'faction'); const tf = E.token(fac);
@@ -200,7 +200,7 @@ function queries(action) {
   const a = E.crew('crew new', pat), ta = E.token(a);
   ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
   let o = E.run('!bitdcrew setup', pat, ta);
-  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 10 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 10 actions with 5. Downtime', o);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 11 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 11 actions with 5. Downtime', o);
   E.attr(a, 'crew_tier', 2);
   o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
   ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
@@ -227,7 +227,7 @@ function queries(action) {
   E.run('!bitdcrew setup', pat, tb);
   ok(E.val(b, 'heat') === '0' && E.tok(tb).bar1_link && E.tok(tb).bar1_max === 9, 'a missing heat attribute is created at 0', E.tok(tb));
   const c = E.crew('Cult', pat); const o = E.run('!bitdcrew setup --c ' + c, pat);
-  ok(E.abil(c).length === 9 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
+  ok(E.abil(c).length === 10 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
   ok(has(E.run('!bitdcrew setup', pat, ta), /Bar 1 is linked to Heat on 1 token/), 'setup reports the bar');
 }
 
@@ -1425,8 +1425,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const { E, gm, pat, quinn } = table();
   const names = (c) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).map(x => x.name).join('|'); };
   const dtc = dtCrew(E, pat, 'Hawkers', 2), core = E.crew('Bravos', pat);
-  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 10 token actions with 5. Downtime after Score', names(dtc));
-  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
+  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 11 token actions with 5. Downtime after Score', names(dtc));
+  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
   ok(E.abil(dtc).find(x => x.name === '5. Downtime').action === '!bitdcrew hh' && E.abil(dtc).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'the Downtime button runs the Heat and Hold command, no prompt');
   const adjOf = (c) => queries(E.abil(c).find(x => x.name === '7. Adjust').action)[0];
   const optsD = adjOf(dtc).slice(1).map(x => x.split(',').slice(-1)[0]), optsC = adjOf(core).slice(1).map(x => x.split(',').slice(-1)[0]);
@@ -1484,6 +1484,78 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   E.flush();
 }
 
+// ---------------------------------------------------------------- T26 6b. Contacts
+{
+  const { E, gm, pat, quinn } = table();
+  const TRI = String.fromCharCode(0x25B2);
+  const contact = (c, id, name, check, notes) => {
+    E.attr(c, 'repeating_contact_' + id + '_name', name);
+    if (check !== undefined) E.attr(c, 'repeating_contact_' + id + '_check', check);
+    if (notes !== undefined) E.attr(c, 'repeating_contact_' + id + '_description', notes);
+  };
+  const crew = E.crew('Hawkers', pat), tok = E.token(crew);
+  contact(crew, '-C1', 'Rolan Wott, a magistrate', '1', 'Feckless son at the Academy.\nOwes the crew a favor.');
+  contact(crew, '-C2', 'Laroze, a Bluecoat', '0', 'Informant in the City Watch.');
+  contact(crew, '-C3', '   ', '1', 'A row with no name');
+  contact(crew, '-C4', 'Lydra, a deal broker', '1');
+  contact(crew, '-C5', 'Hoxley [the smuggler] (old friend)', undefined, '   ');
+  E.attr(crew, '_reporder_repeating_contact', '-C2,-C1,-C3,-C4,-C5');
+  const before = JSON.stringify(E.store.attrs.filter(a => a._characterid === crew).map(a => [a.name, a.current]));
+
+  // the bar: 6b sorts right after 6 and before 7, character by character
+  const core = E.crew('Bravos', pat), dtc = E.crew('Smugglers', pat); E.attr(dtc, 'setting_dc_downtime', '1');
+  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6b. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('7. Adjust') === n.indexOf('6b. Contacts') + 1, 'the token action bar sorts 6b. Contacts between Abilities and Adjust', n); });
+  ok(E.abil(core).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts' && E.abil(dtc).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts', 'the button runs the contacts command, no prompt, on both kinds of crew');
+
+  // the menu card
+  let o = E.run('!bitdcrew contacts', pat, tok);
+  ok(o.length === 1 && /^\/w "Pat" /.test(o[0]) && /\{\{type=Contacts\}\}/.test(o[0]) && /\{\{title=Show to the table\}\}/.test(o[0]), 'the menu is a whisper to the clicker', o);
+  const lines = (o[0].match(/\[[^\]]*\]\(!bitdcrew contact [^)]*\)/g) || []);
+  ok(lines.length === 4 && lines.map(x => x.replace(/\]\(.*$/, '').slice(1)).join('|') === 'Laroze, a Bluecoat|' + TRI + ' Rolan Wott, a magistrate|' + TRI + ' Lydra, a deal broker|Hoxley the smuggler old friend', 'one button per named contact in sheet order, a triangle only on favorites, blank rows skipped, brackets and parentheses taken out of labels', lines);
+  ok(lines.every(x => /\(!bitdcrew contact --c \S+ --row -C\d\)$/.test(x)), 'each button carries the character and the row');
+  ok(o[0].indexOf(TRI + ' marks a favorite contact.') > 0, 'the card explains the marker');
+  ok(lines[0].indexOf(TRI) < 0 && lines[3].indexOf(TRI) < 0, 'a contact whose box is unchecked or missing is not a favorite');
+  const longc = E.crew('Longname', pat); contact(longc, '-L1', 'A'.repeat(90), '1', 'x');
+  const ll = (E.run('!bitdcrew contacts', pat, E.token(longc))[0].match(/\[([^\]]*)\]\(/) || [])[1] || '';
+  ok(ll.length <= 60 && ll.indexOf(TRI) === 0, 'a very long name is shortened to fit a button', ll.length);
+  const none = E.crew('Empty', pat); o = E.run('!bitdcrew contacts', pat, E.token(none));
+  ok(/There are no contacts on this sheet\./.test(o[0]) && !/contact --c/.test(o[0]), 'a sheet with no contacts says so');
+  ok(has(E.run('!bitdcrew contacts', quinn, tok), /only use this on crews you control/) && has(E.run('!bitdcrew contacts', gm, tok), /Show to the table/), 'players only on crews they control; the GM on any');
+  ok(has(E.run('!bitdcrew contacts', pat, E.token(E.char('Ayla', pat))), /crew sheets only/), 'a PC sheet is refused');
+
+  // a click shows the notes to the table
+  const show = (row, who) => E.run('!bitdcrew contact --c ' + crew + ' --row ' + row, who || pat);
+  o = show('-C1');
+  ok(o.length === 1 && E.out.length === 1 && /^player\|/.test(E.out[0].who), 'the output is public, posted as the player', E.out.map(x => x.who));
+  ok(/\{\{charname=Hawkers\}\}/.test(o[0]) && /\{\{type=Favorite contact\}\}/.test(o[0]) && o[0].indexOf('{{title=' + TRI + ' Rolan Wott, a magistrate}}') > 0, 'a favorite: header says Favorite contact and the title carries the triangle', o[0]);
+  ok(o[0].indexOf('{{content=Feckless son at the Academy.\nOwes the crew a favor.}}') > 0, 'the notes are shown with their line breaks', o[0]);
+  o = show('-C2'); ok(/\{\{type=Contact\}\}/.test(o[0]) && o[0].indexOf('{{title=Laroze, a Bluecoat}}') > 0 && o[0].indexOf(TRI) < 0 && /\{\{content=Informant in the City Watch\.\}\}/.test(o[0]), 'a contact that is not a favorite has no triangle', o[0]);
+  o = show('-C4'); ok(/Favorite contact/.test(o[0]) && /No notes on the sheet for this contact\./.test(o[0]), 'a favorite with no notes says so', o[0]);
+  o = show('-C5'); ok(/No notes on the sheet for this contact\./.test(o[0]) && o[0].indexOf('{{title=Hoxley (the smuggler) (old friend)}}') > 0, 'blank notes count as none; brackets in a name become parentheses in the title', o[0]);
+  contact(crew, '-CA', 'Evil [x](!bitdcrew adj heat+1)\nsecond line', '0', 'n');
+  o = show('-CA'); ok(!/\]\(/.test(o[0]) && o[0].indexOf('{{title=Evil (x)(!bitdcrew adj heat+1) second line}}') > 0, 'a name cannot make a live button or break the title across lines', o[0]);
+  o = show('-C3'); ok(has(o, /no longer on the sheet/) && E.out.every(x => !/^player\|/.test(x.who)), 'a row with no name cannot be shown');
+  o = show('-C9'); ok(has(o, /no longer on the sheet/), 'a deleted contact says so');
+  o = E.run('!bitdcrew contact --c ' + crew, pat); ok(has(o, /no longer on the sheet/), 'no row given');
+  o = show('-C1', quinn); ok(has(o, /only use this on crews you control/) && !has(o, /Favorite contact/), 'a player who does not control the crew is refused');
+  ok(has(show('-C1', gm), /Favorite contact/), 'the GM can show any crew\'s contact');
+
+  // text from the sheet cannot roll dice, make buttons or open templates
+  contact(crew, '-C6', 'Risky notes', '0', 'See [[2d6]] and [roll](!bitdcrew adj heat+1) @{x|heat} %{a|b} ?{q} &{template:x} {{evil}} a|b');
+  o = show('-C6'); const body = (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  ok(body.length > 0 && !/[\[\]]/.test(body) && !/[@%?&]\{/.test(body) && !/\{\{|\}\}/.test(body) && !/\|/.test(body) && /See \(\(2d6\)\)/.test(body) && !/\]\(/.test(body), 'brackets, macro openers, braces and bars are neutralized in notes', body);
+  contact(crew, '-C7', 'Long notes', '0', ('word '.repeat(600)).trim());
+  o = show('-C7'); const lb = (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  ok(lb.length < 2150 && /\.\.\. \(the notes were cut at 2000 characters\)$/.test(lb), 'notes over 2000 characters are cut, and the card says so', lb.length);
+  contact(crew, '-C8', 'Gappy', '0', 'a\n\n\n\n\nb   \n  ');
+  o = show('-C8'); ok(/\{\{content=a\n\nb\}\}/.test(o[0]), 'runs of blank lines and trailing spaces are tidied', o[0]);
+  contact(crew, '-C9', 'Check spelled 1', ' 1 ', 'x'); ok(!/Favorite/.test(show('-C9')[0]), 'only a checked box (1) counts as a favorite');
+
+  // nothing on the sheet is written
+  const after = JSON.stringify(E.store.attrs.filter(a => a._characterid === crew && !/^repeating_contact_-C[6-9A]_/.test(a.name)).map(a => [a.name, a.current]));
+  ok(after === before, 'the contacts command writes nothing to the crew sheet');
+}
+
 // ---------------------------------------------------------------- T13 the two scripts together
 if (PC_SRC) {
   const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false), quinn = E.player('Quinn', false);
@@ -1495,10 +1567,10 @@ if (PC_SRC) {
   let o = E.run('!bitd setup', pat, tp); const pcMade = E.abil(pc).length;
   ok(pcMade === 9 && E.abil(pc).every(x => x.description === 'bitd-tam'), 'PC setup still makes its 9 PC actions', pcMade);
   o = E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(crew).length === 9 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 9 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
+  ok(E.abil(crew).length === 10 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 10 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
   ok(E.abil(crew).map(x => x.name).join() !== E.abil(pc).map(x => x.name).join(), 'the two sets have different names');
   E.run('!bitd setup', pat, tp); E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(pc).length === 9 && E.abil(crew).length === 9, 'rebuilding either leaves the other intact');
+  ok(E.abil(pc).length === 9 && E.abil(crew).length === 10, 'rebuilding either leaves the other intact');
   // each script ignores the other's command and refuses the other's sheets
   o = E.run('!bitdcrew status', pat, tp); ok(has(o, /crew sheets only/) && !has(o, /Stress/), 'crew script refuses a PC sheet', o);
   o = E.run('!bitd status', pat, tc); ok(has(o, /crew or faction sheet/), 'PC script refuses a crew sheet', o);
@@ -1568,7 +1640,7 @@ if (PC_SRC) {
   const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   ok(!/bitd-tam|BLADES_TAM|BitDTAM|!bitd[^c]|'!bitd'/.test(CODE.replace(/player characters use !bitd\)/, '').replace(/!bitdcrew/g, '')), 'no name shared with the PC script (command, marker, macro, variable)');
   ok(/MARK = 'bitd-crew-tam'/.test(SRC) && /CMD = '!bitdcrew'/.test(SRC) && /MACRO_NAME = 'CREW_TAM'/.test(SRC) && /STATE_KEY = 'BitDCrewTAM'/.test(SRC), 'the four crew identifiers');
-  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '')), 'the source never names a text attribute owned by the PC text fixer', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
+  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '').replace(/'repeating_contact_' \+ c\.row \+ '_description'/g, '')), 'the source never names a text attribute owned by the PC text fixer (the contact notes are read-only and not the fixer\'s)', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
   ok(!/sendChat\([^;]*,\s*function/.test(SRC) && !/sendChat\([^)]*\)\s*,\s*function/.test(SRC), 'no sendChat callback in the source');
   const keys = {}; (SRC.match(/\^\{([a-z_0-9]+)\}/g) || []).forEach(k => { keys[k.slice(2, -1)] = 1; });
   ['gang', 'elite', 'expert', 'rolls_their'].forEach(k => { keys[k] = 1; });

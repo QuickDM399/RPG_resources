@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.6.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.7.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.6.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.7.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.6.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.7.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -41,7 +41,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
 - A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
-- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6b. Contacts`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
 - Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
@@ -246,9 +246,21 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 **Pass:** the dice card has Tier dice (two dice at Tier 0), a notes line like "Vice Den income: 2 dice, highest die minus your Heat 1.", and the whisper reads "Highest die 5, minus Heat 1 = 4 Coin." The button adds the Coin up to the vault room (the rest is reported as not fitting), once. The same claim says "Already done" until a new Downtime. A die at or below the Heat gives 0 and no button. Tier 0 says "no dice, 2d keep the lowest" and uses the lower die.
 **Known fail states:** no whisper after the dice (then after about 20 seconds the script should say it could not read the roll; send me that console line, because the dice reading uses the same method as the Entanglement roll), the Coin added twice, the Coin ignoring the vault limit, Heat taken at the wrong time.
 
-## L26 Clean up
+## L26 Contacts (any crew with contacts; try one with notes, one without, one favorite)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** on a crew sheet check the triangle box on at least one contact and write notes in at least two (one with two lines). Leave one contact with no notes. `~ Rebuild`.
+**Steps:** click `6b. Contacts`. Click a favorite with notes, a non-favorite with notes, and a contact with no notes. Then delete a contact on the sheet and click its old button. As a player who does not control the crew, try the button if you can.
+**Pass:**
+- The action bar order is `6. Abilities`, `6b. Contacts`, `7. Adjust`.
+- A whispered card, "Show to the table", lists one button per named contact in the same order as the sheet, and a favorite's button starts with a triangle. A line explains the triangle.
+- A click posts a public card: a favorite shows "Favorite contact" in the header and a triangle before the name; others show "Contact". The notes appear with their line breaks. No notes: "No notes on the sheet for this contact."
+- The deleted contact: "that contact is no longer on the sheet".
+- Nothing on the sheet changes.
+**Known fail states:** the triangle on the wrong contacts (tell me what the checkbox's attribute is, because I am assuming the crew sheet's contact checkbox is the triangle flag), notes missing (a different notes field), a button missing, the card out of sheet order, the bar order wrong.
+
+## L27 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 
