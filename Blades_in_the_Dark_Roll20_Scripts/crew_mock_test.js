@@ -176,7 +176,7 @@ function queries(action) {
     ok(q.slice(1).every(p => p.length > 0 && count(p, ',') <= 1), 'well-formed prompt in ' + x.name, q);
   })));
   // fixed native macros
-  ok(/^!bitdcrew engagement \?\{Plan type\|/.test(act(b, '2. Engagement')) && !/numberofdice/.test(act(b, '2. Engagement')) && count(act(b, '2. Engagement'), '?{') === 2, 'Engagement is the composed macro (plan type, net dice)', act(b, '2. Engagement'));
+  ok(/^!bitdcrew engagement \?\{Plan type\|/.test(act(b, '2. Engagement')) && !/numberofdice/.test(act(b, '2. Engagement')) && count(act(b, '2. Engagement'), '?{') === 5, 'Engagement is the composed macro (plan type and the four questions)', act(b, '2. Engagement'));
   ok(/\{\{type=fortune\}\}/.test(act(b, '3. Fortune')) && /@\{selected\|notes_query\}/.test(act(b, '3. Fortune')) && /\^\{roll\}/.test(act(b, '3. Fortune')), 'Fortune is the sheet crew macro');
   ok(act(b, '~ Rebuild') === '!bitdcrew setup' && act(b, '8. Status') === '!bitdcrew status' && act(b, '7. Clocks') === '!bitdcrew clocks' && act(b, '5. Abilities') === '!bitdcrew abilities', 'simple actions');
   // cohorts in the Roll list, names made safe for a prompt
@@ -967,97 +967,208 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(r1 !== r2 && E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r2, pat).length > 0 && !has(E.run('!bitdcrew misdirect --c ' + h + ' --idx ' + r1, pat), /no longer available/), 'each Score has its own Misdirection button');
 }
 
-// ---------------------------------------------------------------- T20 composed Engagement roll
+// ---------------------------------------------------------------- T20 composed Engagement roll (the core book questions)
 {
   const { E, gm, pat, quinn } = table();
   const claim = (c, i, name, on) => { E.attr(c, 'claim_' + i + '_name', name); E.attr(c, 'claim_' + i + '_check', on === false ? '0' : '1'); };
   const mk = (name, dt) => { const c = E.crew(name, pat); if (dt !== false) E.attr(c, 'setting_dc_downtime', '1'); return c; };
   const act = (c, name) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).find(x => x.name === name).action; };
-  const eng = (c, args, who) => {
-    const o = E.run('!bitdcrew engagement ' + args, who || pat, E.token(c));
+  const grab = (o) => {
     const t = o.find(x => /title-engagement/.test(x)) || '';
-    const card = o.find(x => /template:bitd-broadcast/.test(x) && /\{\{type=Engagement\}\}/.test(x)) || '';
-    return { o, t, card, n: dice(t), zero: /zerodice=/.test(t), notes: (/\{\{content=([^}]*)\}\}/.exec(card) || [])[1] || '' };
+    const card = o.find(x => /template:bitd-broadcast/.test(x) && /\{\{type=Engagement\}\}/.test(x) && !/title=Confirm/.test(x) && !/title=(Critical|Controlled|Risky|Desperate)/.test(x)) || '';
+    const ask = o.find(x => /title=Confirm/.test(x)) || '';
+    return { o, t, card, ask, n: dice(t), zero: /zerodice=/.test(t), notes: (/\{\{content=([^}]*)\}\}/.exec(card) || [])[1] || '' };
   };
-  // macro: plan type and net dice; a third prompt only when the crew has a murder-dependent ability row
+  // arguments: plan, approach, plan detail, friends and enemies, other elements
+  const eng = (c, args, who) => grab(E.run('!bitdcrew engagement ' + args, who || pat, E.token(c)));
+  const abil = (c, names) => names.forEach((nm, i) => { E.attr(c, 'repeating_crewability_-E' + i + '_name', nm); E.attr(c, 'repeating_crewability_-E' + i + '_check', '1'); });
+
+  // the macro: plan type and the book's four questions, the same for every crew
   const plain = mk('Plain crew');
   const q1 = queries(act(plain, '2. Engagement'));
-  ok(q1.length === 2 && q1[0][0] === 'Plan type' && q1[0].length === 7 && /^Net dice/.test(q1[1][0]) && q1[1].slice(1).join() === '0,1,2,3,4,-1,-2,-3,-4', 'two prompts: plan type (6 options) and net dice', q1);
+  ok(q1.length === 5 && q1[0][0] === 'Plan type' && q1[0].length === 7, 'five prompts: plan type and the four questions', q1.map(q => q[0]));
   ok(q1[0].slice(1).map(x => x.split(',')[1]).join() === 'assault,deception,stealth,occult,social,transport', 'the six plan types from the core book');
-  const withPred = mk('Assassins'); E.attr(withPred, 'repeating_crewability_-P1_name', 'Predators'); E.attr(withPred, 'repeating_crewability_-P1_check', '0');
-  const q2 = queries(act(withPred, '2. Engagement'));
-  ok(q2.length === 3 && q2[1][0] === 'Is the goal murder' && q2[1].slice(1).join() === 'No,0|Yes,1'.replace('|', ','), 'a third prompt appears when a Predators row exists, ticked or not', q2);
-  ok(act(withPred, '2. Engagement') !== act(plain, '2. Engagement'), 'and the macro text differs');
+  ok(q1[1].slice(1).join('|') === 'Neither,0|Bold or daring (+1d),1|Overly complex or contingent (-1d),-1' && /^Approach/.test(q1[1][0]), 'question 1: bold or daring against overly complex', q1[1]);
+  ok(q1[2].slice(1).join('|') === 'Neither,0|Exposes a weakness (+1d),1|Target strongest against it (-1d),-1' && /^Plan detail/.test(q1[2][0]), 'question 2: weakness against the target\'s strength', q1[2]);
+  ok(q1[3].slice(1).join('|') === 'Neither,0|Friends or contacts help (+1d),1|Enemies or rivals interfere (-1d),-1' && /^Friends and enemies/.test(q1[3][0]), 'question 3: friends against enemies', q1[3]);
+  ok(/^Other elements/.test(q1[4][0]) && q1[4].slice(1).join() === '0,1,2,3,-1,-2,-3', 'question 4: other elements, -3 to +3, 0 first', q1[4]);
+  const withPred = mk('Assassins'); E.attr(withPred, 'repeating_crewability_-P1_name', 'Predators'); E.attr(withPred, 'repeating_crewability_-P1_check', '1');
+  ok(act(withPred, '2. Engagement') === act(plain, '2. Engagement'), 'the macro does not depend on the crew\'s abilities (no murder prompt)');
+  ok(!/murder/i.test(act(withPred, '2. Engagement')), 'no murder prompt');
 
-  // the card: a normal engagement roll posted by the player
-  let r = eng(plain, 'stealth 0');
-  ok(r.n === 1 && !r.zero && /\{\{type=action\}\}/.test(r.t) && /\{\{title-engagement=1\}\}/.test(r.t) && /\{\{title=\^\{engagement\}\}\}/.test(r.t) && /\{\{subtitle=\^\{roll_for\}\}\}/.test(r.t) && /\{\{short=short\}\}/.test(r.t) && /\{\{small-title=small-title\}\}/.test(r.t), 'one die for sheer luck, native engagement card fields', r.t);
+  // the pool from the answers alone
+  let r = eng(plain, 'stealth 0 0 0 0');
+  ok(r.n === 1 && !r.zero && /\{\{type=action\}\}/.test(r.t) && /\{\{title-engagement=1\}\}/.test(r.t) && /\{\{title=\^\{engagement\}\}\}/.test(r.t) && /\{\{subtitle=\^\{roll_for\}\}\}/.test(r.t) && /\{\{short=short\}\}/.test(r.t), 'one die for sheer luck, native engagement card fields', r.t);
   ok(E.out.length === 2 && E.out.every(x => /^player\|/.test(x.who)) && /type=Engagement/.test(E.out[0].text) && /title-engagement/.test(E.out[1].text) && /charname=Plain crew/.test(E.out[1].text), 'two public cards as the player: the arithmetic, then the roll', E.out.map(x => x.text.slice(0, 80)));
-  ok(!/notes=/.test(r.t) && /\{\{title=1d\}\}/.test(r.card) && /\{\{content=Stealth plan: 1 luck = 1d\.\}\}/.test(r.card), 'the roll card carries no notes line (it is unreadable there); the arithmetic card has the dice count as its title', r.card);
-  ok(/Stealth plan: 1 luck = 1d\./.test(r.notes), 'the arithmetic is on the card', r.notes);
-  r = eng(plain, 'assault 2'); ok(r.n === 3 && /1 luck, \+2 net dice = 3d\./.test(r.notes), 'net dice add', r.notes);
-  r = eng(plain, 'occult -1'); ok(r.zero && r.n === 2 && /= 0d \(no dice: roll 2d and keep the lowest\)/.test(r.notes), 'a pool of 0 rolls 2d, keep the lowest', r.notes);
-  r = eng(plain, 'occult -4'); ok(r.zero && r.n === 2 && /-4 net dice = 0d/.test(r.notes), 'a negative pool is also 2d, keep the lowest');
+  ok(!/notes=/.test(r.t) && /\{\{title=1d\}\}/.test(r.card) && /\{\{content=Stealth plan: 1 luck = 1d\.\}\}/.test(r.card), 'the roll card carries no notes line; the arithmetic card has the dice count as its title', r.card);
+  r = eng(plain, 'assault 1 0 0 0'); ok(r.n === 2 && /1 luck, \+1 bold or daring = 2d\./.test(r.notes), 'bold or daring +1d', r.notes);
+  r = eng(plain, 'assault -1 0 0 0'); ok(r.zero && r.n === 2 && /1 luck, -1 complex or contingent = 0d \(no dice: roll 2d and keep the lowest\)\./.test(r.notes), 'overly complex -1d: 0d means 2d, keep the lowest', r.notes);
+  r = eng(plain, 'assault 0 1 0 0'); ok(r.n === 2 && /\+1 weak point exposed = 2d/.test(r.notes), 'a weak point +1d', r.notes);
+  r = eng(plain, 'assault 0 -1 0 0'); ok(r.zero && /-1 target strongest here/.test(r.notes), 'the target\'s strength -1d', r.notes);
+  r = eng(plain, 'assault 0 0 1 0'); ok(r.n === 2 && /\+1 friends or contacts help/.test(r.notes), 'friends +1d', r.notes);
+  r = eng(plain, 'assault 0 0 -1 0'); ok(r.zero && /-1 enemies or rivals interfere/.test(r.notes), 'enemies -1d', r.notes);
+  r = eng(plain, 'assault 0 0 0 3'); ok(r.n === 4 && /\+3 other elements = 4d/.test(r.notes), 'other elements +3', r.notes);
+  r = eng(plain, 'assault 0 0 0 -3'); ok(r.zero && r.n === 2 && /-3 other elements = -2d|-3 other elements = 0d/.test(r.notes), 'other elements -3 is a pool below 0: 2d, keep the lowest', r.notes);
+  r = eng(plain, 'assault 1 1 1 3'); ok(r.n === 7 && /1 luck, \+1 bold or daring, \+1 weak point exposed, \+1 friends or contacts help, \+3 other elements = 7d\./.test(r.notes), 'everything at once, in the book\'s order', r.notes);
+  r = eng(plain, 'assault 1 -1 1 -1'); ok(r.n === 1 && /\+1 bold or daring, -1 target strongest here, \+1 friends or contacts help, -1 other elements = 1d/.test(r.notes), 'mixed answers net out (1 + 1 - 1 + 1 - 1)', r.notes);
+  r = eng(plain, 'assault -1 -1 -1 -3'); ok(r.zero && r.n === 2, 'the worst case is still 2d, keep the lowest');
 
-  // crew abilities (a row counts only when ticked)
-  const abil = (c, names) => names.forEach((nm, i) => { E.attr(c, 'repeating_crewability_-E' + i + '_name', nm); E.attr(c, 'repeating_crewability_-E' + i + '_check', '1'); });
+  // ticked crew abilities and claims that fit the plan are added automatically
   const dk = mk('Bravos'); abil(dk, ['Door Kickers']);
-  ok(eng(dk, 'assault 0').n === 2 && eng(dk, 'stealth 0').n === 1 && eng(dk, 'social 0').n === 1, 'Door Kickers: +1d on an assault plan only');
-  ok(/\+1 Door Kickers = 2d/.test(eng(dk, 'assault 0').notes), 'and the card names it', eng(dk, 'assault 0').notes);
+  ok(eng(dk, 'assault 0 0 0 0').n === 2 && eng(dk, 'stealth 0 0 0 0').n === 1 && eng(dk, 'social 0 0 0 0').n === 1, 'Door Kickers: +1d on an assault plan only');
+  ok(/\+1 Door Kickers = 2d/.test(eng(dk, 'assault 0 0 0 0').notes), 'and the card names it');
   const ss = mk('Shadows'); abil(ss, ['Second Story']);
-  ok(eng(ss, 'stealth 0').n === 2 && eng(ss, 'assault 0').n === 1 && eng(ss, 'deception 0').n === 1, 'Second Story: +1d on a stealth plan only');
+  ok(eng(ss, 'stealth 0 0 0 0').n === 2 && eng(ss, 'assault 0 0 0 0').n === 1 && eng(ss, 'deception 0 0 0 0').n === 1, 'Second Story: +1d on a stealth plan only');
   const off = mk('Unticked'); E.attr(off, 'repeating_crewability_-U_name', 'Door Kickers'); E.attr(off, 'repeating_crewability_-U_check', '0');
-  ok(eng(off, 'assault 0').n === 1, 'an unticked ability adds nothing');
-  const pr = mk('Assassins2'); abil(pr, ['Predators']);
-  ok(eng(pr, 'stealth 1 0').n === 2 && eng(pr, 'deception 1 0').n === 2 && eng(pr, 'stealth 0 0').n === 1 && eng(pr, 'deception 0 0').n === 1, 'Predators: stealth or deception, and only with a murder goal');
-  ok(eng(pr, 'assault 1 0').n === 1 && eng(pr, 'occult 1 0').n === 1 && eng(pr, 'social 1 0').n === 1 && eng(pr, 'transport 1 0').n === 1, 'Predators: no bonus on the other four plan types, even for murder');
-  ok(/Stealth plan with a murder goal: 1 luck, \+1 Predators = 2d/.test(eng(pr, 'stealth 1 0').notes), 'the card says the goal is murder', eng(pr, 'stealth 1 0').notes);
-  const unp = mk('Assassins3'); E.attr(unp, 'repeating_crewability_-P_name', 'Predators'); E.attr(unp, 'repeating_crewability_-P_check', '0');
-  ok(eng(unp, 'stealth 1 0').n === 1, 'an unticked Predators adds nothing (but the murder question is still asked)');
-  // River items are not automated (user: hold on anything River)
-  const df = mk('River'); abil(df, ['Deadly Focus']);
-  ok(queries(act(df, '2. Engagement')).length === 2 && eng(df, 'social 0').n === 1 && eng(df, 'stealth 0').n === 1, 'Deadly Focus: no murder prompt and no bonus');
-
-  // claims: every claim at its plan(s), nothing elsewhere
+  ok(eng(off, 'assault 0 0 0 0').n === 1, 'an unticked ability adds nothing');
   const CLAIMS = { 'Ancient Altar': ['occult'], 'Bluecoat Confederates': ['assault'], 'City Records': ['stealth'], 'Cover Identities': ['deception', 'social'], 'Personal Clothier': ['social'], 'Secret Pathways': ['stealth'], 'Secret Routes': ['transport'] };
   Object.keys(CLAIMS).forEach(nm => {
     const c = mk('Claim ' + nm); claim(c, 3, nm);
-    const bad = ['assault', 'deception', 'stealth', 'occult', 'social', 'transport'].filter(pl => eng(c, pl + ' 0').n !== 1 + (CLAIMS[nm].indexOf(pl) >= 0 ? 1 : 0));
+    const bad = ['assault', 'deception', 'stealth', 'occult', 'social', 'transport'].filter(pl => eng(c, pl + ' 0 0 0 0').n !== 1 + (CLAIMS[nm].indexOf(pl) >= 0 ? 1 : 0));
     ok(bad.length === 0, 'claim ' + nm + ': +1d for ' + CLAIMS[nm].join(' and ') + ' only', bad);
   });
   const ci = mk('CoverBook'); claim(ci, 1, 'Cover Identities');
-  ok(eng(ci, 'social 0').n === 2 && eng(ci, 'transport 0').n === 1, 'Cover Identities follows the core book: social, not transport');
+  ok(eng(ci, 'social 0 0 0 0').n === 2 && eng(ci, 'transport 0 0 0 0').n === 1, 'Cover Identities follows the core book: social, not transport');
   const nl = mk('Newline'); claim(nl, 2, 'Bluecoat\nConfederates'); claim(nl, 5, 'claim_secret_pathways'); claim(nl, 6, 'Secret\nRoutes');
-  ok(eng(nl, 'assault 0').n === 2 && eng(nl, 'stealth 0').n === 2 && eng(nl, 'transport 0').n === 2, 'claim names spanning lines or carrying a key prefix still match');
+  ok(eng(nl, 'assault 0 0 0 0').n === 2 && eng(nl, 'stealth 0 0 0 0').n === 2 && eng(nl, 'transport 0 0 0 0').n === 2, 'claim names spanning lines or carrying a key prefix still match');
   const uc = mk('UntickedClaim'); claim(uc, 4, 'City Records', false);
-  ok(eng(uc, 'stealth 0').n === 1, 'an unticked claim adds nothing');
-  const gov = mk('Governor'); claim(gov, 7, 'The Governor');
-  ok(eng(gov, 'stealth 1').n === 2 && !/Governor/.test(eng(gov, 'stealth 1').notes), 'The Governor (River claim) changes nothing');
-  // everything together
+  ok(eng(uc, 'stealth 0 0 0 0').n === 1, 'an unticked claim adds nothing');
   const all = mk('Stack'); abil(all, ['Door Kickers']); claim(all, 1, 'Bluecoat Confederates');
-  r = eng(all, 'assault 1'); ok(r.n === 4 && /1 luck, \+1 net dice, \+1 Door Kickers, \+1 Bluecoat Confederates = 4d/.test(r.notes), 'ability, claim and net dice stack', r.notes);
-  // works on a core crew (Downtime off) and for a GM on any crew
+  r = eng(all, 'assault 1 0 0 0'); ok(r.n === 4 && /1 luck, \+1 bold or daring, \+1 Door Kickers, \+1 Bluecoat Confederates = 4d/.test(r.notes), 'answers, ability and claim stack', r.notes);
   const core = mk('Core', false); abil(core, ['Second Story']);
-  ok(eng(core, 'stealth 0').n === 2, 'a crew with Downtime off rolls the same');
-  ok(eng(core, 'stealth 0', gm).n === 2, 'the GM can roll for any crew');
+  ok(eng(core, 'stealth 0 0 0 0').n === 2, 'a crew with Downtime off rolls the same');
+  ok(eng(core, 'stealth 0 0 0 0', gm).n === 2, 'the GM can roll for any crew');
+  // River items are not automated (user: hold on anything River)
+  const df = mk('River'); abil(df, ['Deadly Focus']); claim(df, 7, 'The Governor');
+  ok(eng(df, 'social 0 0 0 0').n === 1 && eng(df, 'stealth 0 0 0 0').n === 1 && eng(df, 'stealth 1 0 0 0').n === 2, 'Deadly Focus and The Governor change nothing');
+
+  // Predators is asked, on a stealth or deception plan only
+  const pr = mk('Assassins2'); abil(pr, ['Predators']);
+  r = eng(pr, 'stealth 0 0 0 0');
+  ok(r.t === '' && r.ask && E.out.length === 1 && /^player\|/.test(E.out[0].who) && /Stealth plan\. So far: 1 luck = 1d\./.test(r.ask) && /Confirm what applies \(each once\):/.test(r.ask) && /\[Predators: the goal is murder, \+1d\]\(!bitdcrew engadd x0 --c \S+ --idx \S+\)/.test(r.ask) && /\[Roll\]\(!bitdcrew engroll --c \S+ --idx \S+\)/.test(r.ask), 'a stealth plan with Predators ticked: nothing is rolled yet, a public card asks', r.ask);
+  const nx = idxOf([r.ask]);
+  let o = E.run('!bitdcrew engadd x0 --c ' + pr + ' --idx ' + nx, pat);
+  ok(o.length === 1 && /Stealth plan\. So far: 1 luck, \+1 Predators = 2d\./.test(o[0]) && !/engadd/.test(o[0]) && /\[Roll\]/.test(o[0]) && /^player\|/.test(E.out[0].who), 'the button adds its die and reposts the card without that button', o);
+  o = E.run('!bitdcrew engadd x0 --c ' + pr + ' --idx ' + nx, pat); ok(has(o, /Already added/) && !has(o, /title-engagement/), 'each button works once');
+  o = E.run('!bitdcrew engroll --c ' + pr + ' --idx ' + nx, pat); r = grab(o);
+  ok(r.n === 2 && /Stealth plan: 1 luck, \+1 Predators = 2d\./.test(r.notes) && E.out.length === 2 && E.out.every(x => /^player\|/.test(x.who)), 'Roll posts the arithmetic card and the roll once', o.map(x => x.slice(0, 120)));
+  o = E.run('!bitdcrew engroll --c ' + pr + ' --idx ' + nx, pat); ok(has(o, /Already rolled/) && !has(o, /title-engagement/), 'a second Roll does nothing');
+  o = E.run('!bitdcrew engadd x0 --c ' + pr + ' --idx ' + nx, pat); ok(has(o, /Already rolled/), 'and nothing can be added after the roll');
+  r = eng(pr, 'deception 1 0 0 0'); ok(r.ask && /\+1 bold or daring = 2d/.test(r.ask), 'a deception plan is asked too, with the answers counted', r.ask);
+  r = eng(pr, 'assault 0 0 0 0'); ok(r.ask === '' && r.n === 1, 'an assault plan is never asked about murder, it just rolls');
+  r = eng(pr, 'occult 0 0 0 0'); ok(r.ask === '' && r.n === 1, 'nor an occult plan');
+  const pr2 = mk('Assassins3'); E.attr(pr2, 'repeating_crewability_-P_name', 'Predators'); E.attr(pr2, 'repeating_crewability_-P_check', '0');
+  r = eng(pr2, 'stealth 0 0 0 0'); ok(r.ask === '' && r.n === 1, 'an unticked Predators is not asked');
+  const pr3 = mk('Assassins4'); abil(pr3, ['Predators', 'Second Story']); r = eng(pr3, 'stealth 0 0 0 0');
+  ok(/1 luck, \+1 Second Story = 2d\./.test(r.ask), 'automatic sources are counted before the card is shown', r.ask);
+  const rollNow = idxOf([r.ask]); o = E.run('!bitdcrew engroll --c ' + pr3 + ' --idx ' + rollNow, pat); ok(grab(o).n === 2 && !/Predators/.test(grab(o).notes), 'rolling without confirming leaves the extra out', o.map(x => x.slice(0, 100)));
+  // button and card checks
+  o = E.run('!bitdcrew engadd x7 --c ' + pr + ' --idx ' + idxOf([eng(pr, 'stealth 0 0 0 0').ask]), pat); ok(has(o, /unknown engagement choice/), 'unknown choice');
+  o = E.run('!bitdcrew engadd x0 --c ' + pr + ' --idx nope', pat); ok(has(o, /no longer available/), 'unknown card');
+  const pr4 = mk('Assassins5'); abil(pr4, ['Predators']); const nf = idxOf([eng(pr, 'stealth 0 0 0 0').ask]);
+  o = E.run('!bitdcrew engadd x0 --c ' + pr4 + ' --idx ' + nf, pat); ok(has(o, /no longer available/), 'another crew cannot use the card');
+  const sc = idxOf(E.run('!bitdcrew score 2 0 0 0 0 0 4', pat, E.token(pr)));
+  o = E.run('!bitdcrew engadd x0 --c ' + pr + ' --idx ' + sc, pat); ok(has(o, /no longer available/), 'a Score card cannot be used as an engagement card');
+  o = E.run('!bitdcrew engroll --c ' + pr + ' --idx ' + nf, quinn); ok(has(o, /only use this on crews you control/) && !has(o, /title-engagement/), 'a player who does not control the crew is refused');
+  o = E.run('!bitdcrew engroll --c ' + pr + ' --idx ' + nf, gm); ok(grab(o).n === 1, 'the GM can roll any crew\'s card');
 
   // validation: nothing is rolled
-  const bad = (c, args, re, why) => { const x = eng(c, args); ok(x.t === '' && has(x.o, re), why, x.o); };
-  bad(plain, 'raid 0', /answers are not valid/, 'unknown plan type');
-  bad(plain, 'stealth 5', /answers are not valid/, 'net dice above +4');
-  bad(plain, 'stealth -5', /answers are not valid/, 'net dice below -4');
-  bad(plain, 'stealth x', /answers are not valid/, 'net dice not a number');
-  bad(plain, 'stealth 1 0', /out of date.*Rebuild/, 'three answers for a crew with no murder row: stale macro');
-  bad(pr, 'stealth 0', /out of date.*Rebuild/, 'two answers for a crew with a murder row: stale macro');
-  bad(pr, 'stealth 2 0', /answers are not valid/, 'a murder answer other than 0 or 1');
+  const bad = (c, args, re, why) => { const x = eng(c, args); ok(x.t === '' && x.ask === '' && has(x.o, re) && E.out.length === 1 && !/^player\|/.test(E.out[0].who), why, x.o); };
+  bad(plain, 'raid 0 0 0 0', /answers are not valid/, 'unknown plan type');
+  bad(plain, 'stealth 2 0 0 0', /answers are not valid/, 'approach above +1');
+  bad(plain, 'stealth 0 -2 0 0', /answers are not valid/, 'plan detail below -1');
+  bad(plain, 'stealth 0 0 x 0', /answers are not valid/, 'friends and enemies not a number');
+  bad(plain, 'stealth 0 0 0 4', /answers are not valid/, 'other elements above +3');
+  bad(plain, 'stealth 0 0 0 -4', /answers are not valid/, 'other elements below -3');
+  bad(plain, 'stealth 0 0 0 1.5', /answers are not valid/, 'a fractional answer');
+  bad(plain, 'stealth 0 0 0', /out of date.*Rebuild/, 'the old three-prompt macro is stale');
+  bad(plain, 'stealth 0', /out of date.*Rebuild/, 'the older two-prompt macro is stale');
+  bad(plain, 'stealth 0 0 0 0 0', /out of date.*Rebuild/, 'too many answers');
   bad(plain, '', /out of date/, 'no answers');
-  ok(E.out.length === 1 && !/^player\|/.test(E.out[0].who), 'a refusal is a whisper, not a roll');
-  const refused = eng(plain, 'stealth 0', quinn);
+  const refused = eng(plain, 'stealth 0 0 0 0', quinn);
   ok(refused.t === '' && has(refused.o, /only use this on crews you control/), 'a player cannot roll for a crew they do not control', refused.o);
-  // the new verb does not touch the sheet
   const attrsOf = (c) => JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]));
-  const sheetBefore = attrsOf(plain); eng(plain, 'stealth 1'); eng(plain, 'occult -2');
+  const sheetBefore = attrsOf(plain); eng(plain, 'stealth 1 0 0 0'); eng(plain, 'occult -1 0 0 -2');
   ok(attrsOf(plain) === sheetBefore, 'a roll writes nothing to the crew sheet');
+
+  // the outcome is read from the roll and named (core book, Engagement Roll)
+  // earlier rolls in this block were never echoed back; flush their waiting timers so each outcome is matched to its own roll
+  E.flush();
+  const outcome = (args, dice_, c) => { E.flush(); eng(c || plain, args); return E.echo(dice_); };
+  o = outcome('stealth 0 0 0 0', [6]);
+  ok(o.length === 1 && /^player\|/.test(E.out[0].who) && /title=Controlled position/.test(o[0]) && /Dice 6\. Highest die 6: a good result\. You are in a controlled position when the action starts\./.test(o[0]), 'a 6 is a controlled position, posted publicly', o);
+  ok(has(outcome('stealth 0 0 0 0', [5]), /title=Risky position/) && has(outcome('stealth 0 0 0 0', [4]), /title=Risky position/), '4 and 5 are risky');
+  ok(has(outcome('stealth 0 0 0 0', [3]), /title=Desperate position/) && has(outcome('stealth 0 0 0 0', [1]), /title=Desperate position/), '1 to 3 are desperate');
+  ok(has(outcome('stealth 1 0 0 0', [6, 6]), /title=Critical/) && has(outcome('stealth 1 0 0 0', [6, 6]), /already overcome the first obstacle/), 'two 6s are a critical');
+  ok(has(outcome('stealth 1 0 0 0', [6, 5]), /title=Controlled position/) && has(outcome('stealth 1 0 0 0', [3, 2]), /title=Desperate position/), 'the highest die of several decides');
+  o = outcome('stealth -1 0 0 0', [6, 2]); ok(has(o, /title=Desperate position/) && has(o, /Lowest die 2/), 'zero dice: 2d, the lowest decides', o);
+  ok(has(outcome('stealth -1 0 0 0', [6, 6]), /title=Controlled position/) && !has(outcome('stealth -1 0 0 0', [6, 6]), /Critical/), 'zero dice can never be a critical');
+  E.flush(); eng(plain, 'stealth 0 0 0 0'); o = E.echo(undefined); ok(has(o, /could not read the dice of the engagement roll/), 'unreadable dice: told how to read it by hand', o);
+  E.flush(); eng(plain, 'stealth 0 0 0 0'); E.echo([4]); o = E.echo([4]); ok(o.length === 0, 'one roll is named once');
+  E.flush(); eng(plain, 'stealth 0 0 0 0'); E.out.length = 0; E.flush();
+  ok(E.out.some(x => /engagement roll could not be read, so no position was named/.test(x.text)), 'a roll that never comes back is reported', E.out.map(x => x.text.slice(0, 100)));
+  // after the buttons too
+  E.flush(); const pr5 = mk('Assassins6'); abil(pr5, ['Predators']); const nn = idxOf([eng(pr5, 'stealth 0 0 0 0').ask]);
+  E.run('!bitdcrew engadd x0 --c ' + pr5 + ' --idx ' + nn, pat); E.run('!bitdcrew engroll --c ' + pr5 + ' --idx ' + nn, pat);
+  ok(has(E.echo([6, 6]), /title=Critical/), 'the outcome follows a roll made from the card');
+  E.flush();
+}
+
+// ---------------------------------------------------------------- T20b Engagement: abilities of Party player characters
+{
+  const { E, gm, pat, quinn } = table();
+  const crew = E.crew('Spiders crew', pat); E.attr(crew, 'setting_dc_downtime', '1');
+  const pc = (name, ctrl, abilities, party) => {
+    const id = E.char(name, ctrl);
+    (abilities || []).forEach((a, i) => { E.attr(id, 'repeating_ability_-A' + i + '_name', a[0]); E.attr(id, 'repeating_ability_-A' + i + '_check', a[1] === false ? '0' : '1'); });
+    if (party !== false) E.party(id);
+    return id;
+  };
+  const grab = (o) => ({ o, ask: o.find(x => /title=Confirm/.test(x)) || '', roll: o.find(x => /title-engagement/.test(x)) || '', card: o.find(x => /template:bitd-broadcast/.test(x) && /\{\{type=Engagement\}\}/.test(x) && !/title=Confirm/.test(x) && !/title=(Critical|Controlled|Risky|Desperate)/.test(x)) || '' });
+  const eng = (args) => grab(E.run('!bitdcrew engagement ' + args, pat, E.token(crew)));
+  const snap = (id) => JSON.stringify(E.store.attrs.filter(a => a._characterid === id).map(a => [a.name, a.current]));
+
+  // nobody has the abilities: it rolls at once
+  const ana = pc('Ana', pat, [['Weaving the Web']]), bo = pc('Bo', quinn, [['Eye for Weakness']]);
+  const cy = pc('Cy', '', [['Weaving the Web']], false);   // not a Party member
+  const before = [snap(ana), snap(bo), snap(cy)];
+  let r = eng('social 0 0 0 0');
+  ok(r.roll === '' && /Social plan\. So far: 1 luck = 1d\./.test(r.ask), 'a Party PC with an ability: the table is asked first', r.ask);
+  ok(/\[Ana, Weaving the Web: gathered info, \+1d\]\(!bitdcrew engadd x0 /.test(r.ask) && /\[Bo, Eye for Weakness: used it to plan, \+1d\]\(!bitdcrew engadd x1 /.test(r.ask) && !/Cy/.test(r.ask), 'one button per Party PC ability, none for a PC who is not in the party', r.ask);
+  const n = idxOf([r.ask]);
+  E.run('!bitdcrew engadd x0 --c ' + crew + ' --idx ' + n, pat); let o = E.run('!bitdcrew engadd x1 --c ' + crew + ' --idx ' + n, pat);
+  ok(/So far: 1 luck, \+1 Ana's Weaving the Web, \+1 Bo's Eye for Weakness = 3d\./.test(o[0]) && !/engadd/.test(o[0]), 'both added: the card names whose ability it is', o);
+  r = grab(E.run('!bitdcrew engroll --c ' + crew + ' --idx ' + n, pat));
+  ok(dice(r.roll) === 3 && /Social plan: 1 luck, \+1 Ana's Weaving the Web, \+1 Bo's Eye for Weakness = 3d\./.test(r.card), 'the roll and the public arithmetic card carry both', r.card);
+  ok(snap(ana) === before[0] && snap(bo) === before[1] && snap(cy) === before[2], 'no attribute on any PC sheet was written');
+  // the answers stack with them (Eye for Weakness with a weak point +1d)
+  r = eng('stealth 0 1 0 0'); const n2 = idxOf([r.ask]); E.run('!bitdcrew engadd x1 --c ' + crew + ' --idx ' + n2, pat);
+  r = grab(E.run('!bitdcrew engroll --c ' + crew + ' --idx ' + n2, pat)); ok(dice(r.roll) === 3 && /\+1 weak point exposed, \+1 Bo's Eye for Weakness = 3d/.test(r.card), 'Eye for Weakness stacks with a weak-point answer', r.card);
+  // not every ability is asked about on every plan: these two apply to any plan
+  ok(eng('assault 0 0 0 0').ask !== '' && eng('transport 0 0 0 0').ask !== '', 'asked on any plan type');
+
+  // two PCs with the same ability both count; one PC with both abilities gives two buttons
+  const T2 = table(); const E2 = T2.E; const crew2 = E2.crew('Crew 2', T2.pat);
+  const mkpc = (name, ab) => { const id = E2.char(name, T2.pat); ab.forEach((a, i) => { E2.attr(id, 'repeating_ability_-A' + i + '_name', a); E2.attr(id, 'repeating_ability_-A' + i + '_check', '1'); }); E2.party(id); return id; };
+  mkpc('Dee', ['Weaving the Web']); mkpc('Eli', ['weaving  the WEB']); mkpc('Fay', ['Eye for Weakness', 'Weaving the Web']);
+  const g2 = (o) => ({ o, ask: o.find(x => /title=Confirm/.test(x)) || '' });
+  const a2 = g2(E2.run('!bitdcrew engagement stealth 0 0 0 0', T2.pat, E2.token(crew2)));
+  ok((a2.ask.match(/engadd x\d/g) || []).length === 4 && /Dee, Weaving the Web/.test(a2.ask) && /Eli, Weaving the Web/.test(a2.ask) && /Fay, Eye for Weakness/.test(a2.ask) && /Fay, Weaving the Web/.test(a2.ask), 'two PCs with one ability and one PC with two: four buttons; names match without case or spacing', a2.ask);
+  const n3 = idxOf([a2.ask]); ['x0', 'x1', 'x2', 'x3'].forEach(x => E2.run('!bitdcrew engadd ' + x + ' --c ' + crew2 + ' --idx ' + n3, T2.pat));
+  const f2 = E2.run('!bitdcrew engroll --c ' + crew2 + ' --idx ' + n3, T2.pat); ok(dice(f2.find(x => /title-engagement/.test(x)) || '') === 5, 'each PC\'s ability adds its own die (1 + 4)');
+  // unticked, a crew sheet marked as a party member, a long name
+  const T3 = table(); const E3 = T3.E; const crew3 = E3.crew('Crew 3', T3.pat); E3.attr(crew3, 'repeating_ability_-A_name', 'Weaving the Web'); E3.attr(crew3, 'repeating_ability_-A_check', '1'); E3.party(crew3);
+  const gh = E3.char('Gus', T3.pat); E3.attr(gh, 'repeating_ability_-A_name', 'Weaving the Web'); E3.attr(gh, 'repeating_ability_-A_check', '0'); E3.party(gh);
+  const hi = E3.char('Hal', T3.pat); E3.party(hi);
+  let o3 = E3.run('!bitdcrew engagement stealth 0 0 0 0', T3.pat, E3.token(crew3));
+  ok(!o3.some(x => /title=Confirm/.test(x)) && o3.some(x => /title-engagement/.test(x)), 'an unticked ability, a PC without it, and a crew sheet marked as a party member add no question', o3.map(x => x.slice(0, 100)));
+  const lg = E3.char('Kharrakeen Abernathy Longname', T3.pat); E3.attr(lg, 'repeating_ability_-A_name', 'Eye for Weakness'); E3.attr(lg, 'repeating_ability_-A_check', '1'); E3.party(lg);
+  o3 = E3.run('!bitdcrew engagement stealth 0 0 0 0', T3.pat, E3.token(crew3));
+  const lab = (/\[([^\]]*Eye for Weakness[^\]]*)\]/.exec(o3.find(x => /title=Confirm/.test(x)) || '') || [])[1] || '';
+  ok(lab.length <= 60 && /, \+1d$/.test(lab) && /^Kharrakeen Abern/.test(lab), 'a long PC name is shortened so the +1d stays on the button', lab);
+  // a party PC alone is enough for the card even when the crew has nothing ticked; a core crew works too
+  const T4 = table(); const E4 = T4.E; const core = E4.crew('Core crew', T4.pat); const iv = E4.char('Ivy', T4.pat); E4.attr(iv, 'repeating_ability_-A_name', 'Weaving the Web'); E4.attr(iv, 'repeating_ability_-A_check', '1'); E4.party(iv);
+  ok(E4.run('!bitdcrew engagement occult 0 0 0 0', T4.pat, E4.token(core)).some(x => /Ivy, Weaving the Web/.test(x)), 'works on a crew with Downtime off');
 }
 
 // ---------------------------------------------------------------- T21 Status reminders for abilities with no number to change

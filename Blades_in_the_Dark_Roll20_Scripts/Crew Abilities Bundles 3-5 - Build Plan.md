@@ -6,7 +6,7 @@
 
 | Decision | Answer | In v0.3.0 |
 |---|---|---|
-| 1. Engagement prompts | 3 prompts | Plan type, murder goal (only when a Predators or Deadly Focus row exists), net dice |
+| 1. Engagement prompts | 3 prompts | Built in v0.3.0 as plan type, murder goal, net dice. **Replaced in v0.5.0** by the core book's four questions; see `Crew Script - Engagement Roll Rework Plan.md` |
 | 2. Claims in Engagement | Yes; Cover Identities follows the book (social) | All seven claims counted, Cover Identities on deception and social |
 | 3. River crew items | "Do them", then later "hold on automating anything River" (v0.4.0) | Built in v0.3.0, **removed in v0.4.0**. Neither Deadly Focus nor The Governor changes anything now, and the murder prompt asks only for a Predators row |
 | 4. Bundle 4 | Do not code The Good Stuff, Favors, As Good as Your Word, Hooked or Pack Rats (Pack Rats stays as the Deep Cuts text on the sheet) | Only item c, the Status reminders, was built: it was on my recommended list and not on your exclusion list. Say if you want it removed |

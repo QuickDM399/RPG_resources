@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.4.1
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.5.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.4.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.5.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.4.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.5.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -169,15 +169,25 @@ Click `6. Adjust` and pick each entry; check the sheet box and the card.
 **Pass:** Leverage: "Rep +2 ... Leverage: +1 Rep" and the sheet's Rep rises by 3; the final summary says Rep +3; a manual Adjust Rep +1 adds only 1. Misdirection: Rep +5 earned offers "give up 2 Rep" (half, rounded down); the click lowers Rep by 2 and tells you to name the faction; the second click says "Already done". With Leverage too the gain is 6 and the offer is 3. Start the same Score with Rep at 11 or 12: the offer is still 2, and the final summary says "Rep +5 earned, N fit on the track". An earn of 1 shows "Misdirection is not offered" with the reason. Unticking the row shows "on the crew sheet but its circle is not ticked". A crew without the row hears nothing about it.
 **Known fail states:** Leverage on a Rep gain of 0; the offer shrinking when the track is nearly full; a missing offer with no reason on the card.
 
-## L20 Composed Engagement roll (crews B, C and D, then E)
+## L20 Composed Engagement roll (crews B, C and D, then E; a Spider and a Rafiq PC for the second part)
 
-**Steps:** run `~ Rebuild` on each crew first, because `2. Engagement` is now a script macro with prompts. Compare one roll with the sheet's own Engagement button on the same crew to confirm the card looks the same.
-- **Bravos (B):** tick the Door Kickers ability, and the Bluecoat Confederates claim if the sheet lists it. Run `2. Engagement`: Assault, Net dice 0. Then Stealth, then Assault with Net dice +1.
-- **Assassins (C):** tick Predators. After the Rebuild there is an extra prompt, "Is the goal murder". Try Stealth with Yes, Stealth with No, Deception with Yes, and Assault with Yes. Tick City Records and Cover Identities if listed and try Stealth, Social and Transport without a murder goal.
-- **Shadows (D):** tick Second Story and Secret Pathways. Run Stealth (both apply), then Assault. Run Stealth with Net dice -4.
-- **Stale macro:** on a crew whose `2. Engagement` was built before it had a Predators or Deadly Focus row, add that row (do not rebuild) and run `2. Engagement`.
-**Pass:** the dice counts are Bravos Assault 2 (3 with the claim ticked), Stealth 1; Assassins Stealth with Yes 2, No 1, Deception with Yes 2, Assault with Yes 1; Shadows Stealth 3, Assault 1, Net dice -4 shows the sheet's two-dice "lowest" layout. Two public cards appear: a short readable card (type Engagement, title "3d") whose text reads like "Stealth plan: 1 luck, +1 Second Story, +1 Secret Pathways = 3d.", then the engagement roll card with the crew name and image and the sheet's engagement title. The native button's card has no position text either, so none is expected A stale macro says "Run ~ Rebuild" and rolls nothing.
-**Known fail states:** the arithmetic card missing or unreadable, the prompts in the wrong order, the murder prompt missing after a Rebuild, a claim not counted (the claim name on the sheet differs from the one in the script: send me the exact text of the claim box), Cover Identities counting for Transport.
+**Steps:** run `~ Rebuild` on each crew first, because `2. Engagement` is a script macro. It has **five prompts**: Plan type, Approach, Plan detail, Friends and enemies, Other elements.
+- **Prompts and arithmetic (any crew, no abilities ticked):** run Stealth with every answer Neither and Other 0. Then Assault with Approach "Bold or daring" and Other +2. Then Assault with Approach "Overly complex" and Plan detail "Target strongest" (a pool of 0).
+- **Automatic sources (Shadows, D):** tick Second Story and Secret Pathways. Run Stealth, all answers Neither, then Assault.
+- **Predators (Assassins, C):** tick Predators. Run Assault (it should roll at once). Run Stealth: a public card should appear asking "Predators: the goal is murder". Click it, then click **Roll**. Run Stealth again and click **Roll** without confirming.
+- **Party abilities:** mark a Spider PC and a Rafiq PC as Party members and tick Weaving the Web on one and Eye for Weakness on the other (hand-add the ability rows if the PCs lack them). Run any plan. Click both buttons, then **Roll**.
+- **Outcome:** after each roll, read the position card that follows.
+- **Stale macro:** run an old `2. Engagement` token action from before the Rebuild, if one is left on a crew.
+**Pass:**
+- Stealth with all Neither: 1 die, arithmetic card "Stealth plan: 1 luck = 1d."
+- Assault, bold, Other +2: 4 dice, "1 luck, +1 bold or daring, +2 other elements = 4d."
+- A pool of 0: two dice, "no dice: roll 2d and keep the lowest."
+- Shadows Stealth: 3 dice with both sources named; Assault: 1.
+- Predators: a card with a button for Predators and a Roll button, visible to the whole table. The button adds one die and the card reposts without it. Roll posts the arithmetic card and the roll once; a second Roll says "Already rolled".
+- Party PCs: one button per ticked ability, labelled with the PC's name (for example "Ana, Weaving the Web: gathered info, +1d"); each adds one die; the final arithmetic names them ("+1 Ana's Weaving the Web").
+- Outcome: a public card after the dice (6 controlled, 4 or 5 risky, 1 to 3 desperate, two 6s critical, and with no dice the lowest die decides).
+- The native Engagement button has no position text, so none is expected on the roll card itself.
+**Known fail states:** the arithmetic or confirm card missing or unreadable; a party ability not offered (send me the exact ability name on the PC sheet); a button for a PC who is not a Party member; the position not named (or named wrong) after the roll; a claim not counted (send me the exact text of the claim box); Cover Identities counting for Transport.
 
 ## L21 Status reminders (any crew; add rows by hand)
 

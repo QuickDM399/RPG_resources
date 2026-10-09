@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.4.1
+/* BitD Crew Token Action Maker  v0.5.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -17,8 +17,9 @@
  *     Assess hold, End Downtime with No Traces' +1 Rep), Leverage's +1 Rep on every Rep gain, Misdirection after a Score (half the Rep earned, as the card shows it).
  *   - Party link: !bitdcrew party (GM) lists the characters Roll20 marks as Party members; the Score's PC count can use it.
  *   - !bitdcrew debug on|off (GM) writes the new flows to the API console.
- *   - Engagement (button 2): a composed roll. Plan type, murder goal (only for crews with a Predators row) and net
- *     dice are asked; ticked abilities and claims that add or remove engagement dice are counted and listed on the card.
+ *   - Engagement (button 2): a composed roll. The macro asks the plan type and the core book Major Advantage and Disadvantage
+ *     questions. Ticked crew abilities and claims that fit the plan are added; abilities that need the table (Predators, and
+ *     Weaving the Web or Eye for Weakness on Party PCs) are offered as buttons on a card everyone sees. The outcome is named.
  *   - Claims (Deep Cuts crews unless noted): "-2 heat per score" claims lower the Fallout Heat (core Score too), Victim Trophies
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
@@ -28,7 +29,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.4.1';
+  var VERSION = '0.5.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -41,6 +42,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var AUTO_HEAT = true;
   // After a script-posted Entanglement roll (core rules), read the dice and name the table result.
   var AUTO_ENTANGLEMENT = true;
+  // After a script-posted Engagement roll, read the dice and name the position (core book, Engagement Roll).
+  var AUTO_ENGAGEMENT = true;
 
   // Line separator inside {{content=...}}
   var NL = '\n';
@@ -56,7 +59,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var ENG_SOURCES = [
     { kind: 'ability', name: 'Door Kickers', plans: ['assault'] },
     { kind: 'ability', name: 'Second Story', plans: ['stealth'] },
-    { kind: 'ability', name: 'Predators', plans: ['stealth', 'deception'], murder: true },
+    { kind: 'ability', name: 'Predators', plans: ['stealth', 'deception'], ask: 'the goal is murder' },
     { kind: 'claim', name: 'Ancient Altar', plans: ['occult'] },
     { kind: 'claim', name: 'Bluecoat Confederates', plans: ['assault'] },
     { kind: 'claim', name: 'City Records', plans: ['stealth'] },
@@ -64,6 +67,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     { kind: 'claim', name: 'Personal Clothier', plans: ['social'] },
     { kind: 'claim', name: 'Secret Pathways', plans: ['stealth'] },
     { kind: 'claim', name: 'Secret Routes', plans: ['transport'] }
+  ];
+  // The Major Advantage and Disadvantage questions (core book, Engagement Roll): +1d for the first, -1d for the second of each pair.
+  // The fourth question, other elements, is a number from -3 to +3 (district text in the core book reaches -2d on its own).
+  var ENG_QUESTIONS = [
+    { plus: 'bold or daring', minus: 'complex or contingent' },
+    { plus: 'weak point exposed', minus: 'target strongest here' },
+    { plus: 'friends or contacts help', minus: 'enemies or rivals interfere' }
+  ];
+  var ENG_OTHER_MAX = 3;
+  // Abilities of Party player characters that add +1d to the engagement roll (Weaving the Web: core book; Eye for Weakness: sheet only)
+  var ENG_PC_ABILITIES = [
+    { name: 'Weaving the Web', ask: 'gathered info' },
+    { name: 'Eye for Weakness', ask: 'used it to plan' }
   ];
   // Claims that change Score numbers or give income (core book claim text; Bluecoat Confidants, Publicity and Doskvol's Most
   // Wanted are on the sheet only). Deep Cuts does not restate them; the user ruled that the Heat claims still apply.
@@ -288,13 +304,14 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   }
 
   // the crew's ticked abilities as a set of normalized names (a row counts only when its circle is ticked)
-  function abilitiesOn(cid) {
+  function tickedRows(cid, section) {
     var on = {};
-    listRows(cid, 'crewability', 'name').forEach(function (r) {
-      if (String(getAttrByName(cid, 'repeating_crewability_' + r.row + '_check')) === '1') { on[normName(r.value)] = true; }
+    listRows(cid, section, 'name').forEach(function (r) {
+      if (String(getAttrByName(cid, 'repeating_' + section + '_' + r.row + '_check')) === '1') { on[normName(r.value)] = true; }
     });
     return on;
   }
+  function abilitiesOn(cid) { return tickedRows(cid, 'crewability'); }
   function crewAbilityOn(cid, name) { return abilitiesOn(cid)[normName(name)] === true; }
   // true when the crew has a row with that name, ticked or not
   function crewAbilityListed(cid, name) {
@@ -459,8 +476,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
         '|Debt clock +1,debt+1|Debt clock -1,debt-1|Downtime: Heat and Hold,hh|Downtime: start a new Downtime,dtstart' : '');
     // composed Engagement roll: the answers are asked here because prompts exist only in a token-action macro
     var engagement = CMD + ' engagement ?{Plan type|Assault,assault|Deception,deception|Stealth,stealth|Occult,occult|Social,social|Transport,transport}' +
-      (hasMurderRow(cid) ? ' ?{Is the goal murder|No,0|Yes,1}' : '') +
-      ' ?{Net dice (advantages minus disadvantages plus PC abilities)|0|1|2|3|4|-1|-2|-3|-4}';
+      ' ?{Approach (bold or daring or overly complex)|Neither,0|Bold or daring (+1d),1|Overly complex or contingent (-1d),-1}' +
+      ' ?{Plan detail (hits a weakness or meets the target strongest defense)|Neither,0|Exposes a weakness (+1d),1|Target strongest against it (-1d),-1}' +
+      ' ?{Friends and enemies (aid or insight or interference)|Neither,0|Friends or contacts help (+1d),1|Enemies or rivals interfere (-1d),-1}' +
+      ' ?{Other elements (lower or higher Tier target or the district)|0|1|2|3|-1|-2|-3}';
     var fortune = '&{template:blades} {{charname=@{selected|character_name}}} {{type=fortune}} {{subtitle=^{roll}}} ' +
       '{{title-fortune=1}} {{title=^{fortune}}} @{selected|numberofdice} {{notes=@{selected|notes_query}}} ' +
       '{{charimage=@{selected|chat_image}}} @{selected|title_text}';
@@ -638,6 +657,17 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     watching.push(w);
   }
 
+  // watch a posted roll, and say so if it never comes back to be read instead of staying silent
+  function watchWithTimeout(w, msg, failText) {
+    watchRoll(w);
+    setTimeout(function () {
+      var i = watching.indexOf(w);
+      if (i < 0) { return; }
+      watching.splice(i, 1);
+      whisper(msg, failText);
+    }, 20000);
+  }
+
   // values of the d6 inline rolls of a posted card, or null if there are not exactly n of them
   function readDice(msg, n) {
     var rolls = msg.inlinerolls || [], vals = [];
@@ -658,7 +688,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       if (content.indexOf(w.marker || '{{title-entanglement=1}}') < 0 || content.indexOf('{{charname=' + w.name + '}}') < 0) { continue; }
       watching.splice(i, 1);
       try {
-        if (w.kind === 'income') { afterIncomeRoll(msg, w); } else { afterEntanglementRoll(msg, w); }
+        if (w.kind === 'income') { afterIncomeRoll(msg, w); } else if (w.kind === 'engagement') { afterEngagementRoll(msg, w); } else { afterEntanglementRoll(msg, w); }
       } catch (e) { log('BitDCrew roll error: ' + (e && e.stack ? e.stack : e)); }
       return;
     }
@@ -693,16 +723,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var lead = c.name + ' income: ' + (tier > 0 ? tier + ' dice' : 'no dice, 2d keep the lowest') + ', highest die minus your Heat ' + heat + '.';
     var marker = '{{notes=' + clean(lead);
     var w = { kind: 'income', marker: marker, pid: msg.playerid, cid: cid, name: clean(t.c.name), heat: heat, dice: dice, lowest: tier <= 0, claim: c.name, slot: slot, ledger: d.id };
-    watchRoll(w);
+    watchWithTimeout(w, msg, 'BitDCrew: the ' + c.name + ' roll could not be read. Work it out by hand: the highest die (lowest if there were no dice) minus your Heat of ' + heat + ', then add the Coin with Adjust.');
     dbg('income roll ' + c.name + ' ' + cid + ' dice ' + dice + ' heat ' + heat);
     sendChat('player|' + msg.playerid, '&{template:blades} {{charname=' + clean(t.c.name) + '}} {{type=fortune}} {{subtitle=^{roll}}} ' +
       '{{title-fortune=1}} {{title=^{fortune}}} {{' + diceField(tier) + '}} {{notes=' + clean(lead) + '}}' + tail(cid, t.c));
-    // if the posted card never comes back to be read, say so instead of staying silent
-    setTimeout(function () {
-      if (watching.indexOf(w) < 0) { return; }
-      watching.splice(watching.indexOf(w), 1);
-      whisper(msg, 'BitDCrew: the ' + c.name + ' roll could not be read. Work it out by hand: the highest die (lowest if there were no dice) minus your Heat of ' + heat + ', then add the Coin with Adjust.');
-    }, 20000);
     return true;
   }
 
@@ -772,40 +796,136 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // ---------------------------------------------------------------- engagement roll
 
-  function hasMurderRow(cid) { return crewAbilityListed(cid, 'Predators'); }
-
-  // the ticked abilities and claims that change the engagement roll for this plan
-  function engagementBonuses(cid, plan, murder) {
+  // the ticked abilities and claims that fit this plan and need no answer from the table
+  function engagementBonuses(cid, plan) {
     var ab = abilitiesOn(cid), cl = claimsOn(cid), out = [];
     ENG_SOURCES.forEach(function (src) {
       var key = normName(src.name);
+      if (src.ask) { return; }
       if ((src.kind === 'ability' ? ab[key] : cl[key]) !== true) { return; }
       if (src.plans.indexOf(plan) < 0) { return; }
-      if (src.murder && !murder) { return; }
       out.push(src.name);
     });
     return out;
   }
 
-  function doEngagement(msg, o) {
-    var t = target(msg, o); if (!t) { return; }
-    var cid = t.ch.id, ask = hasMurderRow(cid), want = ask ? 3 : 2;
-    if (o.pos.length !== want) { whisper(msg, 'BitDCrew: this token action is out of date (an ability was added or removed). Run ~ Rebuild.'); return; }
-    var plan = String(o.pos[0]).toLowerCase(), murderArg = ask ? String(o.pos[1]) : '0', net = parseInt(o.pos[want - 1], 10);
-    if (PLAN_TYPES.indexOf(plan) < 0 || (murderArg !== '0' && murderArg !== '1') || isNaN(net) || net < -4 || net > 4) {
-      whisper(msg, 'BitDCrew: those engagement answers are not valid.'); return;
+  // sources that need the table to say they apply: Predators (the goal is murder) and the abilities of Party player characters
+  function engagementExtras(cid, plan) {
+    var ab = abilitiesOn(cid), out = [];
+    ENG_SOURCES.forEach(function (src) {
+      if (!src.ask || ab[normName(src.name)] !== true || src.plans.indexOf(plan) < 0) { return; }
+      out.push({ id: 'x' + out.length, name: src.name, label: src.name + ': ' + src.ask });
+    });
+    partyPcs().forEach(function (pc) {
+      var have = tickedRows(pc.id, 'ability'), who = btn(pc.get('name'));
+      ENG_PC_ABILITIES.forEach(function (a) {
+        if (have[normName(a.name)] === true) {
+          out.push({ id: 'x' + out.length, name: who + APOS + 's ' + a.name, label: who.slice(0, 16) + ', ' + a.name + ': ' + a.ask });
+        }
+      });
+    });
+    return out;
+  }
+
+  function engagementLine(flow) {
+    return cap(flow.plan) + ' plan: ' + flow.parts.join(', ') + ' = ' + Math.max(flow.pool, 0) + 'd' +
+      (flow.pool <= 0 ? ' (no dice: roll 2d and keep the lowest)' : '') + '.';
+  }
+
+  // the card everyone sees while there is something to confirm
+  function engagementCard(msg, t, flow, nonce) {
+    var cid = t.ch.id, L = [], open = flow.extras.filter(function (x) { return !flow.done[x.id]; });
+    L.push(cap(flow.plan) + ' plan. So far: ' + flow.parts.join(', ') + ' = ' + Math.max(flow.pool, 0) + 'd' + (flow.pool <= 0 ? ' (no dice: roll 2d and keep the lowest)' : '') + '.');
+    if (open.length) {
+      L.push('Confirm what applies (each once):');
+      L.push(open.map(function (x) { return '[' + btn(x.label + ', +1d') + '](' + CMD + ' engadd ' + x.id + ' --c ' + cid + ' --idx ' + nonce + ')'; }).join(' '));
     }
-    var bonus = engagementBonuses(cid, plan, murderArg === '1'), pool = 1 + net, parts = ['1 luck'];
-    if (net) { parts.push((net > 0 ? '+' : '-') + Math.abs(net) + ' net dice'); }
-    bonus.forEach(function (name) { pool += 1; parts.push('+1 ' + name); });
-    var line = cap(plan) + ' plan' + (murderArg === '1' ? ' with a murder goal' : '') + ': ' + parts.join(', ') + ' = ' + Math.max(pool, 0) + 'd' +
-      (pool <= 0 ? ' (no dice: roll 2d and keep the lowest)' : '') + '.';
-    dbg('engagement ' + cid + ' ' + line);
-    // the arithmetic goes on its own card: a notes line on the engagement roll card is dark text on a dark card and cannot be read
-    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Engagement', title: Math.max(pool, 0) + 'd', content: clean(line) }));
+    L.push('[Roll](' + CMD + ' engroll --c ' + cid + ' --idx ' + nonce + ')');
+    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Engagement', title: 'Confirm', content: L.join(NL) }));
+  }
+
+  // the arithmetic card, then the roll card; the dice are read afterwards to name the position
+  function finishEngagement(msg, t, flow) {
+    var cid = t.ch.id, pool = flow.pool;
+    dbg('engagement ' + cid + ' ' + engagementLine(flow));
+    sendChat('player|' + msg.playerid, broadcast(t.c, { type: 'Engagement', title: Math.max(pool, 0) + 'd', content: clean(engagementLine(flow)) }));
+    if (AUTO_ENGAGEMENT) {
+      watchWithTimeout({ kind: 'engagement', marker: '{{title-engagement=1}}', pid: msg.playerid, cid: cid, name: clean(t.c.name), dice: pool > 0 ? pool : 2, lowest: pool <= 0 }, msg,
+        'BitDCrew: the engagement roll could not be read, so no position was named. Use the highest die: 1-3 desperate, 4 or 5 risky, 6 controlled, two or more 6s critical.');
+    }
     sendChat('player|' + msg.playerid, '&{template:blades} {{charname=' + clean(t.c.name) + '}} {{type=action}} {{short=short}} ' +
       '{{small-title=small-title}} {{subtitle=^{roll_for}}} {{title-engagement=1}} {{title=^{engagement}}} {{' + diceField(pool) + '}}' +
       tail(cid, t.c));
+  }
+
+  function doEngagement(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, i;
+    if (o.pos.length !== 5) { whisper(msg, 'BitDCrew: this token action is out of date (the engagement questions changed). Run ~ Rebuild.'); return; }
+    var plan = String(o.pos[0]).toLowerCase(), ans = [], bad = PLAN_TYPES.indexOf(plan) < 0;
+    for (i = 1; i < 5; i++) { ans.push(/^-?\d+$/.test(String(o.pos[i])) ? parseInt(o.pos[i], 10) : NaN); }
+    for (i = 0; i < 3; i++) { if (isNaN(ans[i]) || ans[i] < -1 || ans[i] > 1) { bad = true; } }
+    if (isNaN(ans[3]) || ans[3] < -ENG_OTHER_MAX || ans[3] > ENG_OTHER_MAX) { bad = true; }
+    if (bad) { whisper(msg, 'BitDCrew: those engagement answers are not valid.'); return; }
+    var pool = 1, parts = ['1 luck'];
+    ENG_QUESTIONS.forEach(function (q, k) {
+      if (ans[k]) { pool += ans[k]; parts.push(ans[k] > 0 ? '+1 ' + q.plus : '-1 ' + q.minus); }
+    });
+    if (ans[3]) { pool += ans[3]; parts.push((ans[3] > 0 ? '+' : '-') + Math.abs(ans[3]) + ' other elements'); }
+    engagementBonuses(cid, plan).forEach(function (name) { pool += 1; parts.push('+1 ' + name); });
+    var extras = engagementExtras(cid, plan), flow = { plan: plan, pool: pool, parts: parts, extras: extras, done: {} };
+    dbg('engagement extras ' + cid + ' ' + extras.map(function (x) { return x.name; }).join('; '));
+    if (!extras.length) { finishEngagement(msg, t, flow); return; }
+    flow.kind = 'eng'; flow.rolled = false;
+    var nonce = newFlow(cid, flow);
+    engagementCard(msg, t, flow, nonce);
+  }
+
+  // the engagement card a button belongs to, or null (after saying why)
+  function engFlow(msg, t, o) {
+    var flow = o.idx ? botState().flows[o.idx] : null;
+    if (!flow || flow.cid !== t.ch.id || flow.kind !== 'eng') { whisper(msg, 'BitDCrew: that engagement card is no longer available. Run 2. Engagement again.'); return null; }
+    if (flow.rolled) { note(msg, t.c, 'Engagement', 'Already rolled', 'That engagement roll was already made. Run 2. Engagement again for a new one.'); return null; }
+    return flow;
+  }
+
+  function doEngAdd(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var flow = engFlow(msg, t, o); if (!flow) { return; }
+    var id = String(o.pos[0] || ''), x = flow.extras.filter(function (e) { return e.id === id; })[0];
+    if (!x) { whisper(msg, 'BitDCrew: unknown engagement choice.'); return; }
+    if (flow.done[x.id]) { note(msg, t.c, 'Engagement', 'Already added', x.name + ' is already counted.'); return; }
+    flow.done[x.id] = true; flow.pool += 1; flow.parts.push('+1 ' + x.name);
+    engagementCard(msg, t, flow, o.idx);
+  }
+
+  function doEngRoll(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var flow = engFlow(msg, t, o); if (!flow) { return; }
+    flow.rolled = true;
+    finishEngagement(msg, t, flow);
+  }
+
+  // core book, Engagement Roll: critical (two or more 6s) is controlled and past the first obstacle; 6 controlled; 4 or 5 risky; 1 to 3 desperate
+  function afterEngagementRoll(msg, w) {
+    var ch = getObj('character', w.cid);
+    if (!ch) { return; }
+    var vals = readDice(msg, w.dice);
+    if (!vals) {
+      recipients(ch).forEach(function (id) { whisperPlayer(id, 'BitDCrew: could not read the dice of the engagement roll, so no position was named. Use the highest die: 1-3 desperate, 4 or 5 risky, 6 controlled, two or more 6s critical.'); });
+      return;
+    }
+    var die = vals[0], sixes = 0, i;
+    for (i = 0; i < vals.length; i++) {
+      if (i > 0) { die = w.lowest ? Math.min(die, vals[i]) : Math.max(die, vals[i]); }
+      if (vals[i] === 6) { sixes++; }
+    }
+    var crit = !w.lowest && sixes >= 2, title, text;
+    if (crit) { title = 'Critical'; text = 'Two or more 6s: an exceptional result. You have already overcome the first obstacle and are in a controlled position for what is next.'; }
+    else if (die >= 6) { title = 'Controlled position'; text = (w.lowest ? 'Lowest' : 'Highest') + ' die 6: a good result. You are in a controlled position when the action starts.'; }
+    else if (die >= 4) { title = 'Risky position'; text = (w.lowest ? 'Lowest' : 'Highest') + ' die ' + die + ': a mixed result. You are in a risky position when the action starts.'; }
+    else { title = 'Desperate position'; text = (w.lowest ? 'Lowest' : 'Highest') + ' die ' + die + ': a bad result. You are in a desperate position when the action starts.'; }
+    sendChat('player|' + w.pid, broadcast(info(w.cid), { type: 'Engagement', title: title, content: 'Dice ' + vals.join(', ') + '. ' + text }));
   }
 
   // ---------------------------------------------------------------- abilities and clocks menus
@@ -1589,6 +1709,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'setup': case 'rebuild': return doSetup(msg, o);
       case 'roll': return doRoll(msg, o);
       case 'engagement': return doEngagement(msg, o);
+      case 'engadd': return doEngAdd(msg, o);
+      case 'engroll': return doEngRoll(msg, o);
       case 'abilities': return doAbilities(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);

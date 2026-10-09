@@ -1,6 +1,26 @@
-# Crew Script: Engagement Roll Rework (plan, nothing built)
+# Crew Script: Engagement Roll Rework (v0.5.0)
 
-Status: **proposal for approval.** No code has been touched. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the sheet text; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.5.0 and every crew needs `~ Rebuild`, because the macro changes.
+**Status: approved, then built as v0.5.0 (mock tested; nothing run in the live game).** Every crew needs `~ Rebuild`. The answers:
+
+| Decision | Answer | In v0.5.0 |
+|---|---|---|
+| 1. Prompts replaced | "Correct" | The Net dice and murder prompts are gone; Predators is a button |
+| 2. Other elements range | Yes, -3 to +3 | Seven options, 0 first |
+| 3. Asking method | Buttons | A card with buttons, only when something applies |
+| 4. Party abilities | Yes, both; each PC counts once | Weaving the Web and Eye for Weakness, one button per PC ability, each +1d |
+| 5. Eye for Weakness with a weak-point answer | Yes, stack | Both count |
+| 6. Who sees the follow-up card | "Show to all" | A public card (not a whisper) |
+| 7. Outcome after the roll | Yes | The position is named from the dice. I made it a public card too, to match decision 6; say so if you would rather it were a whisper |
+
+One detail beyond the plan: the follow-up card reposts after each button, so the chat shows the card a few times. The newest one is current; an older card's Roll button rolls the current total, not the number on the old card. The labels read "Roll" with no number for that reason.
+
+The proposal as first written follows.
+
+---
+
+# Proposal (as written before the answers)
+
+Status at that time: **proposal for approval.** No code had been touched. Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the sheet text; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.5.0 and every crew needs `~ Rebuild`, because the macro changes.
 
 ## 1. Bottom line
 
