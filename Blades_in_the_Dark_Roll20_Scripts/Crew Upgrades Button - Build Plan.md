@@ -1,6 +1,25 @@
 # Crew Script: `6c. Crew Upgrades` and the button renames (proposal for v0.9.0)
 
-**Status: proposal for approval. No code has been touched.** Rules text is from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the Roll20 sheet; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.9.0 and every crew needs `~ Rebuild`.
+**Status: approved, then built as v0.9.0 (mock tested; nothing run in the live game).** Every crew needs `~ Rebuild`. Where the answers below differ from the proposal, the answers win. The proposal as first written follows.
+
+## 0. Answers and what was built
+
+| Decision | Answer | In v0.9.0 |
+|---|---|---|
+| 1. Special label | "crew type not name" | "Bravos Special" from the crew type text; "Crew Special" if blank |
+| 2. Text for the specials | Yes | Core book text plus the sheet name, "No book text" for the crews the book lacks |
+| 3. "Taken" rules | **Changed:** "multiple indicators in carriage, boat etc. that have 2 unlinked boxes"; Hardened and Mastery count only when all boxes are filled | **One circle per box** on every upgrade, in sheet order, so the two unlinked boxes of Carriage, Boat, Secure and Vault each show. The partial circle (half-filled) is gone: "in progress" is stated in the card header instead. Hardened-type upgrades and Mastery count only with every box. Carriage, Boat, Secure and Vault still count as taken from either box (inference: the sheet text says the second box improves the first; say so if you want both boxes required) |
+| 4. Deep Cuts lines | Yes | Training and Mastery (p88), Vault (p88), Workshop (p87), cost (p83) |
+| 5. Quality rule | Yes | On every Quality card |
+| 6. Visibility | Yes | Whispered menus, public upgrade card |
+
+The button renames are done: `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`. The four rulings in `Deep Cuts Sheets v1.2b - Script Check.md` are still open; nothing in v0.9.0 depends on them.
+
+---
+
+# Proposal (as written before the answers)
+
+Status at that time: **proposal for approval. No code had been touched.** Rules text is from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, or the Roll20 sheet; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.9.0 and every crew needs `~ Rebuild`.
 
 ## 1. Bottom line
 

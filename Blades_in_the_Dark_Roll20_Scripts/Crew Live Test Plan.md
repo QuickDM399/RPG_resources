@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.8.1
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.8.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.9.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.8.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.9.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -41,7 +41,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
 - A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
-- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6b. Contacts`, `6c. Claims`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
 - Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
@@ -249,9 +249,9 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 ## L26 Contacts (any crew with contacts; try one with notes, one without, one favorite)
 
 **Setup:** on a crew sheet check the triangle box on at least one contact and write notes in at least two (one with two lines). Leave one contact with no notes. `~ Rebuild`.
-**Steps:** click `6b. Contacts`. Click a favorite with notes, a non-favorite with notes, and a contact with no notes. Then delete a contact on the sheet and click its old button. As a player who does not control the crew, try the button if you can.
+**Steps:** click `6a. Contacts`. Click a favorite with notes, a non-favorite with notes, and a contact with no notes. Then delete a contact on the sheet and click its old button. As a player who does not control the crew, try the button if you can.
 **Pass:**
-- The action bar order is `6. Abilities`, `6b. Contacts`, `7. Adjust`.
+- The action bar order is `6. Abilities`, `6a. Contacts`, `7. Adjust`.
 - A whispered card, "Show to the table", lists one button per named contact in the same order as the sheet, and a favorite's button starts with a triangle. A line explains the triangle.
 - A click posts a public card: a favorite shows "Favorite contact" in the header and a triangle before the name; others show "Contact". The notes appear with their line breaks. No notes: "No notes on the sheet for this contact."
 - The deleted contact: "that contact is no longer on the sheet".
@@ -261,9 +261,9 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 ## L27 Claims (a Deep Cuts crew and a core crew; try crew E and Bravos)
 
 **Setup:** tick a few claim boxes on the sheet, leave others unticked. `~ Rebuild`. Read `Crew Script - Claim Rules Text.md` first so you know what the cards should say.
-**Steps:** click `6c. Claims`. Click a held claim, a claim not held, a claim whose text differs by crew (Informants, Vice Den, Cover Operation or Ancient Gate), the **Turf** button, and, on Bravos or Smugglers, Warehouses or Warehouse. If you have a Vigilantes crew, click Publicity. Switch the Downtime module on or off on a crew with Warehouses and click it again.
+**Steps:** click `6b. Claims`. Click a held claim, a claim not held, a claim whose text differs by crew (Informants, Vice Den, Cover Operation or Ancient Gate), the **Turf** button, and, on Bravos or Smugglers, Warehouses or Warehouse. If you have a Vigilantes crew, click Publicity. Switch the Downtime module on or off on a crew with Warehouses and click it again.
 **Pass:**
-- The action bar order is `6. Abilities`, `6b. Contacts`, `6c. Claims`, `7. Adjust`.
+- The action bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`.
 - A whispered card lists every claim on the sheet in sheet order, a filled circle for held and a hollow one for not held, one Turf button with a count ("Turf: 2 of 5 held"), and a line explaining the circles.
 - A click posts a public card: header "Claim held" or "Claim not held", the circle before the name, "Held by this crew." or "Not held by this crew.", the rules text from the book (check it against the text page), and "On the sheet: ..." with the sheet's own short text.
 - The Turf card shows the count, the core rule text, the Deep Cuts hold rule (marked "in force" with Downtime on) and the turf boxes marked.
@@ -272,9 +272,23 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - Nothing on the sheet changes.
 **Known fail states:** a claim missing from the list or in the wrong order, the circle wrong (the held box and the card disagree), the wrong crew's wording (the Hawkers Informants should end "new clients", Assassins "new targets"), a name that does not match (send me the exact name in the claim box on the sheet), text that differs from the text page, or a long card cut off.
 
-## L28 Clean up
+## L28 Crew Upgrades (a Deep Cuts Downtime crew and a core crew; try crew E and Bravos)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26 and claim boxes you ticked for L27, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** on the crew sheet pick a crew type (so the special upgrades fill in). Mark some boxes: one box of a two-box lair upgrade (try the **second** box only), two of three boxes of Hardened (or Ordained, Composed, Steady), three of four Mastery boxes, one Quality upgrade fully. Leave the rest. `~ Rebuild`. Open `Crew Upgrades Button - Build Plan.md` for the texts.
+**Steps:** click `6c. Crew Upgrades`. Click each of the four buttons. From the lists click: a taken upgrade, one not taken, the Hardened-type upgrade with two boxes, Mastery with three, a two-box lair upgrade with one box, Vault, Workshop, an Insight or Prowess upgrade, a Quality upgrade, and two special upgrades (a rigging and an Elite one). Switch the Downtime module off on one crew and click Vault again. On a Smugglers crew open the Lair list. As a player who does not control the crew, try a button if you can.
+**Pass:**
+- The bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`.
+- Card 1 (whisper): four buttons, the first named for the crew **type** ("Bravos Special"), then Lair, Training, Quality, and a line of counts for each ("Lair: 2 of 7 taken").
+- Each list (whisper) shows the upgrades in sheet order with **one circle per box** (a two-box upgrade has two, Mastery four) and a legend. The second box alone shows as the second circle, filled, and the upgrade counts as taken.
+- An upgrade card (public): header "Upgrade taken", "Upgrade in progress" (Hardened-type with 2 of 3, Mastery with 3 of 4) or "Upgrade not taken"; the circles before the name; the boxes line; for a special upgrade the core book text and the full sheet name; "On the sheet:" with the drop-down text. **Tell me whether the drop-down of a special upgrade is empty** (the card should then show no "On the sheet" line for it).
+- Downtime on: a cost line (10 coin per box for Lair, Training, Quality, Mastery; 6, 8 or 10 for specials, with the total), the Deep Cuts rule for Vault, Workshop, the Training upgrades and Mastery marked "in force". Downtime off: no cost line, the Deep Cuts text marked "off for this crew".
+- A Quality card ends with the core Quality rule. Smugglers show two Vehicle rows in Lair, with the core Vehicle text.
+- Nothing on the sheet changes.
+**Known fail states:** a missing or extra circle, circles in the wrong order, the Hardened upgrade shown as taken with two boxes, Mastery taken with three, a special upgrade with no core book text (send me the exact name on the sheet), the sheet text missing or repeated twice (the script copy is used only when the sheet attribute reads empty; the card says which), the card cut off, a button that does nothing after you change the sheet. If a card is wrong, run `!bitdcrew debug on` and click again; the API console lists the category, rows, boxes and the text source.
+
+## L29 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

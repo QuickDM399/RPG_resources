@@ -125,14 +125,14 @@ function queries(action) {
   const a = E.crew('Bravos', pat), b = E.crew('Hawkers', quinn), ta = E.token(a), tb = E.token(b);
   let o = E.run('!bitdcrew setup', pat, ta);
   const names = E.abil(a).map(x => x.name);
-  ok(names.length === 11 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 11 token actions in order, with a gap at 5 (no Downtime button)', names);
+  ok(names.length === 12 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 12 token actions in order, with a gap at 5 (no Downtime button)', names);
   ok(E.abil(a).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'abilities flagged with the crew marker');
   E.run('!bitdcrew setup', pat, ta);
-  ok(E.abil(a).length === 11, 'rebuild is idempotent');
+  ok(E.abil(a).length === 12, 'rebuild is idempotent');
   o = E.run('!bitdcrew setup', pat, tb);
   ok(has(o, /only use this on crews you control/) && E.abil(b).length === 0, 'player refused on another crew, nothing written', o);
   E.run('!bitdcrew setup', gm, tb);
-  ok(E.abil(b).length === 11, 'GM can set up any crew');
+  ok(E.abil(b).length === 12, 'GM can set up any crew');
   // a user-made ability with a clashing name is skipped, not replaced
   E.store.abilities.push({ id: 'u1', _characterid: a, name: '9. Status', description: 'mine', action: 'x', istokenaction: true });
   o = E.run('!bitdcrew setup', pat, ta);
@@ -140,11 +140,11 @@ function queries(action) {
   o = E.run('!bitdcrew setup', pat);
   ok(has(o, /select one or more crew tokens/), 'setup without a token', o);
   o = E.run('!bitdcrew setup --c ' + a, pat);
-  ok(E.abil(a).length === 11 && !has(o, /select/), 'setup by id works without a token', o);
+  ok(E.abil(a).length === 12 && !has(o, /select/), 'setup by id works without a token', o);
   // crew controlled by everyone
   const c = E.crew('Smugglers', 'all'); const tc = E.token(c);
   E.run('!bitdcrew setup', quinn, tc);
-  ok(E.abil(c).length === 11, 'crew controlled by all: any player can set it up');
+  ok(E.abil(c).length === 12, 'crew controlled by all: any player can set it up');
   // crew-only gating: character and faction sheets refused by every verb
   const pc = E.char('Ayla', pat), tp = E.token(pc);
   const fac = E.char('Faction Status', ''); E.attr(fac, 'sheet_type', 'faction'); const tf = E.token(fac);
@@ -200,7 +200,7 @@ function queries(action) {
   const a = E.crew('crew new', pat), ta = E.token(a);
   ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
   let o = E.run('!bitdcrew setup', pat, ta);
-  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 12 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 12 actions with 5. Downtime', o);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 13 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 13 actions with 5. Downtime', o);
   E.attr(a, 'crew_tier', 2);
   o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
   ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
@@ -227,7 +227,7 @@ function queries(action) {
   E.run('!bitdcrew setup', pat, tb);
   ok(E.val(b, 'heat') === '0' && E.tok(tb).bar1_link && E.tok(tb).bar1_max === 9, 'a missing heat attribute is created at 0', E.tok(tb));
   const c = E.crew('Cult', pat); const o = E.run('!bitdcrew setup --c ' + c, pat);
-  ok(E.abil(c).length === 11 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
+  ok(E.abil(c).length === 12 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
   ok(has(E.run('!bitdcrew setup', pat, ta), /Bar 1 is linked to Heat on 1 token/), 'setup reports the bar');
 }
 
@@ -1450,8 +1450,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const { E, gm, pat, quinn } = table();
   const names = (c) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).map(x => x.name).join('|'); };
   const dtc = dtCrew(E, pat, 'Hawkers', 2), core = E.crew('Bravos', pat);
-  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 12 token actions with 5. Downtime after Score', names(dtc));
-  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6b. Contacts|6c. Claims|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
+  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 13 token actions with 5. Downtime after Score', names(dtc));
+  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
   ok(E.abil(dtc).find(x => x.name === '5. Downtime').action === '!bitdcrew hh' && E.abil(dtc).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'the Downtime button runs the Heat and Hold command, no prompt');
   const adjOf = (c) => queries(E.abil(c).find(x => x.name === '7. Adjust').action)[0];
   const optsD = adjOf(dtc).slice(1).map(x => x.split(',').slice(-1)[0]), optsC = adjOf(core).slice(1).map(x => x.split(',').slice(-1)[0]);
@@ -1509,7 +1509,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   E.flush();
 }
 
-// ---------------------------------------------------------------- T26 6b. Contacts
+// ---------------------------------------------------------------- T26 6a. Contacts
 {
   const { E, gm, pat, quinn } = table();
   const TRI = String.fromCharCode(0x25B2);
@@ -1527,10 +1527,10 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   E.attr(crew, '_reporder_repeating_contact', '-C2,-C1,-C3,-C4,-C5');
   const before = JSON.stringify(E.store.attrs.filter(a => a._characterid === crew).map(a => [a.name, a.current]));
 
-  // the bar: 6b sorts right after 6 and before 7, character by character
+  // the bar: 6a sorts right after 6 and before 7, character by character
   const core = E.crew('Bravos', pat), dtc = E.crew('Smugglers', pat); E.attr(dtc, 'setting_dc_downtime', '1');
-  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6b. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('6c. Claims') === n.indexOf('6b. Contacts') + 1 && n.indexOf('7. Adjust') === n.indexOf('6c. Claims') + 1, 'the token action bar sorts 6b. Contacts and 6c. Claims between Abilities and Adjust', n); });
-  ok(E.abil(core).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts' && E.abil(dtc).find(x => x.name === '6b. Contacts').action === '!bitdcrew contacts', 'the button runs the contacts command, no prompt, on both kinds of crew');
+  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6a. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('6b. Claims') === n.indexOf('6a. Contacts') + 1 && n.indexOf('6c. Crew Upgrades') === n.indexOf('6b. Claims') + 1 && n.indexOf('7. Adjust') === n.indexOf('6c. Crew Upgrades') + 1, 'the token action bar sorts 6a. Contacts, 6b. Claims and 6c. Crew Upgrades between Abilities and Adjust', n); });
+  ok(E.abil(core).find(x => x.name === '6a. Contacts').action === '!bitdcrew contacts' && E.abil(dtc).find(x => x.name === '6a. Contacts').action === '!bitdcrew contacts', 'the button runs the contacts command, no prompt, on both kinds of crew');
 
   // the menu card
   let o = E.run('!bitdcrew contacts', pat, tok);
@@ -1581,7 +1581,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(after === before, 'the contacts command writes nothing to the crew sheet');
 }
 
-// ---------------------------------------------------------------- T27 6c. Claims
+// ---------------------------------------------------------------- T27 6b. Claims
 {
   const { E, gm, pat, quinn } = table();
   const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB);
@@ -1693,6 +1693,164 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const before = snap(asn); menu(asn); info(asn, '--n 3'); info(asn, '--row turf'); ok(snap(asn) === before, 'the claims commands write nothing to the sheet');
 }
 
+// ---------------------------------------------------------------- T28 6c. Crew Upgrades
+{
+  const { E, gm, pat, quinn } = table();
+  const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB);
+  const SHEET_TEXT = E.env.BitDCrewTAM._upgradeSheetText, BOOK = E.env.BitDCrewTAM._upgradeBook;
+  const g = (s) => s.replace(/1/g, ON).replace(/0/g, OFF);   // "101" as circles
+  const mk = (name, type, dt) => { const c = E.crew(name, pat); if (type !== undefined) E.attr(c, 'crew_type', type); if (dt) E.attr(c, 'setting_dc_downtime', '1'); return c; };
+  // a crew-special row: boxes is a string like "110" (marked boxes), numboxes its length
+  const spec = (c, id, name, boxes, cost, desc) => {
+    const b = 'repeating_upgrade_' + id; E.attr(c, b + '_name', name); E.attr(c, b + '_numboxes', String(boxes.length));
+    boxes.split('').forEach((x, i) => E.attr(c, b + '_check_' + (i + 1), x));
+    if (cost !== undefined) E.attr(c, b + '_cost', String(cost)); if (desc !== undefined) E.attr(c, b + '_description', desc);
+  };
+  const fixed = (c, key, boxes, name, desc) => {
+    boxes.split('').forEach((x, i) => E.attr(c, 'upgrade_' + key + '_check_' + (i + 1), x));
+    if (name !== undefined) E.attr(c, 'upgrade_' + key + '_name', name); if (desc !== undefined) E.attr(c, 'upgrade_' + key + '_description', desc);
+  };
+  const menu = (c, who) => E.run('!bitdcrew upgrades', who || pat, E.token(c));
+  const list = (c, cat, who) => E.run('!bitdcrew upgradelist --c ' + c + ' --row ' + cat, who || pat);
+  const info = (c, ref, who) => E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + ref, who || pat);
+  const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  const labels = (o) => (o[0].match(/\[[^\]]*\]\(!bitdcrew upgradeinfo [^)]*\)/g) || []).map(x => x.replace(/\]\(.*$/, '').slice(1));
+
+  // the book table: plain ASCII, one text per name, verbatim samples
+  const bt = [].concat.apply([], BOOK.map(e => e[1]));
+  ok(BOOK.length === 19 && bt.every(x => /^[\x20-\x7e]+$/.test(x) && x.length > 40 && /^[A-Z]/.test(x)), 'the upgrade book table is plain ASCII and sensibly formed', BOOK.length);
+  ok(Object.keys(SHEET_TEXT).length === 18 && Object.keys(SHEET_TEXT).every(k => /^[\x20-\x7e]+$/.test(SHEET_TEXT[k]) && SHEET_TEXT[k].length > 20), 'the sheet text copy has the 18 fixed upgrades');
+  const dash = (s) => s.replace(/\u2014/g, ' - ').replace(/\u2019/g, "'");
+  ok(Object.keys(SHEET_TEXT).every(k => SHEET_TEXT[k] === dash(TR['upgrade_' + k + '_description'])), 'the copy is the sheet translation text, key by key (the one dash written as a hyphen)', Object.keys(SHEET_TEXT).filter(k => SHEET_TEXT[k] !== dash(TR['upgrade_' + k + '_description'])));
+
+  // card 1: four buttons, the crew type (not the crew name), counts
+  const br = mk('The Red Sashes', 'Bravos');
+  spec(br, '-U1', 'Hardened (+1 trauma box)', '110', 8); spec(br, '-U2', 'crew_upgrade_elite_thugs', '1', 10); spec(br, '-U3', 'Bravos rigging (2 free load of weapons or armor)', '0', 6);
+  fixed(br, 'carriage', '10'); fixed(br, 'hidden', '1'); fixed(br, 'insight', '1'); fixed(br, 'mastery', '1110');
+  let o = menu(br);
+  ok(o.length === 1 && /^\/w "Pat" /.test(o[0]) && /\{\{type=Crew upgrades\}\}/.test(o[0]) && /\{\{title=Show to the table\}\}/.test(o[0]), 'card 1 is a whisper to the clicker', o[0].slice(0, 140));
+  const b1 = o[0].match(/\[[^\]]*\]\(!bitdcrew upgradelist [^)]*\)/g) || [];
+  ok(b1.map(x => x.replace(/\]\(.*$/, '').slice(1)).join('|') === 'Bravos Special|Lair|Training|Quality', 'four buttons: the crew type then Lair, Training, Quality (the crew name is not used)', b1);
+  ok(b1.every((x, i) => x.indexOf('--c ' + br + ' --row ' + ['special', 'lair', 'training', 'quality'][i] + ')') > 0), 'each button names the crew and its category');
+  const cb = body(o);
+  ok(/Bravos Special: 1 of 3 taken, 1 in progress/.test(cb) && /Lair: 2 of 7 taken/.test(cb) && /Training: 1 of 5 taken, 1 in progress/.test(cb) && /Quality: 0 of 6 taken/.test(cb), 'card 1 counts taken and in progress per category (Hardened 2 of 3 and Mastery 3 of 4 are in progress)', cb);
+  [['', 'Crew Special'], ['The Red Sashes (Hawkers)', 'Hawkers Special'], ['assassins', 'Assassins Special'], ['Cult of the Hollow', 'Cult Special'], ['river', 'River Special'], ['Emcees', 'Emcees Special']].forEach(([ty, want]) => {
+    const c = mk('Label', ty); ok(new RegExp('\\[' + want + '\\]\\(!bitdcrew upgradelist').test(menu(c)[0]), 'the Special label for crew type ' + JSON.stringify(ty) + ' is ' + want);
+  });
+  ok(/\[Crew Special\]/.test(E.run('!bitdcrew upgrades', pat, E.token(E.crew('NoType', pat)))[0]), 'a crew with no type still gets a Special button');
+
+  // card 2: sheet order, one circle per box, short names
+  E.attr(br, '_reporder_repeating_upgrade', '-U3,-U1,-U2');
+  o = list(br, 'special'); const l2 = labels(o);
+  ok(/^\/w "Pat" /.test(o[0]) && /\{\{title=Bravos Special\}\}/.test(o[0]) && l2.join('|') === g('0') + ' Bravos rigging|' + g('110') + ' Hardened|' + g('1') + ' Elite Thugs', 'special rows in sheet order, circles per box, brackets and key prefixes dropped', l2);
+  o = list(br, 'lair'); ok(labels(o).join('|') === [g('10') + ' Carriage', g('00') + ' Boat', g('1') + ' Hidden', g('0') + ' Quarters', g('00') + ' Secure', g('00') + ' Vault', g('0') + ' Workshop'].join('|'), 'lair: seven upgrades in sheet order, two circles for the two-box ones', labels(o));
+  o = list(br, 'training'); ok(labels(o).join('|') === [g('1') + ' Insight', g('0') + ' Prowess', g('0') + ' Resolve', g('0') + ' Personal', g('1110') + ' Mastery'].join('|'), 'training: Mastery has four circles', labels(o));
+  o = list(br, 'quality'); ok(labels(o).join('|') === ['Documents', 'Gear', 'Implements', 'Supplies', 'Tools', 'Weapons'].map(x => g('0') + ' ' + x).join('|'), 'quality: six one-box upgrades named from their keys when the sheet holds no name', labels(o));
+  ok(/One circle per box on the sheet/.test(body(list(br, 'lair'))) && /except Carriage, Boat, Secure and Vault/.test(body(list(br, 'lair'))) && !/except Carriage/.test(body(list(br, 'training'))), 'the legend explains the circles; the lair legend names the exceptions');
+  // the two boxes are not linked: the second alone counts, and shows as the second circle
+  fixed(br, 'boat', '01'); o = list(br, 'lair'); ok(labels(o)[1] === g('01') + ' Boat', 'a marked second box alone shows as the second circle', labels(o));
+  ok(/\{\{type=Upgrade taken\}\}/.test(info(br, 'lair:boat')[0]), 'and still counts as taken');
+  E.attr(br, 'upgrade_boat_check_2', '0');
+  // Smugglers rename Carriage and Boat to Vehicle (a translation key)
+  const sm = mk('Smugglers', 'Smugglers'); fixed(sm, 'carriage', '10', 'vehicle'); fixed(sm, 'boat', '00', 'vehicle');
+  o = list(sm, 'lair'); ok(labels(o).slice(0, 2).join('|') === g('10') + ' Vehicle|' + g('00') + ' Vehicle', 'Smugglers: two Vehicle rows', labels(o));
+  ok(/Core book: All smugglers start with a vehicle/.test(info(sm, 'lair:carriage')[0]), 'the Vehicle row carries the core book Vehicle text');
+
+  // card 3: public, posted as the clicker, with the state in the header
+  const vt = mk('Vaulty', 'Hawkers', true); fixed(vt, 'vault', '10'); let c3 = info(vt, 'lair:vault');
+  ok(c3.length === 1 && !/^\/w /.test(c3[0]) && /\{\{type=Upgrade taken\}\}/.test(c3[0]) && c3[0].indexOf('{{title=' + g('10') + ' Vault}}') > 0 && /charname=Vaulty/.test(c3[0]), 'card 3 is public: header, circles and name in the title', c3[0].slice(0, 200));
+  let l3 = body(c3).split('\n');
+  ok(l3[0] === 'Boxes on the sheet: ' + g('10') + ' (1 of 2 marked). Counts as taken from any box; a second box improves it.', 'the boxes line for a level upgrade', l3[0]);
+  ok(l3[1] === 'Cost (Deep Cuts, Development, p83): 10 coin per box (20 coin for all 2 boxes).', 'Downtime crew: the cost line with the total', l3[1]);
+  ok(l3[2] === 'Rules in force (Deep Cuts, Downtime module, p88): Vaults are bigger: the first holds 8 Coin, the second holds 12.', 'Downtime crew: the Deep Cuts vault rule is in force', l3[2]);
+  ok(l3[3] === 'Sheet text (copy kept in the script): ' + SHEET_TEXT.vault && l3.length === 4, 'no text on the sheet: the script copy is used and says so', l3);
+  fixed(vt, 'vault', '10', undefined, 'Our vault: a custom note.'); l3 = body(info(vt, 'lair:vault')).split('\n');
+  ok(l3[3] === 'On the sheet: Our vault: a custom note.', 'text on the sheet is shown as the sheet text', l3[3]);
+  const nvt = mk('VaultCore', 'Hawkers', false); fixed(nvt, 'vault', '11'); l3 = body(info(nvt, 'lair:vault')).split('\n');
+  ok(l3.length === 3 && !/Cost/.test(l3.join('\n')) && /^Deep Cuts text \(Downtime module, off for this crew, p88\): Vaults are bigger/.test(l3[1]) && /^Sheet text/.test(l3[2]), 'a core crew: no cost, the Deep Cuts text only as information', l3);
+  ok(/\{\{type=Upgrade taken\}\}/.test(info(nvt, 'lair:vault')[0]) && /Boxes on the sheet: .* \(2 of 2 marked\)/.test(l3[0]), 'two of two boxes');
+  c3 = info(vt, 'lair:workshop'); ok(/\{\{type=Upgrade not taken\}\}/.test(c3[0]) && body(c3).split('\n')[0] === 'Box on the sheet: ' + OFF + ' (not marked).', 'a one-box upgrade not taken', body(c3));
+  ok(/^Also in force \(Deep Cuts, Downtime module, p87\): Long-term project, Work activity: Add \+1 tick if you have a workshop/m.test(body(c3)), 'Workshop: the Deep Cuts line adds to the sheet text', body(c3));
+  ['insight', 'prowess', 'resolve', 'personal', 'mastery'].forEach(k => ok(/Rules in force \(Deep Cuts, Downtime module, p88\): Training Upgrades: You always have access to a veteran instructor \(Quality rating 3\)/.test(body(info(vt, 'training:' + k))), 'Training rule in force for ' + k));
+  const noCost = (r) => body(r).replace(/Cost \(Deep Cuts[^\n]*/, '');
+  ok(!/Deep Cuts/.test(noCost(info(vt, 'lair:hidden'))) && !/Deep Cuts/.test(noCost(info(vt, 'quality:gear'))) && !/Deep Cuts/.test(noCost(info(vt, 'lair:carriage'))), 'upgrades Deep Cuts does not change show no Deep Cuts rule (only the cost line)');
+  ok(/Core book, Quality: Each upgrade improves the quality rating of all the PCs' items of that type, beyond the quality established by the crew's Tier and fine items\./.test(body(info(vt, 'quality:tools'))) && !/Core book, Quality/.test(body(info(vt, 'lair:hidden'))), 'only Quality cards carry the Quality rule');
+
+  // three-box specials and Mastery count only with every box
+  const hd = mk('Hard', 'Assassins', true); spec(hd, '-H1', 'Hardened (+1 trauma box)', '011', 8); spec(hd, '-H2', 'Hardened (+1 trauma box)', '111', 8); spec(hd, '-H3', 'Hardened (+1 trauma box)', '000', 8);
+  [['-H1', 'Upgrade in progress', '011', '2 of 3'], ['-H2', 'Upgrade taken', '111', '3 of 3'], ['-H3', 'Upgrade not taken', '000', '0 of 3']].forEach(([id, hdr, bx, cnt]) => {
+    const r = info(hd, 'special:' + id), lines = body(r).split('\n');
+    ok(new RegExp('\\{\\{type=' + hdr + '\\}\\}').test(r[0]) && lines[0] === 'Boxes on the sheet: ' + g(bx) + ' (' + cnt + ' marked). Counts as taken only when all 3 boxes are marked.', 'Hardened ' + bx + ': ' + hdr, lines[0]);
+  });
+  let hl = body(info(hd, 'special:-H1')).split('\n');
+  ok(hl[1] === 'Sheet name: Hardened (+1 trauma box)' && hl[2] === 'Cost (Deep Cuts, Development, p83): 8 coin per box (24 coin for all 3 boxes).' && /^Core book: Each PC gets \+1 trauma box\. This costs three upgrades to unlock, not just one\./.test(hl[3]) && hl.length === 4, 'Hardened: the sheet name, the cost with the total, the core book text, and no sheet text (the drop-down is empty)', hl);
+  [['0000', 'Upgrade not taken'], ['1110', 'Upgrade in progress'], ['1111', 'Upgrade taken']].forEach(([bx, hdr]) => {
+    const m = mk('Mast' + bx, 'Bravos', true); fixed(m, 'mastery', bx); const r = info(m, 'training:mastery');
+    ok(new RegExp('\\{\\{type=' + hdr + '\\}\\}').test(r[0]) && body(r).indexOf('Counts as taken only when all 4 boxes are marked.') > 0 && /Cost \(Deep Cuts, Development, p83\): 10 coin per box \(40 coin for all 4 boxes\)\./.test(body(r)), 'Mastery ' + bx + ': ' + hdr, body(r));
+  });
+  const cu = mk('Cust', 'x'); spec(cu, '-K1', 'Our own upgrade', '10'); ok(/Counts as taken only when all 2 boxes are marked/.test(body(info(cu, 'special:-K1'))) && /\{\{type=Upgrade in progress\}\}/.test(info(cu, 'special:-K1')[0]), 'a row you added with two boxes counts only when both are marked');
+
+  // the core book text of every crew-special upgrade on the six core crew types, by the name the sheet writes
+  const SPECIALS = {
+    assassins: ['hardened', 'assassin_rigging', 'ironhook_contacts', 'elite_skulks', 'elite_thugs'], bravos: ['hardened', 'bravos_rigging', 'ironhook_contacts', 'elite_rovers', 'elite_thugs'],
+    cult: ['ordained', 'cult_rigging', 'ritual_sanctum_in_lair', 'elite_adepts', 'elite_thugs'], hawkers: ['composed', "hawker's_rigging", 'ironhook_contacts', 'elite_rooks', 'elite_thugs'],
+    shadows: ['steady', 'thief_rigging', 'underground_maps_&_passkeys', 'elite_rooks', 'elite_skulks'], smugglers: ['steady', "smuggler's_rigging", 'camouflage', 'elite_rovers', 'barge']
+  };
+  const noText = [];
+  Object.keys(SPECIALS).forEach(ty => {
+    const c = mk('S-' + ty, ty); SPECIALS[ty].forEach((k, i) => spec(c, '-S' + i, TR['crew_upgrade_' + k], k.indexOf('hardened') >= 0 || /^(ordained|composed|steady)$/.test(k) ? '000' : '0', 8));
+    SPECIALS[ty].forEach((k, i) => { const r = info(c, 'special:-S' + i); if (!/Core book: /.test(r[0]) || /No book text/.test(r[0])) noText.push(ty + ': ' + k); });
+    // and by the translation key
+    const c2 = mk('K-' + ty, ty); SPECIALS[ty].forEach((k, i) => spec(c2, '-S' + i, 'crew_upgrade_' + k, '0'));
+    SPECIALS[ty].forEach((k, i) => { const r = info(c2, 'special:-S' + i); if (!/Core book: /.test(r[0])) noText.push('key ' + ty + ': ' + k); });
+  });
+  ok(noText.length === 0, 'every crew-special upgrade on the six core crew types has core book text, by name and by key', noText);
+  const vb = (k) => { const c = mk('V' + k, 'x'); spec(c, '-V', TR['crew_upgrade_' + k] || k, '1'); return body(info(c, 'special:-V')); };
+  ok(/Core book: You get 2 free load worth of weapon or gear items\. For example, you could carry a pistol \(a weapon\) and burglary tools \(gear\) for zero load\./.test(vb('assassin_rigging')) && /Core book: One carried item is concealed and has no load\./.test(vb("hawker's_rigging")) && /Core book: Two of your carried items are perfectly concealed\./.test(vb("smuggler's_rigging")), 'verbatim samples: three rigging texts');
+  ok(/Core book: All of your cohorts with the Rooks type get \+1d to quality rolls for Rook-related actions\./.test(vb('elite_rooks')) && /Core book: Your Tier is effectively \+1 higher in prison\./.test(vb('ironhook_contacts')) && /Core book: Add mobility to your lair\./.test(vb('barge')) && /Core book: You have easy passage through the underground canals/.test(vb('underground_maps_&_passkeys')), 'verbatim samples: Elite Rooks, Ironhook, Barge, Underground maps');
+  ok(/\nCore book: Each PC gets \+1 stress box\. This costs three upgrades to unlock, not just one\.(\n|$)/.test(vb('steady')), 'Steady text');
+  // the sheet puts the effect in brackets after some names: the card shows the full sheet name and no book text is lost to it
+  ok(/Sheet name: Smuggler's rigging \(2 items carried are perfectly concealed\)/.test(vb("smuggler's_rigging")), 'the full sheet name is shown when it differs from the short name');
+
+  // crews with no book text: the sheet name is all there is
+  ['unbroken', 'vigilantes_attire', 'dedicated_crafters', 'irregulars', 'willing_to_fight', 'full_pockets', 'calm', 'improvised_load', 'jailbird_contacts', 'rituals_of_earth_and_blood', 'sustained', 'roots_rigging', 'emcee_rigging'].forEach(k => {
+    ok(/No book text for this upgrade: the core book has no entry for it\./.test(vb(k)), 'no book text for ' + k);
+  });
+  // a sheet text typed into a special row is shown
+  const sx = mk('SX', 'Bravos'); spec(sx, '-X', 'Hardened (+1 trauma box)', '111', 8, 'Typed by the GM.'); l3 = body(info(sx, 'special:-X')).split('\n');
+  ok(l3[l3.length - 1] === 'On the sheet: Typed by the GM.' && /^Core book: /.test(l3[l3.length - 2]), 'a drop-down text typed into a special row follows the core book text', l3);
+  // the cost comes from the row, not the table; a row with no cost shows no cost line
+  const nc = mk('NoCost', 'Bravos', true); spec(nc, '-Z', 'Barge', '1'); ok(!/Cost/.test(body(info(nc, 'special:-Z'))), 'a special row with no cost box has no cost line');
+  spec(nc, '-Y', 'Barge', '1', 10); ok(/Cost \(Deep Cuts, Development, p83\): 10 coin per box\./.test(body(info(nc, 'special:-Y'))), 'a one-box special row: cost per box, no total');
+
+  // empty sheet, stale and wrong buttons, permissions
+  const em = mk('Empty', 'Bravos');
+  ok(/There are no crew-special upgrades on this sheet/.test(body(list(em, 'special'))) && labels(list(em, 'lair')).length === 7, 'no special rows: a message, and the fixed categories still list');
+  ok(has(list(em, 'junk'), /unknown upgrade category/) && has(list(em, ''), /unknown upgrade category/), 'an unknown category is refused');
+  ok(has(info(br, 'special:-Gone'), /no longer on the sheet/) && has(info(br, 'lair:nosuch'), /no longer on the sheet/) && has(info(br, 'junk:x'), /no longer on the sheet/) && has(info(br, ''), /no longer on the sheet/) && has(info(br, 'special:'), /no longer on the sheet/), 'a stale or malformed upgrade button is refused');
+  ok(has(info(br, 'lair:hidden', quinn), /only use this on crews you control/) && has(list(br, 'lair', quinn), /only use this on crews you control/) && has(E.run('!bitdcrew upgrades', quinn, E.token(br)), /only use this on crews you control/) && has(info(br, 'lair:hidden', gm), /Upgrade taken/), 'a player who does not control the crew is refused on all three; the GM may');
+  const pcOnly = E.crew('NotACrew', pat); E.attr(pcOnly, 'sheet_type', 'character'); ok(has(E.run('!bitdcrew upgrades', pat, E.token(pcOnly)), /crew sheets only/), 'a player character sheet is refused');
+  // text from the sheet cannot roll dice or make buttons
+  const rk = mk('Risky', 'x'); spec(rk, '-R', 'Evil [roll](!bitdcrew adj heat+1) @{x|heat} {{evil}} [[2d6]]', '1', 5, 'See [[2d6]] and [roll](!bitdcrew adj heat+1) @{x|heat} {{evil}} %{a|b} ?{q} &{r}');
+  const rr = info(rk, 'special:-R'), rl = list(rk, 'special');
+  ok(!/[\[\]]/.test(body(rr)) && !/@\{|\{\{evil|%\{|\?\{|&\{/.test(body(rr)) && !/\[\[|\{\{evil|@\{/.test(rr[0].replace(/\{\{(charname|type|title|content|charimage)=/g, '')) && /See \(\(2d6\)\)/.test(body(rr)), 'sheet text and names are made safe before they are posted', rr[0].slice(0, 300));
+  ok(labels(rl).length === 1 && !/[\[\]()]/.test(labels(rl)[0]), 'a hostile name leaves a clean button label', labels(rl));
+  // long and multi-line names
+  const lg = mk('Long', 'x'); spec(lg, '-L', new Array(30).join('Elaborate '), '1'); spec(lg, '-M', 'Elite\nThugs', '1');
+  ok(labels(list(lg, 'special')).every(x => x.length <= 60) && /\{\{title=[^\n}]*Elite Thugs\}\}/.test(info(lg, 'special:-M')[0]), 'a long name fits the button, a two-line name is one line in the title', labels(list(lg, 'special')));
+  // a row with no name is skipped; a row id with dashes and underscores works
+  const sk = mk('Skip', 'x'); spec(sk, '-Mab_c-d9', 'Real one', '1'); E.attr(sk, 'repeating_upgrade_-Blank_name', '  ');
+  ok(labels(list(sk, 'special')).length === 1 && /Real one/.test(info(sk, 'special:-Mab_c-d9')[0]), 'blank rows are skipped and an awkward row id works');
+
+  // the token action and nothing written
+  const cc = E.crew('Core', pat), dd = mk('DT', 'Bravos', true);
+  [cc, dd].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); });
+  ok(E.abil(cc).find(x => x.name === '6c. Crew Upgrades').action === '!bitdcrew upgrades' && E.abil(dd).find(x => x.name === '6c. Crew Upgrades').action === '!bitdcrew upgrades', 'the button runs the upgrades command, no prompt, on both kinds of crew');
+  const snap = (c) => JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]));
+  const before = snap(br); menu(br); ['special', 'lair', 'training', 'quality'].forEach(k => list(br, k)); info(br, 'special:-U1'); info(br, 'lair:carriage'); info(br, 'training:mastery'); info(br, 'quality:gear');
+  ok(snap(br) === before, 'the upgrade commands write nothing to the sheet');
+}
+
 // ---------------------------------------------------------------- T13 the two scripts together
 if (PC_SRC) {
   const E = makeEnv(true); const gm = E.player('GM', true), pat = E.player('Pat', false), quinn = E.player('Quinn', false);
@@ -1704,10 +1862,10 @@ if (PC_SRC) {
   let o = E.run('!bitd setup', pat, tp); const pcMade = E.abil(pc).length;
   ok(pcMade === 9 && E.abil(pc).every(x => x.description === 'bitd-tam'), 'PC setup still makes its 9 PC actions', pcMade);
   o = E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(crew).length === 11 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 11 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
+  ok(E.abil(crew).length === 12 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 12 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
   ok(E.abil(crew).map(x => x.name).join() !== E.abil(pc).map(x => x.name).join(), 'the two sets have different names');
   E.run('!bitd setup', pat, tp); E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(pc).length === 9 && E.abil(crew).length === 11, 'rebuilding either leaves the other intact');
+  ok(E.abil(pc).length === 9 && E.abil(crew).length === 12, 'rebuilding either leaves the other intact');
   // each script ignores the other's command and refuses the other's sheets
   o = E.run('!bitdcrew status', pat, tp); ok(has(o, /crew sheets only/) && !has(o, /Stress/), 'crew script refuses a PC sheet', o);
   o = E.run('!bitd status', pat, tc); ok(has(o, /crew or faction sheet/), 'PC script refuses a crew sheet', o);
@@ -1777,7 +1935,7 @@ if (PC_SRC) {
   const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   ok(!/bitd-tam|BLADES_TAM|BitDTAM|!bitd[^c]|'!bitd'/.test(CODE.replace(/player characters use !bitd\)/, '').replace(/!bitdcrew/g, '')), 'no name shared with the PC script (command, marker, macro, variable)');
   ok(/MARK = 'bitd-crew-tam'/.test(SRC) && /CMD = '!bitdcrew'/.test(SRC) && /MACRO_NAME = 'CREW_TAM'/.test(SRC) && /STATE_KEY = 'BitDCrewTAM'/.test(SRC), 'the four crew identifiers');
-  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '').replace(/'repeating_contact_' \+ c\.row \+ '_description'/g, '').replace(/'claim_' \+ i \+ '_desc'/g, '')), 'the source never names a text attribute owned by the PC text fixer (the contact notes and the claim text on the sheet are read, never written)', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
+  ok(!/_description|_desc\b|claim_/.test(SRC.replace(/'claim_' \+ i \+ '_(name|check)'/g, '').replace(/nm === 'claim_turf'/g, '').replace(/'repeating_contact_' \+ c\.row \+ '_description'/g, '').replace(/'claim_' \+ i \+ '_desc'/g, '').replace(/(base|prefix) \+ '_description'/g, '')), 'the source never names a text attribute owned by the PC text fixer (the contact notes, the claim text and the upgrade text on the sheet are read, never written)', SRC.match(/.{20}(_description|_desc\b|claim_).{20}/g));
   ok(!/sendChat\([^;]*,\s*function/.test(SRC) && !/sendChat\([^)]*\)\s*,\s*function/.test(SRC), 'no sendChat callback in the source');
   const keys = {}; (SRC.match(/\^\{([a-z_0-9]+)\}/g) || []).forEach(k => { keys[k.slice(2, -1)] = 1; });
   ['gang', 'elite', 'expert', 'rolls_their'].forEach(k => { keys[k] = 1; });

@@ -1,6 +1,6 @@
 # Crew Script: Claim Rules Text (for review)
 
-The text `6c. Claims` shows for each claim, taken **verbatim** from your core book (`bladesinthedark_v8_2`, the claim list in each crew chapter). Nothing here is written from memory: the script's data table is generated from the same extraction as this page. Apostrophes and quotation marks that the text conversion lost are restored, and one dash is written as a plain hyphen.
+The text `6b. Claims` shows for each claim, taken **verbatim** from your core book (`bladesinthedark_v8_2`, the claim list in each crew chapter). Nothing here is written from memory: the script's data table is generated from the same extraction as this page. Apostrophes and quotation marks that the text conversion lost are restored, and one dash is written as a plain hyphen.
 
 The same claim is worded differently in some crews (Vice Den, Informants, Cover Operation, Ancient Gate), so each text names the crew types it belongs to. The sheet's own spelling is used for the claim name: the sheet says "Surplus Caches", "Covert Drops" and (for Smugglers) "Warehouse"; the book says "Surplus Cache", "Covert Drop" and "Warehouses".
 

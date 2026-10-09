@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.8.1
+/* BitD Crew Token Action Maker  v0.9.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -24,17 +24,20 @@
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
  *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open.
- *   - Claims (button 6c): a card with a button for each claim on the sheet, marked held or not held; a click shows the claim rules
+ *   - Claims (button 6b): a card with a button for each claim on the sheet, marked held or not held; a click shows the claim rules
  *     text (core book, Deep Cuts where it replaces it, and the sheet text) to the table.
- *   - Contacts (button 6b): a card with a button for each contact; a click shows the contact notes to the table. Favorites (the
+ *   - Contacts (button 6a): a card with a button for each contact; a click shows the contact notes to the table. Favorites (the
  *     checked box on the contact row) carry a triangle on the button and in the output.
+ *   - Crew Upgrades (button 6c): four categories (the crew type's Special upgrades, Lair, Training, Quality), each a list of the
+ *     upgrades on the sheet with one circle per box; a click shows the upgrade text (sheet drop-down, core book for the specials,
+ *     Deep Cuts where it changes the rule) to the table. Read-only.
  *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
  *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.8.1';
+  var VERSION = '0.9.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -180,6 +183,74 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var TURF_DC = 'Your crew\'s hold on their Tier is measured by your number of turf claims. To have strong hold on your Tier, you must have a number of turf claims equal to or greater than your Tier. While your number of turf claims is lower than your Tier, your hold is weak.';
   // the crew type is free text on the sheet, so it is matched by these stems
   var CREW_STEMS = [['assassin', 'assassins'], ['bravo', 'bravos'], ['cult', 'cult'], ['hawker', 'hawkers'], ['shadow', 'shadows'], ['smuggler', 'smugglers'], ['vigilante', 'vigilantes']];
+
+  // Crew upgrades. The sheet keeps the Lair, Training and Quality upgrades as fixed attributes named upgrade_<key>_ plus name, check_N
+  // and the drop-down text, and the crew-special ones in the repeating section "upgrade" (name, check_1 to check_3, numboxes, cost, text).
+  var UPGRADE_CATEGORIES = ['special', 'lair', 'training', 'quality'];
+  var UPGRADE_FIXED = {   // [key, boxes], in sheet order
+    lair: [['carriage', 2], ['boat', 2], ['hidden', 1], ['quarters', 1], ['secure', 2], ['vault', 2], ['workshop', 1]],
+    training: [['insight', 1], ['prowess', 1], ['resolve', 1], ['personal', 1], ['mastery', 4]],
+    quality: [['documents', 1], ['gear', 1], ['implements', 1], ['supplies', 1], ['tools', 1], ['weapons', 1]]
+  };
+  // the second box of these improves the first (sheet text), so the upgrade is taken from any box; every other upgrade needs all its boxes
+  var UPGRADE_LEVELS = ['carriage', 'boat', 'secure', 'vault'];
+  var UPGRADE_COIN_PER_BOX = 10;   // Deep Cuts p83, Development: Lair Upgrade, Quality, Training, Mastery (per box)
+  // The sheet's own drop-down text for each fixed upgrade (sheet translation file), used only when the attribute reads empty.
+  var UPGRADE_SHEET_TEXT = {
+    carriage: 'You have a carriage, two goats to pull it, and a stable. A second upgrade improves the carriage with armor and larger, swifter goats. Horses are very rare in Doskvol  -  most carriages in the city use the large Akorosian goat as their draft animal.',
+    boat: 'You have a boat, a dock on a waterway, and a small shack to store boating supplies. A second upgrade improves the boat with armor and more cargo capacity.',
+    hidden: 'Your lair has a secret location and is disguised to hide it from view. If your lair is discovered, use two downtime activities and pay coin equal to your Tier to relocate it and hide it once again.',
+    quarters: 'Your lair includes living quarters for the crew. Without this upgrade, each PC sleeps elsewhere, and is vulnerable when they do so.',
+    secure: 'Your lair has locks, alarms, and traps to thwart intruders. A second upgrade improves the defenses to include arcane measures that work against spirits. You might roll your crew\'s Tier if these measures are ever put to the test, to see how well they thwart an intruder.',
+    vault: 'Your lair has a secure vault, increasing your storage capacity for coin to 8. A second upgrade increases your capacity to 16. A separate part of your vault can be used as a holding cell.',
+    workshop: 'Your lair has a workshop appointed with tools for tinkering and alchemy, as well as a small library of books, documents, and maps. You may accomplish long-term projects with these assets without leaving your lair.',
+    insight: 'Earn 2 xp when training insight during downtime.',
+    prowess: 'Earn 2 xp when training prowess during downtime.',
+    resolve: 'Earn 2 xp when training resolve during downtime.',
+    personal: 'Earn 2 xp when training playbook during downtime.',
+    mastery: 'Your crew has access to master level training. You may advance your PCs\' action ratings to 4 (until you unlock this upgrade, PC action ratings are capped at 3). This costs four upgrade boxes to unlock.',
+    documents: '+1 quality for Documents.',
+    gear: '+1 quality for Burglary Gear and Climbing Gear.',
+    implements: '+1 quality for Arcane Implements.',
+    supplies: '+1 quality for Subterfuge Supplies.',
+    tools: '+1 quality for Demolition Tools and Tinkering Tools.',
+    weapons: '+1 quality for Weapons.'
+  };
+  // Core book text of the crew-special upgrades (each crew's UPGRADES list) and the Smugglers' Vehicle, keyed by the name as the sheet
+  // spells it once normalized (lower case, no bracket text, no apostrophes, & as and).
+  var UPGRADE_BOOK = [
+    [['assassin rigging', 'assassins rigging'], 'You get 2 free load worth of weapon or gear items. For example, you could carry a pistol (a weapon) and burglary tools (gear) for zero load.'],
+    [['bravos rigging', 'bravo rigging'], 'You get 2 free load worth of weapon or armor items. For example, you could carry a sword & pistol or wear normal armor for zero load.'],
+    [['cult rigging'], 'You get 2 free load worth of document or implement items. For example, you could carry a profane book of curses and a demon\'s hand for zero load.'],
+    [['hawker rigging', 'hawkers rigging'], 'One carried item is concealed and has no load. For example, you could carry a load of drugs or a weapon, perfectly concealed, for zero load.'],
+    [['thief rigging', 'thieves rigging'], 'You get 2 free load worth of tool or gear items. For example, you could carry burglary gear and tinkering tools for zero load.'],
+    [['smuggler rigging', 'smugglers rigging'], 'Two of your carried items are perfectly concealed. You could carry 1 load of contraband and a pistol, perfectly concealed, even against a pat down.'],
+    [['ironhook contacts'], 'Your Tier is effectively +1 higher in prison. This counts for any Tier-related element in prison, including the incarceration roll (see page 148).'],
+    [['elite skulks'], 'All of your cohorts with the Skulks type get +1d to quality rolls for Skulk-related actions.'],
+    [['elite rovers'], 'All of your cohorts with the Rovers type get +1d to quality rolls for Rover-related actions.'],
+    [['elite rooks'], 'All of your cohorts with the Rooks type get +1d to quality rolls for Rook-related actions.'],
+    [['elite adepts'], 'All of your cohorts with the Adepts type get +1d to quality rolls for Adept-related actions.'],
+    [['elite thugs'], 'All of your cohorts with the Thugs type get +1d to quality rolls for Thug-related actions.'],
+    [['hardened', 'ordained'], 'Each PC gets +1 trauma box. This costs three upgrades to unlock, not just one. This may bring a PC with 4 trauma back into play if you wish.'],
+    [['composed', 'steady'], 'Each PC gets +1 stress box. This costs three upgrades to unlock, not just one.'],
+    [['ritual sanctum in lair', 'ritual sanctum'], 'This counts as a sacred and arcane workshop for occult practices and rituals.'],
+    [['underground maps and passkeys'], 'You have easy passage through the underground canals, tunnels, and basements of the city.'],
+    [['camouflage'], 'Your vehicles are perfectly concealed when at rest. They blend in as part of the environment, or as an uninteresting civilian vehicle (your choice).'],
+    [['barge'], 'Add mobility to your lair. You can move it to a new location as a downtime activity.'],
+    [['vehicle'], 'All smugglers start with a vehicle. When the vehicle is upgraded (two boxes), it also gets armor.']
+  ];
+  var UPGRADE_QUALITY_RULE = 'Each upgrade improves the quality rating of all the PCs\' items of that type, beyond the quality established by the crew\'s Tier and fine items.';
+  // Deep Cuts, Downtime module, where it changes or adds to an upgrade (the same layout as CLAIM_DC)
+  var UPGRADE_TRAINING_DC = 'Training Upgrades: You always have access to a veteran instructor (Quality rating 3) in that area of expertise. Mastery gives you a Quality 4 instructor (and unlocks rating 4 actions). When you advance with one of these instructors, mark crew xp.';
+  var UPGRADE_DC = {
+    insight: { page: 'p88', replaces: true, text: UPGRADE_TRAINING_DC },
+    prowess: { page: 'p88', replaces: true, text: UPGRADE_TRAINING_DC },
+    resolve: { page: 'p88', replaces: true, text: UPGRADE_TRAINING_DC },
+    personal: { page: 'p88', replaces: true, text: UPGRADE_TRAINING_DC },
+    mastery: { page: 'p88', replaces: true, text: UPGRADE_TRAINING_DC },
+    vault: { page: 'p88', replaces: true, text: 'Vaults are bigger: the first holds 8 Coin, the second holds 12.' },
+    workshop: { page: 'p87', replaces: false, text: 'Long-term project, Work activity: Add +1 tick if you have a workshop and/or other special advantages.' }
+  };
   // Status lines for ticked abilities that change no number the script tracks (wording from the sheet; All Hands is the Deep Cuts text)
   var STATUS_REMINDERS = [
     ['Zealotry', 'Zealotry: your cohorts get +1d to rolls against enemies of the faith (add it as Bonus dice on a cohort roll).'],
@@ -194,9 +265,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var RE_SQ = new RegExp('[' + String.fromCharCode(0x2018, 0x2019) + ']', 'g');
 
   // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5).
-  // The token action bar sorts character by character, so 6b. sorts between 6. and 7. and nothing needs renumbering.
-  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6b. Contacts', '6c. Claims',
-    '7. Adjust', '8. Clocks', '9. Status', '~ Rebuild'];
+  // The token action bar sorts character by character, so 6a., 6b. and 6c. sort between 6. and 7. and nothing needs renumbering.
+  var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6a. Contacts', '6b. Claims',
+    '6c. Crew Upgrades', '7. Adjust', '8. Clocks', '9. Status', '~ Rebuild'];
   var TRIANGLE = String.fromCharCode(0x25B2);
   var NOTES_MAX = 2000;
 
@@ -578,10 +649,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       [ABILITY_NAMES[5], CMD + ' abilities'],
       [ABILITY_NAMES[6], CMD + ' contacts'],
       [ABILITY_NAMES[7], CMD + ' claims'],
-      [ABILITY_NAMES[8], CMD + ' adj ?{Adjust|' + adjust + '}'],
-      [ABILITY_NAMES[9], CMD + ' clocks'],
-      [ABILITY_NAMES[10], CMD + ' status'],
-      [ABILITY_NAMES[11], CMD + ' setup']
+      [ABILITY_NAMES[8], CMD + ' upgrades'],
+      [ABILITY_NAMES[9], CMD + ' adj ?{Adjust|' + adjust + '}'],
+      [ABILITY_NAMES[10], CMD + ' clocks'],
+      [ABILITY_NAMES[11], CMD + ' status'],
+      [ABILITY_NAMES[12], CMD + ' setup']
     );
     return list;
   }
@@ -1083,7 +1155,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   function doContact(msg, o) {
     var t = target(msg, o); if (!t) { return; }
     var cid = t.ch.id, row = String(o.row || ''), c = contactList(cid).filter(function (x) { return x.row === row; })[0];
-    if (!c) { whisper(msg, 'BitDCrew: that contact is no longer on the sheet. Run 6b. Contacts again.'); return; }
+    if (!c) { whisper(msg, 'BitDCrew: that contact is no longer on the sheet. Run 6a. Contacts again.'); return; }
     var notes = chatNotes(getAttrByName(cid, 'repeating_contact_' + c.row + '_description'), NOTES_MAX);
     sendChat('player|' + msg.playerid, broadcast(t.c, {
       type: c.fav ? 'Favorite contact' : 'Contact',
@@ -1095,10 +1167,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // ---------------------------------------------------------------- claims
 
   var SMALL_WORDS = ' the of and a an in on ';
-  // a claim name as text: the sheet may hold the translation key (the name with underscores) or the English text, which can span lines
-  function claimDisplay(raw) {
+  // a claim name as text: the sheet may hold the translation key (the name with underscores) or the English text, which can span lines.
+  // prefix is the key prefix to drop (the claim one by default; upgrades and the crew type pass their own)
+  function claimDisplay(raw, prefix) {
     var r = String(raw === undefined || raw === null ? '' : raw), key = /_/.test(r) || r === r.toLowerCase();
-    var n = r.replace(/_/g, ' ').replace(/\s+/g, ' ').trim().replace(/^claim /i, '');
+    var n = r.replace(/_/g, ' ').replace(/\s+/g, ' ').trim().replace(prefix || /^claim /i, '');
     if (!key) { return n; }
     return n.split(' ').map(function (w, i) {
       return (i > 0 && SMALL_WORDS.indexOf(' ' + w + ' ') >= 0) ? w : w.charAt(0).toUpperCase() + w.slice(1);
@@ -1172,7 +1245,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var cid = t.ch.id, slots = claimSlots(cid), type = crewTypeKey(cid, slots), L = [], dtOn = isOn(cid, 'setting_dc_downtime');
     if (String(o.row || '') === 'turf') {
       var turfs = slots.filter(function (s) { return s.key === 'turf'; }), held = turfs.filter(function (s) { return s.held; }).length;
-      if (!turfs.length) { whisper(msg, 'BitDCrew: there are no turf claims on this sheet. Run 6c. Claims again.'); return; }
+      if (!turfs.length) { whisper(msg, 'BitDCrew: there are no turf claims on this sheet. Run 6b. Claims again.'); return; }
       L.push('Turf claims held by this crew: ' + held + ' of ' + turfs.length + '.');
       L.push(dtOn ? 'Rules in force (Deep Cuts, Downtime module): ' + TURF_DC : 'Rules (core book): ' + TURF_CORE);
       L.push(dtOn ? 'Core book: ' + TURF_CORE : 'Deep Cuts text (Downtime module, off for this crew): ' + TURF_DC);
@@ -1181,7 +1254,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       return;
     }
     var n = parseInt(o.n, 10), s = slots.filter(function (x) { return x.slot === n && x.key !== 'turf'; })[0];
-    if (!s) { whisper(msg, 'BitDCrew: that claim is no longer on the sheet. Run 6c. Claims again.'); return; }
+    if (!s) { whisper(msg, 'BitDCrew: that claim is no longer on the sheet. Run 6b. Claims again.'); return; }
     var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key];
     L.push(s.held ? 'Held by this crew.' : 'Not held by this crew.');
     if (dc) {
@@ -1199,6 +1272,153 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     }
     if (s.sheet) { L.push('On the sheet: ' + s.sheet); }
     postClaimCard(msg, t, s.held, s.name, L);
+  }
+
+  // ---------------------------------------------------------------- crew upgrades
+
+  // an upgrade name as text: the sheet may hold the translation key (crew_upgrade_elite_thugs) or the English text
+  function upgradeName(raw) {
+    return chatNotes(claimDisplay(raw, /^crew upgrade /i), 100000).replace(/\s*\n\s*/g, ' ').slice(0, 120).trim();
+  }
+
+  // the button and title form: the sheet puts the effect in brackets after some names, for example "Hardened (+1 trauma box)"
+  function upgradeShort(name) {
+    return name.replace(/\s*\(.*$/, '').trim() || name;
+  }
+
+  // the core book entry for an upgrade name, '' if there is none
+  function upgradeBookText(name) {
+    var n = normName(upgradeShort(name)).replace(/&/g, 'and').replace(/'/g, '').replace(/\s+/g, ' '), i;
+    for (i = 0; i < UPGRADE_BOOK.length; i++) {
+      if (UPGRADE_BOOK[i][0].indexOf(n) >= 0) { return UPGRADE_BOOK[i][1]; }
+    }
+    return '';
+  }
+
+  function upgradeBoxes(cid, prefix, n) {
+    var out = [], i;
+    for (i = 1; i <= n; i++) { out.push(isOn(cid, prefix + '_check_' + i)); }
+    return out;
+  }
+
+  // one circle per box, in the order of the boxes on the sheet (the boxes are not linked: any one can be marked)
+  function boxGlyphs(boxes) {
+    return boxes.map(function (b) { return b ? G_ON : G_OFF; }).join('');
+  }
+
+  // taken: every box marked, except the lair upgrades whose second box only improves the first
+  function upgradeState(boxes, levels) {
+    var n = boxes.filter(Boolean).length;
+    if (!n) { return 'none'; }
+    return (levels || n === boxes.length) ? 'taken' : 'partial';
+  }
+
+  // the upgrades of one category in sheet order: {cat, ref, key, name, short, boxes, state, levels, text, copy, cost}
+  function upgradeItems(cid, cat) {
+    var out = [];
+    if (cat === 'special') {
+      listRows(cid, 'upgrade', 'name').forEach(function (r) {
+        var name = upgradeName(r.value);
+        if (!name) { return; }
+        var base = 'repeating_upgrade_' + r.row, n = clamp(getNum(cid, base + '_numboxes', 1), 1, 3), boxes = upgradeBoxes(cid, base, n);
+        out.push({
+          cat: cat, ref: r.row, key: '', name: name, short: upgradeShort(name), boxes: boxes, levels: false, state: upgradeState(boxes, false),
+          text: chatNotes(getAttrByName(cid, base + '_description'), 700).replace(/\s*\n\s*/g, ' '), copy: false,
+          cost: getNum(cid, base + '_cost', 0)
+        });
+      });
+      return out;
+    }
+    (UPGRADE_FIXED[cat] || []).forEach(function (def) {
+      var key = def[0], prefix = 'upgrade_' + key, boxes = upgradeBoxes(cid, prefix, def[1]), levels = UPGRADE_LEVELS.indexOf(key) >= 0;
+      var name = upgradeName(getAttrByName(cid, prefix + '_name')) || (key.charAt(0).toUpperCase() + key.slice(1));
+      var text = chatNotes(getAttrByName(cid, prefix + '_description'), 700).replace(/\s*\n\s*/g, ' '), copy = false;
+      if (!text) { text = UPGRADE_SHEET_TEXT[key]; copy = true; }
+      out.push({
+        cat: cat, ref: key, key: key, name: name, short: upgradeShort(name), boxes: boxes, levels: levels, state: upgradeState(boxes, levels),
+        text: text, copy: copy, cost: UPGRADE_COIN_PER_BOX
+      });
+    });
+    return out;
+  }
+
+  // "Bravos Special": the crew type from the sheet's free text, else the text itself, else "Crew"
+  function crewTypeLabel(cid) {
+    var tv = String(getAttr(cid, 'crew_type', '')), low = tv.toLowerCase(), i;
+    for (i = 0; i < CREW_STEMS.length; i++) {
+      if (low.indexOf(CREW_STEMS[i][0]) >= 0) { return CREW_STEMS[i][1].charAt(0).toUpperCase() + CREW_STEMS[i][1].slice(1); }
+    }
+    return chatNotes(claimDisplay(tv, /^crew /i), 100000).replace(/\s*\n\s*/g, ' ').slice(0, 30).trim() || 'Crew';
+  }
+
+  function upgradeCategoryLabel(cid, cat) {
+    return cat === 'special' ? crewTypeLabel(cid) + ' Special' : cat.charAt(0).toUpperCase() + cat.slice(1);
+  }
+
+  // first card: the four categories
+  function doUpgrades(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, btns = [], counts = [];
+    UPGRADE_CATEGORIES.forEach(function (cat) {
+      var items = upgradeItems(cid, cat), label = upgradeCategoryLabel(cid, cat);
+      var taken = items.filter(function (u) { return u.state === 'taken'; }).length, part = items.filter(function (u) { return u.state === 'partial'; }).length;
+      btns.push('[' + btn(label) + '](' + CMD + ' upgradelist --c ' + cid + ' --row ' + cat + ')');
+      counts.push(clean(label) + ': ' + taken + ' of ' + items.length + ' taken' + (part ? ', ' + part + ' in progress' : ''));
+      dbg('upgrades ' + cat + ': ' + items.length + ' found, ' + taken + ' taken, ' + part + ' in progress');
+    });
+    whisper(msg, broadcast(t.c, { type: 'Crew upgrades', title: 'Show to the table', content: btns.join(NL) + NL + counts.join(NL) }));
+  }
+
+  // second card: the upgrades of one category, one circle per box
+  function doUpgradeList(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, cat = String(o.row || '');
+    if (UPGRADE_CATEGORIES.indexOf(cat) < 0) { whisper(msg, 'BitDCrew: unknown upgrade category. Run 6c. Crew Upgrades again.'); return; }
+    var items = upgradeItems(cid, cat), label = upgradeCategoryLabel(cid, cat);
+    var lines = items.map(function (u) {
+      return '[' + btn(boxGlyphs(u.boxes) + ' ' + u.short) + '](' + CMD + ' upgradeinfo --c ' + cid + ' --row ' + cat + ':' + u.ref + ')';
+    });
+    var content;
+    if (!items.length) {
+      content = cat === 'special' ? 'There are no crew-special upgrades on this sheet. Set the crew type on the sheet and they fill in.' : 'There are no upgrades in this category on this sheet.';
+    } else {
+      content = lines.join(NL) + NL + 'One circle per box on the sheet: ' + G_ON + ' marked, ' + G_OFF + ' empty. Upgrades with several boxes count as taken only when every box is marked' +
+        (cat === 'lair' ? ', except Carriage, Boat, Secure and Vault, which count from the first box.' : '.');
+    }
+    dbg('upgradelist ' + cat + ': ' + items.map(function (u) { return u.short + ' ' + boxGlyphs(u.boxes); }).join(', '));
+    whisper(msg, broadcast(t.c, { type: 'Crew upgrades', title: label, content: content }));
+  }
+
+  // third card: one upgrade, shown to the table
+  function doUpgradeInfo(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, parts = String(o.row || '').split(':'), cat = parts[0], ref = parts.slice(1).join(':');
+    var u = UPGRADE_CATEGORIES.indexOf(cat) < 0 ? null : upgradeItems(cid, cat).filter(function (x) { return x.ref === ref; })[0];
+    if (!u) { whisper(msg, 'BitDCrew: that upgrade is no longer on the sheet. Run 6c. Crew Upgrades again.'); return; }
+    var dtOn = isOn(cid, 'setting_dc_downtime'), L = [], n = u.boxes.length, marked = u.boxes.filter(Boolean).length;
+    var book = (cat === 'special' || cat === 'lair') ? upgradeBookText(u.name) : '';
+    L.push(n === 1 ? 'Box on the sheet: ' + boxGlyphs(u.boxes) + (marked ? ' (marked).' : ' (not marked).') :
+      'Boxes on the sheet: ' + boxGlyphs(u.boxes) + ' (' + marked + ' of ' + n + ' marked). ' +
+      (u.levels ? 'Counts as taken from any box; a second box improves it.' : 'Counts as taken only when all ' + n + ' boxes are marked.'));
+    if (u.short !== u.name) { L.push('Sheet name: ' + u.name); }
+    if (dtOn && u.cost > 0) {
+      L.push('Cost (Deep Cuts, Development, p83): ' + u.cost + ' coin per box' + (n > 1 ? ' (' + (u.cost * n) + ' coin for all ' + n + ' boxes)' : '') + '.');
+    }
+    var dc = u.key ? UPGRADE_DC[u.key] : null;
+    if (dc) {
+      if (dtOn) { L.push((dc.replaces ? 'Rules in force' : 'Also in force') + ' (Deep Cuts, Downtime module, ' + dc.page + '): ' + dc.text); }
+      else { L.push('Deep Cuts text (Downtime module, off for this crew, ' + dc.page + '): ' + dc.text); }
+    }
+    if (book) { L.push('Core book: ' + book); }
+    else if (cat === 'special') { L.push('No book text for this upgrade: the core book has no entry for it.'); }
+    if (u.text) { L.push((u.copy ? 'Sheet text (copy kept in the script): ' : 'On the sheet: ') + u.text); }
+    if (cat === 'quality') { L.push('Core book, Quality: ' + UPGRADE_QUALITY_RULE); }
+    dbg('upgradeinfo ' + cat + ':' + ref + ' state ' + u.state + ', text from ' + (u.copy ? 'script copy' : u.text ? 'sheet' : 'none') + ', book ' + (book ? 'yes' : 'no'));
+    sendChat('player|' + msg.playerid, broadcast(t.c, {
+      type: u.state === 'taken' ? 'Upgrade taken' : u.state === 'partial' ? 'Upgrade in progress' : 'Upgrade not taken',
+      title: boxGlyphs(u.boxes) + ' ' + u.short,
+      content: L.map(function (x) { return clean(x); }).join(NL)
+    }));
   }
 
   function clockSize(cid, base) {
@@ -1978,6 +2198,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'contact': return doContact(msg, o);
       case 'claims': return doClaims(msg, o);
       case 'claiminfo': return doClaimInfo(msg, o);
+      case 'upgrades': return doUpgrades(msg, o);
+      case 'upgradelist': return doUpgradeList(msg, o);
+      case 'upgradeinfo': return doUpgradeInfo(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
       case 'adj': return doAdjust(msg, o);
@@ -2038,5 +2261,5 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   register();
 
-  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS, _claimText: CLAIM_TEXT };
+  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS, _claimText: CLAIM_TEXT, _upgradeSheetText: UPGRADE_SHEET_TEXT, _upgradeBook: UPGRADE_BOOK };
 }());
