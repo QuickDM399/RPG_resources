@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.1
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.9.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.9.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.9.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.9.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -284,7 +284,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - Downtime on: a cost line (10 coin per box for Lair, Training, Quality, Mastery; 6, 8 or 10 for specials, with the total), the Deep Cuts rule for Vault, Workshop, the Training upgrades and Mastery marked "in force". Downtime off: no cost line, the Deep Cuts text marked "off for this crew".
 - A Quality card ends with the core Quality rule. Smugglers show two Vehicle rows in Lair, with the core Vehicle text.
 - Nothing on the sheet changes.
-**Known fail states:** a missing or extra circle, circles in the wrong order, the Hardened upgrade shown as taken with two boxes, Mastery taken with three, a special upgrade with no core book text (send me the exact name on the sheet), the sheet text missing or repeated twice (the script copy is used only when the sheet attribute reads empty; the card says which), the card cut off, a button that does nothing after you change the sheet. If a card is wrong, run `!bitdcrew debug on` and click again; the API console lists the category, rows, boxes and the text source.
+**Known fail states:** a missing or extra circle, circles in the wrong order, the Hardened upgrade shown as taken with two boxes, Mastery taken with three, a special upgrade with no core book text (send me the exact name on the sheet), the sheet text missing or repeated twice (the script copy is used only when the sheet attribute reads empty; the card says which), the card cut off, a button that does nothing after you change the sheet. If a card is wrong or a button does nothing, run `!bitdcrew debug on` and click again. The API console then lists every command the script receives (so you can tell a button Roll20 never sent from one the script refused), and for upgrades the category, rows, boxes and the text source.
 
 ## L29 Clean up
 

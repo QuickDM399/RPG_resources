@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.9.0
+/* BitD Crew Token Action Maker  v0.9.1
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -37,7 +37,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.9.0';
+  var VERSION = '0.9.1';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -1376,7 +1376,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (UPGRADE_CATEGORIES.indexOf(cat) < 0) { whisper(msg, 'BitDCrew: unknown upgrade category. Run 6c. Crew Upgrades again.'); return; }
     var items = upgradeItems(cid, cat), label = upgradeCategoryLabel(cid, cat);
     var lines = items.map(function (u) {
-      return '[' + btn(boxGlyphs(u.boxes) + ' ' + u.short) + '](' + CMD + ' upgradeinfo --c ' + cid + ' --row ' + cat + ':' + u.ref + ')';
+      return '[' + btn(boxGlyphs(u.boxes) + ' ' + u.short) + '](' + CMD + ' upgradeinfo --c ' + cid + ' --row ' + cat + ' --n ' + u.ref + ')';
     });
     var content;
     if (!items.length) {
@@ -1392,7 +1392,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // third card: one upgrade, shown to the table
   function doUpgradeInfo(msg, o) {
     var t = target(msg, o); if (!t) { return; }
-    var cid = t.ch.id, parts = String(o.row || '').split(':'), cat = parts[0], ref = parts.slice(1).join(':');
+    var cid = t.ch.id, cat = String(o.row || ''), ref = String(o.n === null || o.n === undefined ? '' : o.n);
+    // the v0.9.0 buttons carried both in --row as category:upgrade; Roll20 did not run them, but a pasted command may
+    if (cat.indexOf(':') >= 0) { ref = cat.slice(cat.indexOf(':') + 1); cat = cat.slice(0, cat.indexOf(':')); }
+    dbg('upgradeinfo asked for category ' + JSON.stringify(cat) + ', upgrade ' + JSON.stringify(ref));
     var u = UPGRADE_CATEGORIES.indexOf(cat) < 0 ? null : upgradeItems(cid, cat).filter(function (x) { return x.ref === ref; })[0];
     if (!u) { whisper(msg, 'BitDCrew: that upgrade is no longer on the sheet. Run 6c. Crew Upgrades again.'); return; }
     var dtOn = isOn(cid, 'setting_dc_downtime'), L = [], n = u.boxes.length, marked = u.boxes.filter(Boolean).length;
@@ -2238,6 +2241,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       if (msg.type !== 'api') { if (msg.rolltemplate === 'blades') { checkWatchedRoll(msg); } return; }
       if (String(msg.content).split(/\s+/)[0] !== CMD) { return; }
       try {
+        dbg('command from ' + who(msg) + ': ' + msg.content);
         route(msg, parse(msg.content));
       } catch (e) {
         log('BitDCrew error: ' + (e && e.stack ? e.stack : e));

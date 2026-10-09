@@ -246,6 +246,7 @@ const M = [
   ["no Claims button", "      [ABILITY_NAMES[7], CMD + ' claims'],\n", ""],
   ["the Claims button sorts wrongly", "'6a. Contacts', '6b. Claims',", "'6a. Contacts', '10. Claims',"],
   ["the Crew Upgrades button sorts wrongly", "'6c. Crew Upgrades', '7. Adjust'", "'10. Crew Upgrades', '7. Adjust'"],
+  ["the upgrade buttons put category and upgrade in one argument", "' --row ' + cat + ' --n ' + u.ref + ')';", "' --row ' + cat + ':' + u.ref + ')';"],
   ["the Special button uses the crew name", "return cat === 'special' ? crewTypeLabel(cid) + ' Special'", "return cat === 'special' ? getObj('character', cid).get('name') + ' Special'"],
   ["a crew with no type has no Special label", "|| 'Crew';", "|| '';"],
   ["Vault is not taken from the first box", "var UPGRADE_LEVELS = ['carriage', 'boat', 'secure', 'vault'];", "var UPGRADE_LEVELS = ['carriage', 'boat', 'secure'];"],

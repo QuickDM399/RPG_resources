@@ -1712,7 +1712,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   };
   const menu = (c, who) => E.run('!bitdcrew upgrades', who || pat, E.token(c));
   const list = (c, cat, who) => E.run('!bitdcrew upgradelist --c ' + c + ' --row ' + cat, who || pat);
-  const info = (c, ref, who) => E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + ref, who || pat);
+  // ref is "category:upgrade"; the buttons send them as two arguments (a colon inside one argument is what v0.9.0 sent, and Roll20 ignored it)
+  const info = (c, ref, who) => { const i = ref.indexOf(':'); return E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + (i < 0 ? ref : ref.slice(0, i)) + (i < 0 ? '' : ' --n ' + ref.slice(i + 1)), who || pat); };
   const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
   const labels = (o) => (o[0].match(/\[[^\]]*\]\(!bitdcrew upgradeinfo [^)]*\)/g) || []).map(x => x.replace(/\]\(.*$/, '').slice(1));
 
@@ -1740,6 +1741,12 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(/\[Crew Special\]/.test(E.run('!bitdcrew upgrades', pat, E.token(E.crew('NoType', pat)))[0]), 'a crew with no type still gets a Special button');
 
   // card 2: sheet order, one circle per box, short names
+  ['special', 'lair', 'training', 'quality'].forEach(cat => {
+    const cmds = (list(br, cat)[0].match(/\(!bitdcrew upgradeinfo [^)]*\)/g) || []);
+    ok(cmds.length > 0 && cmds.every(x => !/:/.test(x) && new RegExp('^\\(!bitdcrew upgradeinfo --c ' + br + ' --row ' + cat + ' --n \\S+\\)$').test(x)), 'the ' + cat + ' buttons send the category and the upgrade as separate arguments, with no colon', cmds);
+  });
+  // a button from the first release (category:upgrade in one argument) still works if it is pasted
+  ok(/\{\{type=Upgrade taken\}\}/.test(E.run('!bitdcrew upgradeinfo --c ' + br + ' --row lair:hidden', pat)[0]) && has(E.run('!bitdcrew upgradeinfo --c ' + br + ' --row lair:nosuch', pat), /no longer on the sheet/), 'the old one-argument form still works');
   E.attr(br, '_reporder_repeating_upgrade', '-U3,-U1,-U2');
   o = list(br, 'special'); const l2 = labels(o);
   ok(/^\/w "Pat" /.test(o[0]) && /\{\{title=Bravos Special\}\}/.test(o[0]) && l2.join('|') === g('0') + ' Bravos rigging|' + g('110') + ' Hardened|' + g('1') + ' Elite Thugs', 'special rows in sheet order, circles per box, brackets and key prefixes dropped', l2);
