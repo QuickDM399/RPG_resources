@@ -1667,6 +1667,18 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(/Rules in force \(Deep Cuts, Action module\): You get \+1 tick on your long-term project clock/.test(body(info(i1, '--n 5'))) && /Core book text \(replaced while the module is on\): You get \+1d to gather information/.test(body(info(i1, '--n 5'))), 'and with it on');
   ok(!/Deep Cuts/.test(body(info(asn, '--n 3'))), 'a claim Deep Cuts does not change shows only its own text');
 
+  // Infirmary (Assassins, Bravos, Shadows; Vigilantes show the same) and Sacred Nexus (Cult): +1d to healing rolls becomes a healing clock tick with the Downtime module
+  const HEAL = '+1 tick to healing clock in downtime, in place of +1d to healing rolls. (Deep Cuts p88: "+1d to healing rolls instead counts as 1 tick on the healing clock." The Deep Cuts crew sheets v1.2b word the claim the same way.)';
+  [['Assassins', 'assassins', 'Infirmary', /^Rules in force \(core book\): You get \+1d to healing treatment rolls\. The infirmary also has beds/], ['Bravos', 'bravos', 'Infirmary', /^Rules in force \(core book\): You get \+1d to healing treatment rolls\. The infirmary also has beds/],
+    ['Shadows', 'shadows', 'Infirmary', /^Rules in force \(core book\): You get \+1d to healing treatment rolls\. The infirmary also has beds/], ['Cult', 'cult', 'Sacred Nexus', /^Rules in force \(core book\): You get \+1d to healing treatment rolls\. Ancient arcane energy/]].forEach(([nm, ty, cl, core]) => {
+    const off = mkCrew(nm + ' heal off', ty, [[12, cl, true]]), on = mkCrew(nm + ' heal on', ty, [[12, cl, true]], true), act = mkCrew(nm + ' heal act', ty, [[12, cl, true]], false, true);
+    const l0 = body(info(off, '--n 12')).split('\n'), l1 = body(info(on, '--n 12')).split('\n');
+    ok(l0.length === 3 && core.test(l0[1]) && l0[2] === 'Deep Cuts text (Downtime module, off for this crew): ' + HEAL, cl + ' (' + nm + ') with Downtime off: the core text is in force, the Deep Cuts text is shown', l0);
+    ok(l1.length === 3 && l1[1] === 'Rules in force (Deep Cuts, Downtime module): ' + HEAL && /^Core book text \(replaced while the module is on\): You get \+1d to healing treatment rolls\./.test(l1[2]), cl + ' (' + nm + ') with Downtime on: the tick text is in force, the core text is marked replaced', l1);
+    ok(core.test(body(info(act, '--n 12')).split('\n')[1]) && /Downtime module, off for this crew/.test(body(info(act, '--n 12'))), cl + ': only the Downtime module changes it, the Action module does not');
+  });
+  ok(/Rules in force \(Deep Cuts, Downtime module\): \+1 tick to healing clock/.test(body(info(mkCrew('Vig heal', 'Vigilantes', [[12, 'Infirmary', false]], true), '--n 12'))), 'the Vigilantes Infirmary follows the same rule');
+
   // claims the book does not have: the sheet text
   const vg = mkCrew('Vigilantes', 'Vigilantes', [[3, 'Publicity', true, '+2 rep on\ntakedown scores'], [15, 'claim_doskvol\'s_most_wanted', false]]);
   o = info(vg, '--n 3'); ok(body(o) === 'Held by this crew.\nNo book text for this claim: the core book has no entry for it.\nOn the sheet: +2 rep on takedown scores', 'a Vigilantes claim: no book text, the sheet text instead', body(o));

@@ -164,6 +164,7 @@ With the Downtime module on, the Deep Cuts text is marked as the one in force.
 |---|---|---|
 | Warehouses (also the Smugglers' Warehouse) | Downtime (p88: "Warehouses (Claim)") | The crew gains an additional Acquire activity each Downtime. |
 | Informants | Action (the sheet swaps this text with the Action module) | You get +1 tick on your long-term project clock when you work on an investigation during downtime. |
+| Infirmary (Assassins, Bravos, Shadows; Vigilantes show the same) and Sacred Nexus (Cult) | Downtime (added in v0.9.2) | +1 tick to healing clock in downtime, in place of +1d to healing rolls. (Deep Cuts p88: "+1d to healing rolls instead counts as 1 tick on the healing clock." The Deep Cuts crew sheets v1.2b word the claim the same way.) |
 
 The card marks which text is in force from the crew's modules, and shows the other one beside it.
 

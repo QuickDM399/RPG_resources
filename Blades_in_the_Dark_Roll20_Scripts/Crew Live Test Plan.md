@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.1
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.2
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.9.1 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.9.2 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.9.1 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.9.2 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -268,6 +268,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - A click posts a public card: header "Claim held" or "Claim not held", the circle before the name, "Held by this crew." or "Not held by this crew.", the rules text from the book (check it against the text page), and "On the sheet: ..." with the sheet's own short text.
 - The Turf card shows the count, the core rule text, the Deep Cuts hold rule (marked "in force" with Downtime on) and the turf boxes marked.
 - Warehouses shows the core text in force with Downtime off and the Deep Cuts text in force with it on, the other beside it. Informants does the same with the Action module.
+- Infirmary (Assassins, Bravos or Shadows) and Sacred Nexus (Cult): with Downtime on, "Rules in force (Deep Cuts, Downtime module): +1 tick to healing clock in downtime ..." and the core "+1d to healing treatment rolls" marked replaced; with Downtime off, the core text in force and the Deep Cuts text beside it. The Action module makes no difference.
 - Publicity (Vigilantes): "No book text for this claim" and the sheet text.
 - Nothing on the sheet changes.
 **Known fail states:** a claim missing from the list or in the wrong order, the circle wrong (the held box and the card disagree), the wrong crew's wording (the Hawkers Informants should end "new clients", Assassins "new targets"), a name that does not match (send me the exact name in the claim box on the sheet), text that differs from the text page, or a long card cut off.

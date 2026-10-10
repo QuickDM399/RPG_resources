@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.9.1
+/* BitD Crew Token Action Maker  v0.9.2
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -37,7 +37,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.9.1';
+  var VERSION = '0.9.2';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -173,7 +173,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     'warehouses': [[['bravos'], 'You get +1d to acquire asset rolls. You have space to hold all the various spoils you end up with after your battles. It can be useful on its own or for barter when you need it.']]
   };
   // Deep Cuts replaces the wording of these claims when the module is on (the sheet swaps its own text the same way). Core text is above.
+  // Infirmary and Sacred Nexus: the Downtime module turns +1d to healing rolls into a tick (p88); the v1.2b crew sheets word the claims that way.
+  var HEALING_TICK_DC = '+1 tick to healing clock in downtime, in place of +1d to healing rolls. (Deep Cuts p88: "+1d to healing rolls instead counts as 1 tick on the healing clock." The Deep Cuts crew sheets v1.2b word the claim the same way.)';
   var CLAIM_DC = {
+    'infirmary': { attr: 'setting_dc_downtime', module: 'Downtime', text: HEALING_TICK_DC },
+    'sacred nexus': { attr: 'setting_dc_downtime', module: 'Downtime', text: HEALING_TICK_DC },
     'warehouses': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
     'warehouse': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
     'informants': { attr: 'setting_dc_action', module: 'Action', text: 'You get +1 tick on your long-term project clock when you work on an investigation during downtime.' }
