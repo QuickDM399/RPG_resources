@@ -1,6 +1,55 @@
 # Crew Script: `6d. Cohorts` (proposal for v0.12.0)
 
-**Status: proposal for approval. No code has been touched.** Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, the Deep Cuts crew sheets (v1.2b PDF) or the Roll20 sheet; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.12.0 and every crew needs `~ Rebuild`.
+**Status: decisions 2 to 7 approved, decision 1 changed, two questions open (section 0). No code has been touched.**
+
+## 0. Answers, the revised armor design, and the batch question
+
+| Decision | Answer | In the plan |
+|---|---|---|
+| 1. Armor | The script should work out whether a cohort has armor, from the sheet and from the characters in the crew, including by exception (Leader). It may tick armor as used only if the cohort has armor. Otherwise it leaves the box ticked, permanently, to mean no armor available | Rewritten in section 0a |
+| 2. Harm stacking | Yes | Harm at a marked level moves up; past Broken is Dead |
+| 3. Dead | Yes | Mark all three boxes, post the Destroyed card, replacement cost |
+| 4. Roll buttons | Roll with -3 to +3 bonus dice | Seven buttons: -3d, -2d, -1d, Roll, +1d, +2d, +3d |
+| 5. Heal every cohort | Yes | A button on the cohort list, not automatic, not on Heat and Hold |
+| 6. Vehicle edges and flaws | Yes | Core wording, and the Deep Cuts v1.2b Nimble wording beside it with the Action module on |
+| 7. Look | Yes | Styled HTML card when `fmt card html` is on |
+
+### 0a. Armor: what the script can know
+
+The books and the sheet give cohorts armor in three ways only (searched in the core book, Deep Cuts Part Two, the v1.2b crew sheets and the sheet's own texts):
+
+| Source | Text | Kind |
+|---|---|---|
+| **Vehicle upgrade** (Smugglers' lair upgrade, two boxes) | "When the vehicle is upgraded (two boxes), it also gets armor." (core) | **Permanent**, for a vehicle cohort |
+| **Leader** (a player ability) | "When you Command a cohort in combat, they continue to fight when they would otherwise break (they're not taken out when they suffer level 3 harm). They gain +1 effect and 1 armor." (core; Deep Cuts crew sheets) | **By exception**: only the cohort that PC Commands, only in combat |
+| **Reavers** (Smugglers' crew ability) | "When you go into conflict aboard a vehicle, you add +1 Quality to the vehicle's damage and speed. The vehicle also gains +1 armor to represent skillful maneuvering." (Deep Cuts) | **By exception**: a vehicle, only in conflict aboard it |
+
+How it would work:
+
+- **The box means "no armor available right now".** Ticked = none or already used; clear = armor available. A cohort with no permanent armor has its box **ticked by the script and left ticked**. The script ticks it (writes `armor` = 1) when you open `6d. Cohorts`, when you open a cohort's card, on `~ Rebuild`, and with `!bitdcrew cohortsync`. It does not watch your hand edits.
+- **Permanent armor** (a vehicle cohort when a Vehicle upgrade has both boxes marked): the script clears the box once when it first sees the armor, then only you and the script's "Use armor" tick it. "Restore armor" clears it again.
+- **By exception:** the card names the source it found ("Leader: Cutter is in the party", "Reavers is ticked and this is a vehicle") and offers a button, "Grant 1 armor for this fight". It clears the box. "Use armor" then ticks it. "Restore armor" puts the box back to ticked for a cohort with no permanent armor. Leader also lets a Broken cohort keep fighting, so a Broken cohort led by a Leader gets a "Roll anyway" button and a line saying so.
+- **"Use armor" exists only when the box is clear.** On a cohort with no armor the harm card has no armor row at all.
+- **How a vehicle cohort is recognised** (inference): the name or the type text contains vehicle, boat, carriage, barge, skiff, cart or wagon, or it is the Smugglers' sheet cohort the sheet fills in as "vehicle". Which of the two Vehicle upgrade rows belongs to which cohort is not recorded anywhere, so either row with both boxes marked counts.
+- **Party PCs are read** the way the Engagement roll already reads them: the characters marked as Party members, a ticked row named Leader in their abilities.
+
+### 0b. The "not included" list: include now or later?
+
+| Item | Recommendation | Why |
+|---|---|---|
+| Replace a destroyed cohort: pay Tier +2 Coin | **Include now** | Small. A button on the Destroyed card checks the Coin, pays it, clears the harm boxes, and reminds you of the two downtime activities |
+| Hawkers' Hooked | **Include now** | Core: "Add the savage, unreliable, or wild flaw to your gangs to give them +1 quality (max rating of 4)". Once flaws are parsed it is a +1d on a gang or Elite cohort with one of those flaws, capped at quality 4, shown on the card. It changes the dice a cohort rolls, including from `1. Roll` |
+| Edit type, edges and flaws from buttons | Later batch | The largest piece: type and flaw buttons, "one or two edges and an equal number of flaws", "up to two types". Typing the names on the sheet already works with the parser |
+| Recruit or modify a cohort | Later batch | It spends "two upgrades" (core) or two advancement clocks (Deep Cuts), and the script has no way to spend either, and it would create new sheet rows |
+| Cohort downtime activities (All Hands, Roots) | Later batch | The script does not track downtime activities for anyone; a once-per-Downtime record is cheap but empty without them |
+
+**Reason for splitting:** this batch already writes to the sheet in new ways (harm boxes, armor boxes). I would rather see those work in your game before adding text edits and new rows.
+
+---
+
+(The sections below are the plan as first written, with the changes above applied where they differ.)
+
+**Status at first writing: proposal for approval. No code has been touched.** Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two, the Deep Cuts crew sheets (v1.2b PDF) or the Roll20 sheet; each row says which. Where I am inferring, it says so. If this is approved it ships as v0.12.0 and every crew needs `~ Rebuild`.
 
 ## 1. Bottom line
 
