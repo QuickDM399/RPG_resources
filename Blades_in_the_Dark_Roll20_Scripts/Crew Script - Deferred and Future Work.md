@@ -25,7 +25,9 @@ A record of what is deliberately not built, and of the parts planned for later. 
 | Roots plot "A Religious Meal" | "+1d to reduce heat with religious contacts" | Roots crew; on hold with the other community crews |
 | River Detective Inspector | "Maximum 1d on Reduce Heat" | River; on hold |
 
-**Proposed shape for Hagfish Farm (for the future plan, not approved):** a once-per-Downtime button in the Heat and Hold card, "Hagfish Farm: Heat -1", offered when the Score that started this Downtime recorded a death. The Fallout prompt already asks "Death in connection to the score", and the Downtime ledger can keep that answer. Questions for then: does "a score that involves killing" mean exactly the Death answer, and is the button also offered when Downtime was started by hand (no Score)? I would ask rather than guess.
+**Superseded in v0.9.3:** you ruled that the Deep Cuts crew sheets (v1.2b) are right: Hagfish Farm reads "Body disposal + counts as turf" and has no Reduce Heat bonus, so there is nothing to automate here and the button below is dropped. The sheet-only wording and the turf count are handled in the claim card and `9. Status`.
+
+**Proposed shape for Hagfish Farm (no longer planned):** a once-per-Downtime button in the Heat and Hold card, "Hagfish Farm: Heat -1", offered when the Score that started this Downtime recorded a death. The Fallout prompt already asks "Death in connection to the score", and the Downtime ledger can keep that answer. Questions for then: does "a score that involves killing" mean exactly the Death answer, and is the button also offered when Downtime was started by hand (no Score)? I would ask rather than guess.
 
 4. **Healing.** "+1d to healing rolls instead counts as 1 tick on the healing clock" (Infirmary and Sacred Nexus claims, Anointed and Physicker). The healing clock lives on PC sheets, so this belongs with the PC-facing work, not the crew script.
 

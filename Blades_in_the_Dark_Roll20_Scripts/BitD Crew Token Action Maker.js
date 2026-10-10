@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.9.2
+/* BitD Crew Token Action Maker  v0.9.3
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -37,7 +37,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.9.2';
+  var VERSION = '0.9.3';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -71,7 +71,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     { kind: 'claim', name: 'Ancient Altar', plans: ['occult'] },
     { kind: 'claim', name: 'Bluecoat Confederates', plans: ['assault'] },
     { kind: 'claim', name: 'City Records', plans: ['stealth'] },
-    { kind: 'claim', name: 'Cover Identities', plans: ['deception', 'social'] },
+    // Cover Identities: the core book says deception and social plans; the Deep Cuts crew sheets v1.2b say deception or transport for
+    // the Hawkers, which the user ruled correct (the Assassins keep deception and social)
+    { kind: 'claim', name: 'Cover Identities', plans: ['deception', 'social'], byType: { hawkers: ['deception', 'transport'] } },
     { kind: 'claim', name: 'Personal Clothier', plans: ['social'] },
     { kind: 'claim', name: 'Secret Pathways', plans: ['stealth'] },
     { kind: 'claim', name: 'Secret Routes', plans: ['transport'] }
@@ -175,12 +177,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // Deep Cuts replaces the wording of these claims when the module is on (the sheet swaps its own text the same way). Core text is above.
   // Infirmary and Sacred Nexus: the Downtime module turns +1d to healing rolls into a tick (p88); the v1.2b crew sheets word the claims that way.
   var HEALING_TICK_DC = '+1 tick to healing clock in downtime, in place of +1d to healing rolls. (Deep Cuts p88: "+1d to healing rolls instead counts as 1 tick on the healing clock." The Deep Cuts crew sheets v1.2b word the claim the same way.)';
+  // Hagfish Farm counts as turf on the Deep Cuts crew sheets v1.2b (user ruling: follow the sheets); it replaces the core Reduce Heat bonus.
+  // The sheets do not name a module; the Downtime module is where turf and hold are used (Assess Hold, p84), so that is the switch.
   var CLAIM_DC = {
+    'hagfish farm': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'Body disposal + counts as turf. (Deep Cuts crew sheets v1.2b)' },
     'infirmary': { attr: 'setting_dc_downtime', module: 'Downtime', text: HEALING_TICK_DC },
     'sacred nexus': { attr: 'setting_dc_downtime', module: 'Downtime', text: HEALING_TICK_DC },
     'warehouses': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
     'warehouse': { attr: 'setting_dc_downtime', module: 'Downtime', text: 'The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' },
     'informants': { attr: 'setting_dc_action', module: 'Action', text: 'You get +1 tick on your long-term project clock when you work on an investigation during downtime.' }
+  };
+  // Claim wording that differs by crew type where the user ruled the Deep Cuts crew sheets (v1.2b) correct and the core book wrong for that crew.
+  var CLAIM_TYPE_RULING = {
+    'cover identities': { hawkers: 'You get +1d to the engagement roll for deception or transport plans. (Deep Cuts crew sheets v1.2b; the core book says deception and social plans.)' }
   };
   // Turf has no claim text of its own: the core book rules for claims, and the Deep Cuts rule for hold (Assess Hold, p84)
   var TURF_CORE = 'As soon as you seize a claim, you enjoy the listed benefit for as long as you hold the claim. Some claims count as turf. Others provide special benefits to the crew, such as bonus dice in certain circumstances, extra coin generated for the crew\'s treasury, or new opportunities for action.';
@@ -524,7 +533,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       CLAIM_COIN_BUTTONS.forEach(function (c) { if (claimHas(cl, c.names)) { out.push(c.names[0] + ' (+2 Coin, a button on the Fallout card)'); } });
       incomeClaims(cid).forEach(function (c) { out.push(c.name + ' (income, a button in Heat and Hold)'); });
     }
-    ENG_SOURCES.forEach(function (src) { if (src.kind === 'claim' && claimHas(cl, [src.name])) { out.push(src.name + ' (+1d engagement, ' + src.plans.join(' or ') + ' plans)'); } });
+    var type = crewTypeKey(cid, claimSlots(cid));
+    ENG_SOURCES.forEach(function (src) { if (src.kind === 'claim' && claimHas(cl, [src.name])) { out.push(src.name + ' (+1d engagement, ' + engPlans(src, type).join(' or ') + ' plans)'); } });
     return out;
   }
 
@@ -545,11 +555,12 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return dt ? 4 + (v1 ? 8 : 0) + (v2 ? 12 : 0) : 4 + (v1 ? 4 : 0) + (v2 ? 8 : 0);
   }
 
+  // the ticked claims that count as turf: the Turf tiles, and Hagfish Farm with the Downtime module on (Deep Cuts crew sheets v1.2b)
   function turfClaimsTicked(cid) {
-    var n = 0;
+    var n = 0, dt = isOn(cid, 'setting_dc_downtime');
     for (var i = 1; i <= 15; i++) {
-      var nm = normName(getAttrByName(cid, 'claim_' + i + '_name'));
-      if ((nm === 'turf' || nm === 'claim_turf') && isOn(cid, 'claim_' + i + '_check')) { n++; }
+      var nm = normName(getAttrByName(cid, 'claim_' + i + '_name')).replace(/_/g, ' ').replace(/^claim /, '');
+      if ((nm === 'turf' || (dt && nm === 'hagfish farm')) && isOn(cid, 'claim_' + i + '_check')) { n++; }
     }
     return n;
   }
@@ -962,14 +973,19 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // ---------------------------------------------------------------- engagement roll
 
+  // the plan types a source applies to: its own list, or the one for this crew type where the crew sheets differ
+  function engPlans(src, type) {
+    return (src.byType && src.byType[type]) || src.plans;
+  }
+
   // the ticked abilities and claims that fit this plan and need no answer from the table
   function engagementBonuses(cid, plan) {
-    var ab = abilitiesOn(cid), cl = claimsOn(cid), out = [];
+    var ab = abilitiesOn(cid), cl = claimsOn(cid), out = [], type = crewTypeKey(cid, claimSlots(cid));
     ENG_SOURCES.forEach(function (src) {
       var key = normName(src.name);
       if (src.ask) { return; }
       if ((src.kind === 'ability' ? ab[key] : cl[key]) !== true) { return; }
-      if (src.plans.indexOf(plan) < 0) { return; }
+      if (engPlans(src, type).indexOf(plan) < 0) { return; }
       out.push(src.name);
     });
     return out;
@@ -1253,15 +1269,20 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       L.push('Turf claims held by this crew: ' + held + ' of ' + turfs.length + '.');
       L.push(dtOn ? 'Rules in force (Deep Cuts, Downtime module): ' + TURF_DC : 'Rules (core book): ' + TURF_CORE);
       L.push(dtOn ? 'Core book: ' + TURF_CORE : 'Deep Cuts text (Downtime module, off for this crew): ' + TURF_DC);
+      var hag = slots.filter(function (x) { return x.key === 'hagfish farm'; })[0];
+      if (dtOn && hag) { L.push('Hagfish Farm also counts as turf (Deep Cuts crew sheets v1.2b): ' + (hag.held ? 'held' : 'not held') + '.'); }
       L.push('Turf boxes marked on the sheet: ' + getNum(cid, 'turf', 0) + '.');
       postClaimCard(msg, t, held > 0, 'Turf: ' + held + ' of ' + turfs.length + ' held', L);
       return;
     }
     var n = parseInt(o.n, 10), s = slots.filter(function (x) { return x.slot === n && x.key !== 'turf'; })[0];
     if (!s) { whisper(msg, 'BitDCrew: that claim is no longer on the sheet. Run 6b. Claims again.'); return; }
-    var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key];
+    var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key], ruling = (CLAIM_TYPE_RULING[s.key] || {})[type];
     L.push(s.held ? 'Held by this crew.' : 'Not held by this crew.');
-    if (dc) {
+    if (ruling) {
+      L.push('Rules in force (Deep Cuts crew sheets v1.2b): ' + ruling);
+      if (book) { L.push('Core book text (not used for this crew): ' + book); }
+    } else if (dc) {
       if (isOn(cid, dc.attr)) {
         L.push('Rules in force (Deep Cuts, ' + dc.module + ' module): ' + dc.text);
         if (book) { L.push('Core book text (replaced while the module is on): ' + book); }
@@ -2123,7 +2144,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (dt && heat >= 6) { L.push('Heat is 6 or more: the GM brings an entanglement into play (Deep Cuts, Entanglements).'); }
     var turf = getNum(cid, 'turf', 0), ticked = turfClaimsTicked(cid);
     L.push('Rep ' + getNum(cid, 'rep', 0) + '/' + REP_MAX + ', Turf ' + turf + '/' + TURF_MAX + ', Tier ' + getNum(cid, 'crew_tier', 0) + '/' + TIER_MAX);
-    if (ticked !== turf) { L.push('Note: ' + turf + ' turf boxes are marked but ' + ticked + ' Turf claims are ticked. They should match.'); }
+    if (ticked !== turf) {
+      L.push('Note: ' + turf + ' turf boxes are marked but ' + ticked + ' Turf claims are ticked' + (dt && claimsOn(cid)['hagfish farm'] === true ? ' (counting Hagfish Farm)' : '') + '. They should match.');
+    }
     var hold = String(getAttr(cid, 'hold', 'strong')).toLowerCase();
     if (dt) {
       var rule = holdByRule(cid);

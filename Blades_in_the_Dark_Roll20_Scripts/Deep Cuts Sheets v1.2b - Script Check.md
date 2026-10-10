@@ -12,7 +12,18 @@ I pulled the PDF's text layer and compared it with three things: the Roll20 shee
 
 **The PDF is newer than the Roll20 sheet.** For Crow's Veil, Emberdeath, High Society, Pack Rats, Conviction, Blood Brothers, All Hands and Reavers the PDF matches your Deep Cuts Part Two book (pages 88 and 110 to 111), and the Roll20 sheet still shows older text. For **Hagfish Farm, Forged in the Fire, Vipers and the Smugglers upgrade list the PDF is the only Deep Cuts source**: the book does not mention them. That is why items 1 and 4 below need your ruling.
 
-## 3. Items that need your ruling
+## 3. Your rulings (answered) and what was built
+
+| # | Item | Ruling | Built |
+|---|---|---|---|
+| 1 | Hagfish Farm | Follow the PDF: "Body disposal + counts as turf" | v0.9.3: with the Downtime module on, the claim card puts "counts as turf" in force and marks the core Reduce Heat bonus replaced; the Turf card names Hagfish Farm; the `9. Status` turf check counts a ticked Hagfish Farm. The sheets name no module; I used Downtime, where turf and hold are used (Deep Cuts p84). The Heat -1 button planned in `Crew Script - Deferred and Future Work.md` is dropped |
+| 2 | Infirmary and Sacred Nexus | (no objection) | v0.9.2 |
+| 3 | Cover Identities | Hawkers: deception or transport is correct. The Assassins stay deception and social | v0.9.3: the engagement roll gives Hawkers +1d on a deception or transport plan (not social) and the Assassins on deception or social; the claim card and `9. Status` say so |
+| 4 | Forged in the Fire | "+1d to resistance rolls" (the sheet wording) | No code. My earlier advice stands: enter +1 in each PC's Resistance bonus box once |
+
+The original table follows, as written before the rulings.
+
+## 3a. Items that needed your ruling
 
 | # | Item | PDF v1.2b | Roll20 sheet v3.11 and core book | Script today | What I would do |
 |---|---|---|---|---|---|

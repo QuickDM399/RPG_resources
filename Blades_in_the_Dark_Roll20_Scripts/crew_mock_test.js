@@ -1029,6 +1029,13 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   });
   const ci = mk('CoverBook'); claim(ci, 1, 'Cover Identities');
   ok(eng(ci, 'social 0 0 0 0').n === 2 && eng(ci, 'transport 0 0 0 0').n === 1, 'Cover Identities follows the core book: social, not transport');
+  // the Hawkers' Cover Identities is deception or transport (user ruling: the Deep Cuts crew sheets v1.2b are correct for them); the Assassins keep deception and social
+  const cih = mk('CoverHawkers'); E.attr(cih, 'crew_type', 'Hawkers'); claim(cih, 1, 'Cover Identities');
+  ok(eng(cih, 'transport 0 0 0 0').n === 2 && eng(cih, 'deception 0 0 0 0').n === 2 && eng(cih, 'social 0 0 0 0').n === 1 && eng(cih, 'stealth 0 0 0 0').n === 1, 'Hawkers: Cover Identities adds 1d to a deception or transport plan, not a social one');
+  const cia = mk('CoverAssassins'); E.attr(cia, 'crew_type', 'Assassins'); claim(cia, 1, 'Cover Identities');
+  ok(eng(cia, 'social 0 0 0 0').n === 2 && eng(cia, 'deception 0 0 0 0').n === 2 && eng(cia, 'transport 0 0 0 0').n === 1, 'Assassins: Cover Identities stays deception and social');
+  const cih2 = mk('CoverHawkers2'); E.attr(cih2, 'crew_type', 'The Red Sashes (Hawkers)'); claim(cih2, 1, 'claim_cover_identities');
+  ok(eng(cih2, 'transport 0 0 0 0').n === 2, 'the crew type is matched as free text, the claim by its key');
   const nl = mk('Newline'); claim(nl, 2, 'Bluecoat\nConfederates'); claim(nl, 5, 'claim_secret_pathways'); claim(nl, 6, 'Secret\nRoutes');
   ok(eng(nl, 'assault 0 0 0 0').n === 2 && eng(nl, 'stealth 0 0 0 0').n === 2 && eng(nl, 'transport 0 0 0 0').n === 2, 'claim names spanning lines or carrying a key prefix still match');
   const uc = mk('UntickedClaim'); claim(uc, 4, 'City Records', false);
@@ -1439,6 +1446,9 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   ok(has(o, /Claims the script counts: Cover Operation \(-2 Heat per score\); Victim Trophies \(\+1 Rep per score\); Publicity \(\+2 Rep, a button on the Fallout card\); Envoy \(\+2 Coin, a button on the Fallout card\); Vice Den \(income, a button in Heat and Hold\); Secret Pathways \(\+1d engagement, stealth plans\)\./), 'Status lists the claims in play', o.map(x => x.slice(0, 600)));
   c = E.crew('CoreStatus', pat); claim(c, 1, 'Cover Operation'); claim(c, 2, 'Victim Trophies'); claim(c, 3, 'Vice Den'); claim(c, 4, 'Personal Clothier');
   o = E.run('!bitdcrew status', pat, E.token(c)); ok(has(o, /Claims the script counts: Cover Operation \(-2 Heat per score\); Personal Clothier \(\+1d engagement, social plans\)\./), 'a core crew lists only the Heat and engagement claims', o.map(x => x.slice(0, 400)));
+  { const hk = E.crew('StatusHawkers', pat); E.attr(hk, 'crew_type', 'Hawkers'); E.attr(hk, 'claim_1_name', 'Cover Identities'); E.attr(hk, 'claim_1_check', '1');
+    const as = E.crew('StatusAssassins', pat); E.attr(as, 'crew_type', 'Assassins'); E.attr(as, 'claim_1_name', 'Cover Identities'); E.attr(as, 'claim_1_check', '1');
+    ok(has(E.run('!bitdcrew status', pat, E.token(hk)), /Cover Identities \(\+1d engagement, deception or transport plans\)/) && has(E.run('!bitdcrew status', pat, E.token(as)), /Cover Identities \(\+1d engagement, deception or social plans\)/), 'Status names the plans Cover Identities covers for each crew type'); }
   o = E.run('!bitdcrew status', pat, E.token(E.crew('Plain', pat))); ok(!has(o, /Claims the script counts/), 'no claims, no line');
   // River claims are not automated
   c = mk('River'); claim(c, 1, 'Chief Magistrate'); claim(c, 2, 'State Treasurer'); claim(c, 3, 'Editor-in-Chief'); o = run(c, '2 0 0 0 0 0 4');
@@ -1678,6 +1688,32 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
     ok(core.test(body(info(act, '--n 12')).split('\n')[1]) && /Downtime module, off for this crew/.test(body(info(act, '--n 12'))), cl + ': only the Downtime module changes it, the Action module does not');
   });
   ok(/Rules in force \(Deep Cuts, Downtime module\): \+1 tick to healing clock/.test(body(info(mkCrew('Vig heal', 'Vigilantes', [[12, 'Infirmary', false]], true), '--n 12'))), 'the Vigilantes Infirmary follows the same rule');
+
+  // Hagfish Farm counts as turf (user ruling: follow the Deep Cuts crew sheets v1.2b) with the Downtime module on
+  const HAG = 'Body disposal + counts as turf. (Deep Cuts crew sheets v1.2b)';
+  [['Assassins', 'assassins'], ['Shadows', 'shadows']].forEach(([nm, ty]) => {
+    const off = mkCrew(nm + ' hag off', ty, [[5, 'Hagfish Farm', true]]), on = mkCrew(nm + ' hag on', ty, [[5, 'Hagfish Farm', true]], true);
+    const h0 = body(info(off, '--n 5')).split('\n'), h1 = body(info(on, '--n 5')).split('\n');
+    ok(h0.length === 3 && /^Rules in force \(core book\): When you use the reduce heat downtime activity/.test(h0[1]) && h0[2] === 'Deep Cuts text (Downtime module, off for this crew): ' + HAG, 'Hagfish Farm (' + nm + ') with Downtime off: the core text, the sheet text beside it', h0);
+    ok(h1.length === 3 && h1[1] === 'Rules in force (Deep Cuts, Downtime module): ' + HAG && /^Core book text \(replaced while the module is on\): When you use the reduce heat/.test(h1[2]), 'Hagfish Farm (' + nm + ') with Downtime on: counts as turf, the core text marked replaced', h1);
+  });
+  // the Turf card says so, and the Status check counts it
+  const th = mkCrew('Turf hag', 'Assassins', [[7, 'Turf', true], [5, 'Hagfish Farm', true]], true); E.attr(th, 'turf', 2);
+  ok(/Hagfish Farm also counts as turf \(Deep Cuts crew sheets v1\.2b\): held\./.test(body(info(th, '--row turf'))), 'the Turf card names Hagfish Farm, held');
+  E.attr(th, 'claim_5_check', '0'); ok(/Hagfish Farm also counts as turf .*: not held\./.test(body(info(th, '--row turf'))), 'and not held');
+  const tc = mkCrew('Turf core', 'Assassins', [[7, 'Turf', true], [5, 'Hagfish Farm', true]]); ok(!/Hagfish/.test(body(info(tc, '--row turf'))), 'with Downtime off the Turf card does not mention it');
+  const st = (c) => E.run('!bitdcrew status', pat, E.token(c))[0];
+  E.attr(th, 'claim_5_check', '1');
+  ok(!/Note:/.test(st(th)), 'Status: 2 turf boxes, one Turf claim and Hagfish Farm ticked: they match', st(th));
+  E.attr(th, 'turf', 1); ok(/Note: 1 turf boxes are marked but 2 Turf claims are ticked \(counting Hagfish Farm\)\. They should match\./.test(st(th)), 'Status: boxes and claims differ, and the note says Hagfish Farm was counted', st(th));
+  E.attr(tc, 'turf', 1); ok(!/Note:/.test(st(tc)), 'Status with Downtime off: Hagfish Farm is not counted as turf');
+
+  // Cover Identities: Hawkers use the sheet wording (deception or transport), Assassins the core book
+  const cih = mkCrew('CI Hawkers', 'Hawkers', [[15, 'Cover Identities', true]]), cia = mkCrew('CI Assassins', 'Assassins', [[14, 'Cover Identities', true]]);
+  const c1 = body(info(cih, '--n 15')).split('\n'), c2 = body(info(cia, '--n 14')).split('\n');
+  ok(c1[1] === 'Rules in force (Deep Cuts crew sheets v1.2b): You get +1d to the engagement roll for deception or transport plans. (Deep Cuts crew sheets v1.2b; the core book says deception and social plans.)' && /^Core book text \(not used for this crew\): You get \+1d to the engagement roll for deception and social plans\./.test(c1[2]), 'Hawkers Cover Identities: the sheet wording is in force, the core text is marked not used', c1);
+  ok(c2.length === 2 && /^Rules \(core book\): You get \+1d to the engagement roll for deception and social plans\./.test(c2[1]), 'Assassins Cover Identities: the core text, unchanged', c2);
+  ok(/Rules in force \(Deep Cuts crew sheets v1\.2b\): .*deception or transport/.test(body(info(mkCrew('CI Hawkers DT', 'Hawkers', [[15, 'Cover Identities', true]], true), '--n 15'))), 'for Hawkers it does not depend on a module');
 
   // claims the book does not have: the sheet text
   const vg = mkCrew('Vigilantes', 'Vigilantes', [[3, 'Publicity', true, '+2 rep on\ntakedown scores'], [15, 'claim_doskvol\'s_most_wanted', false]]);

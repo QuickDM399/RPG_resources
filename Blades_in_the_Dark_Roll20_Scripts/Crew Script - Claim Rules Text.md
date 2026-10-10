@@ -35,7 +35,8 @@ The same claim is worded differently in some crews (Vice Den, Informants, Cover 
 - **Cult:** Your Adept cohorts get +1 scale. More room for hopeful novices desperate to pledge their service.
 
 ## Cover Identities
-- **Assassins, Hawkers:** You get +1d to the engagement roll for deception and social plans. False identities help confuse the opposition.
+- **Assassins, Hawkers (core book):** You get +1d to the engagement roll for deception and social plans. False identities help confuse the opposition.
+- **Hawkers, in force since v0.9.3 (your ruling: the Deep Cuts crew sheets v1.2b are correct):** You get +1d to the engagement roll for deception or transport plans. The engagement roll gives Hawkers +1d on a deception or transport plan, not a social one. The Assassins keep the core book wording.
 
 ## Cover Operation
 - **Assassins, Hawkers:** You get -2 heat per score. The cover of a legitimate operation helps deflect some of the heat from law enforcement.
@@ -164,6 +165,7 @@ With the Downtime module on, the Deep Cuts text is marked as the one in force.
 |---|---|---|
 | Warehouses (also the Smugglers' Warehouse) | Downtime (p88: "Warehouses (Claim)") | The crew gains an additional Acquire activity each Downtime. |
 | Informants | Action (the sheet swaps this text with the Action module) | You get +1 tick on your long-term project clock when you work on an investigation during downtime. |
+| Hagfish Farm (Assassins, Shadows) | Downtime (added in v0.9.3; the crew sheets name no module, this is where turf and hold are used) | Body disposal + counts as turf. (Deep Cuts crew sheets v1.2b) |
 | Infirmary (Assassins, Bravos, Shadows; Vigilantes show the same) and Sacred Nexus (Cult) | Downtime (added in v0.9.2) | +1 tick to healing clock in downtime, in place of +1d to healing rolls. (Deep Cuts p88: "+1d to healing rolls instead counts as 1 tick on the healing clock." The Deep Cuts crew sheets v1.2b word the claim the same way.) |
 
 The card marks which text is in force from the crew's modules, and shows the other one beside it.
