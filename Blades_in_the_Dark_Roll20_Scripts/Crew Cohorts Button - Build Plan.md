@@ -1,6 +1,18 @@
 # Crew Script: `6d. Cohorts` (proposal for v0.12.0)
 
-**Status: decisions 2 to 7 approved, decision 1 changed, two questions open (section 0). No code has been touched.**
+**Status: BUILT as v0.12.0 (2026-10-10), mock-tested only (`Crew Live Test Plan.md` L31). Decisions 1 to 7 and "include the replace and Hooked now" were approved ("yes to both, go"). The editing, recruiting and downtime-activity items stay for a later batch.**
+
+### Built, and where it differs from the plan below
+
+- Verbs: `cohorts`, `cohort`, `cohortroll`, `cohortharm`, `cohortheal`, `cohortarmor` (grant, end, restore), `cohortall`, `cohortrest`, `cohortreplace`, `cohortsync`. Buttons carry the cohort as `--row cohort1` or the sheet row id (no colon).
+- Destroyed is all three boxes plus a flag in state, because three marked boxes alone can be three separate harms (levels 1, 2 and 3 taken in turn read as Broken).
+- Armor: the three sources of section 0a; a state of permanent or granted is kept per cohort in state. The harm menu shows the armor row only when the box is clear.
+- Added beyond the plan (small, from the vehicle edges in the book): a **Sturdy** vehicle gets a Roll anyway button when Broken, like Leader; a **Simple** vehicle loses all its harm in "Heal every cohort one level" and has a "Remove all harm" button; an Elite upgrade reminder on the card; a condition badge and rows of buttons in the HTML card.
+- Hooked changes the dice of `1. Roll` too (inference, in the Spec R29).
+- Found by the mutation run and fixed: a new Downtime ledger id or flow id made in the same millisecond as the previous one could repeat it (one in 1296 chance); both ids are now checked.
+- Tests: `crew_mock_test.js` T30 (about 200 checks); `crew_mutation_check.js` has 122 cohort mutations (`MUT_ONLY=cohort:` runs just those).
+
+
 
 ## 0. Answers, the revised armor design, and the batch question
 

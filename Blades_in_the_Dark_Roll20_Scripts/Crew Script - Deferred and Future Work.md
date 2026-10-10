@@ -43,7 +43,7 @@ You asked me to hold anything River, and said you could not find the rules. What
 
 ## 3. Decided not to build
 
-- **Bundle 4:** The Good Stuff, Pack Rats (the Deep Cuts text stays on the sheet as a reminder), Hooked, Favors, As Good as Your Word.
+- **Bundle 4:** The Good Stuff, Pack Rats (the Deep Cuts text stays on the sheet as a reminder), Favors, As Good as Your Word. (Hooked was built in v0.12.0 with the cohorts: it is +1 quality on a gang with a savage, unreliable or wild flaw, which the cohort reader now knows.)
 - **Bundles 1 and 2:** Patron, High Society, Fiends, Accord, Crow's Veil, Emberdeath.
 - **Cross-script, not worth the cost:** Conviction, Anointed, Blood Brothers, Synchronized, Moral Compass, the seven rating bumps. Forged in the Fire needs no code: enter +1 in each PC's Resistance bonus boxes once.
 - **The core Payoff walk-through** (core crews keep the Heat-only Score).
@@ -52,3 +52,12 @@ You asked me to hold anything River, and said you could not find the rules. What
 
 - **Faction Status** (needed for Status-based Heat reduction, War Dogs, Accord, Misdirection's actual effect). Not on the crew sheet.
 - **Tier advancement and Development** (Deep Cuts p83). The script has no Tier advancement flow.
+
+## 5. Future part: the rest of cohort management (after `6d. Cohorts`, v0.12.0)
+
+Built in v0.12.0: the status card, rolling, harm with armor, healing, replacing a destroyed cohort, armor from the Vehicle upgrade, Leader and Reavers, Hooked. Not built, each needing your approval first (`Crew Cohorts Button - Build Plan.md`, section 0b):
+
+1. **Edit a cohort's type, gang types, edges and flaws from buttons.** The largest piece: "one or two edges and an equal number of flaws", "up to two types". You can type the names on the sheet today and the parser reads them.
+2. **Recruit or modify a cohort.** The core book says "spend two upgrades" (modifying: add a type for two crew upgrades), Deep Cuts spends two advancement clocks. The script cannot spend either, and it would create new sheet rows.
+3. **Cohort downtime activities** (All Hands, Roots). The script tracks no downtime activities for anyone, so a once-per-Downtime record would be empty.
+4. **The two downtime activities of a replacement** are only a reminder on the replaced card.

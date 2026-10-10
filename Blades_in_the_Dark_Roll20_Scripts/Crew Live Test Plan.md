@@ -41,7 +41,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 **Ground truth:** the spec table (section 2). **Steps:** select the crew token. Run the `CREW_TAM` macro from the macro bar. Check the token's action bar. Click `~ Rebuild` on the token.
 **Pass:**
 - A card "Token actions ready" says `9 created`, the modules on, and "Rules used: Deep Cuts Downtime" for A and E (E lists "Advancement, Downtime, Harm, Load, Action") and "Rules used: core" for B and C. It says "Bar 1 is linked to Heat on 1 token".
-- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
+- The action bar lists, in this order: `1. Roll`, `2. Engagement`, `3. Fortune`, `4. Score`, `5. Downtime` (Deep Cuts Downtime crews only; core crews skip from 4 to 6), `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `6d. Cohorts`, `7. Adjust`, `8. Clocks`, `9. Status`, `~ Rebuild`.
 - Rebuild a second time: still 9, none doubled. A, B and C each get the same behaviour, including C with its capitalised type.
 - On the token: bar 1 shows Heat out of 9. Put a different number in the crew sheet's Heat boxes; the bar follows after a refresh of the token.
 - Crew A's `1. Roll` list has Tier and cohorts but **no** Entanglement. B's and C's lists have Entanglement.
@@ -263,7 +263,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 **Setup:** tick a few claim boxes on the sheet, leave others unticked. `~ Rebuild`. Read `Crew Script - Claim Rules Text.md` first so you know what the cards should say.
 **Steps:** click `6b. Claims`. Click a held claim, a claim not held, a claim whose text differs by crew (Informants, Vice Den, Cover Operation or Ancient Gate), the **Turf** button, and, on Bravos or Smugglers, Warehouses or Warehouse. If you have a Vigilantes crew, click Publicity. Switch the Downtime module on or off on a crew with Warehouses and click it again.
 **Pass:**
-- The action bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`.
+- The action bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `6d. Cohorts`, `7. Adjust`.
 - A whispered card lists every claim on the sheet in sheet order, a filled circle for held and a hollow one for not held, one Turf button with a count ("Turf: 2 of 5 held"), and a line explaining the circles.
 - A click posts a public card: header "Claim held" or "Claim not held", the circle before the name, "Held by this crew." or "Not held by this crew.", the rules text from the book (check it against the text page), and "On the sheet: ..." with the sheet's own short text.
 - The Turf card shows the count, the rule in force in full (the Deep Cuts hold rule with Downtime on, the core text with it off) and a button for the other one, and the turf boxes marked.
@@ -280,7 +280,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 **Setup:** on the crew sheet pick a crew type (so the special upgrades fill in). Mark some boxes: one box of a two-box lair upgrade (try the **second** box only), two of three boxes of Hardened (or Ordained, Composed, Steady), three of four Mastery boxes, one Quality upgrade fully. Leave the rest. `~ Rebuild`. Open `Crew Upgrades Button - Build Plan.md` for the texts.
 **Steps:** click `6c. Crew Upgrades`. Click each of the four buttons. From the lists click: a taken upgrade, one not taken, the Hardened-type upgrade with two boxes, Mastery with three, a two-box lair upgrade with one box, Vault, Workshop, an Insight or Prowess upgrade, a Quality upgrade, and two special upgrades (a rigging and an Elite one). Switch the Downtime module off on one crew and click Vault again. On a Smugglers crew open the Lair list. As a player who does not control the crew, try a button if you can.
 **Pass:**
-- The bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`.
+- The bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `6d. Cohorts`, `7. Adjust`.
 - Card 1 (whisper): four buttons, the first named for the crew **type** ("Bravos Special"), then Lair, Training, Quality, and a line of counts for each ("Lair: 2 of 7 taken").
 - Each list (whisper) shows the upgrades in sheet order with **one circle per box** (a two-box upgrade has two, Mastery four) and a legend. The second box alone shows as the second circle, filled, and the upgrade counts as taken.
 - An upgrade card (public): header "Upgrade taken", "Upgrade in progress" (Hardened-type with 2 of 3, Mastery with 3 of 4) or "Upgrade not taken"; the circles before the name; the boxes line; for a special upgrade the core book text and the full sheet name; "On the sheet:" with the drop-down text. **Tell me whether the drop-down of a special upgrade is empty** (the card should then show no "On the sheet" line for it).
@@ -311,9 +311,33 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - `fmt card sheet` puts the sheet cards back.
 **Known fail states:** raw tags or `style="..."` text in the chat (the chat is not accepting HTML), a card with no colors (styles dropped; probe2 tells which), a button that does nothing, the card cut off (message too long).
 
-## L31 Clean up
+## L31 Cohorts (a crew with a gang, an expert and, on a Smugglers crew, the vehicle; then a Hawkers crew)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** give a crew three cohorts: a gang (type Gang, gang type Thugs, edges Fearsome and Loyal, flaw Savage), an Elite gang (type Elite, gang type Rooks), an expert (type Expert, specialty Physicker, a made-up flaw such as "Greedy"). Note each cohort's three harm boxes and armor box first. For the armor checks use a Smugglers crew: its first cohort is the vehicle (name `vehicle`, type Expert, edges Nimble and Sturdy, flaw Finicky); mark **both** boxes of the Carriage or Vehicle upgrade. For the Leader checks mark a player character as a Party member and tick its **Leader** ability. For Hooked use a Hawkers crew with Hooked ticked and a gang with the Savage flaw. Run `~ Rebuild` first.
+**Steps:**
+1. Click `6d. Cohorts`. Click a cohort. Click each roll button (-3d to +3d once or twice; watch the dice count). 
+2. Click **Take harm**, level 1, level 2, then level 2 again, then level 3 on a Broken cohort (stacking and Destroyed). On the Destroyed card click **Replace** with too little Coin, then with enough.
+3. Click **Heal**: one level, two levels. Try **Heal every cohort one level** on the list.
+4. Armor: open the cohorts of a crew with no armor, then the vehicle; click **Take harm**, use the armor row, click **Restore armor**. With Leader in the party click the **grants 1 armor** button, use it, click **Armor ends**.
+5. Put a cohort at Broken by hand and look at its card (no roll button; with Leader in the party, or a Sturdy vehicle, a **Roll anyway** button).
+6. `!bitdcrew fmt card html`, then open a cohort card and a harm result. `!bitdcrew fmt card sheet` puts the sheet cards back.
+7. With `!bitdcrew debug on`, repeat one harm and one heal and read the API console.
+**Pass:**
+- `6d. Cohorts` is on the bar between `6c. Crew Upgrades` and `7. Adjust`. The list (whisper to you) has one button per named cohort, in sheet order, with three circles for the harm boxes and the condition. A blank cohort row is not listed.
+- The cohort card (public): condition, the harm circles, the type with the book text for each gang type, the quality in dice with the parts (Tier, Elite +1d, Expert +1, Hooked, Impaired -1d), the scale with the book text, the armor line, every edge and flaw with its book text (a made-up flaw says "no book text"), your notes, seven roll buttons, and Take harm (Heal only when there is harm). The Elite upgrade reminder shows if an Elite upgrade is taken and the cohort is still set to Gang.
+- Each roll button posts the sheet's cohort card with the right number of dice: quality (Tier, +1 Elite or expert, minus 1 Impaired) plus the button. Compare with the sheet's own roll button for the same cohort.
+- Harm: level 1 marks the first box, level 2 the second; a second level 2 becomes level 3 and says so; harm that moves past Broken posts the **Destroyed** card with the book replacement text and the cost (Tier +2 Coin), marks all three boxes, and removes the roll and harm buttons. Replace with too little Coin changes nothing and says so; with enough it takes the Coin from the crew's Coin track, clears the three boxes and reminds you of the two downtime activities.
+- Heal: one level moves Broken to Impaired, Impaired to Weakened, Weakened to Fit; two levels do it twice. A Destroyed cohort is not healed. Heal every cohort lists each cohort and quotes the Deep Cuts crew-phase line with the Downtime module on and the core rule otherwise. A Simple vehicle loses all its harm.
+- Armor: a cohort with no armor has its sheet armor box **marked** after you open `6d. Cohorts` (the script marks it) and the card says "Armor: none". The vehicle with both upgrade boxes marked has its armor box **clear** and the card says "Armor: 1, available"; Use armor first in the harm menu marks the box and lowers the harm by one level (level 1 becomes no harm); Restore armor clears it. With a Party PC with Leader the card offers the grant; Armor ends marks the box again. Cohorts that cannot have armor never show an armor row in the harm menu.
+- Hooked: with the ability ticked a Savage, Unreliable or Wild gang rolls one die more (to a quality of 4 at most), on the card, in the cohort roll and in `1. Roll`.
+- HTML mode: the cohort card is the dark styled card with a coloured condition badge (green Fit, amber Weakened, orange Impaired, red Broken, dark red Destroyed) and the buttons in rows of pills. Text from the sheet shows as plain text.
+- Debug: the API console shows lines starting `BitDCrew debug: cohort`.
+- Nothing on the sheet changes except the harm boxes, the armor box and (on a replace) the Coin.
+**Known fail states:** a button that does nothing (tell me its text and the console line), a cohort missing or in the wrong order, a wrong dice count, an armor box that flips back after you set it, the Leader grant offered with no Party PC marked as Leader, a Destroyed cohort that heals, circles that do not match the boxes, a card cut off.
+
+## L32 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts, and put back the harm and armor boxes you noted for L31. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

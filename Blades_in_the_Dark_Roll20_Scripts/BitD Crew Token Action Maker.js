@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.11.0
+/* BitD Crew Token Action Maker  v0.12.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -31,13 +31,16 @@
  *   - Crew Upgrades (button 6c): four categories (the crew type's Special upgrades, Lair, Training, Quality), each a list of the
  *     upgrades on the sheet with one circle per box; a click shows the upgrade text (sheet drop-down, core book for the specials,
  *     Deep Cuts where it changes the rule) to the table. Read-only.
+ *   - Cohorts (button 6d): a card with a button for each cohort; a click shows the cohort status to the table (condition, types, quality and
+ *     scale, armor, edges and flaws with the book text) with buttons to roll it (-3d to +3d), take harm (with or without armor), heal it,
+ *     grant or restore armor, and replace it for Tier +2 Coin when destroyed. Writes only the cohort's harm and armor boxes, on a click.
  *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
  *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.11.0';
+  var VERSION = '0.12.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -278,9 +281,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   var RE_SQ = new RegExp('[' + String.fromCharCode(0x2018, 0x2019) + ']', 'g');
 
   // 5. Downtime is built only for crews with the Deep Cuts Downtime module on (core crews show a gap at 5).
-  // The token action bar sorts character by character, so 6a., 6b. and 6c. sort between 6. and 7. and nothing needs renumbering.
+  // The token action bar sorts character by character, so 6a., 6b., 6c. and 6d. sort between 6. and 7. and nothing needs renumbering.
   var ABILITY_NAMES = ['1. Roll', '2. Engagement', '3. Fortune', '4. Score', '5. Downtime', '6. Abilities', '6a. Contacts', '6b. Claims',
-    '6c. Crew Upgrades', '7. Adjust', '8. Clocks', '9. Status', '~ Rebuild'];
+    '6c. Crew Upgrades', '6d. Cohorts', '7. Adjust', '8. Clocks', '9. Status', '~ Rebuild'];
   var TRIANGLE = String.fromCharCode(0x25B2);
   var NOTES_MAX = 2000;
 
@@ -300,6 +303,66 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     'Severe Beatings (Harm 3), an arrest, or destruction of assets.',
     'Lethal force, arrests, or destruction/seizure of lair and all assets.'
   ];
+
+  // Cohorts. Every text is the core book wording (Cohorts, Edges & Flaws, Cohort Harm & Healing, Armor) unless it says otherwise.
+  // Each table row is [key, name, text].
+  var COHORT_TYPES = [
+    ['adepts', 'Adepts', 'Scholars, tinkerers, occultists, and chemists.'],
+    ['rooks', 'Rooks', 'Con artists, spies, and socialites.'],
+    ['rovers', 'Rovers', 'Sailors, carriage drivers, and deathlands scavengers.'],
+    ['skulks', 'Skulks', 'Scouts, infiltrators, and thieves.'],
+    ['thugs', 'Thugs', 'Killers, brawlers, and roustabouts.']
+  ];
+  var COHORT_EDGES = [
+    ['fearsome', 'Fearsome', 'The cohort is terrifying in aspect and reputation.'],
+    ['independent', 'Independent', 'The cohort can be trusted to make good decisions and act on their own initiative in the absence of direct orders.'],
+    ['loyal', 'Loyal', 'The cohort can\'t be bribed or turned against you.'],
+    ['tenacious', 'Tenacious', 'The cohort won\'t be deterred from a task.']
+  ];
+  var COHORT_FLAWS = [
+    ['principled', 'Principled', 'The cohort has an ethic or values that it won\'t betray.'],
+    ['savage', 'Savage', 'The cohort is excessively violent and cruel.'],
+    ['unreliable', 'Unreliable', 'The cohort isn\'t always available, due to other obligations, stupefaction from their vices, etc.'],
+    ['wild', 'Wild', 'The cohort is drunken, debauched, and loud-mouthed.']
+  ];
+  // Smugglers, Like Part of the Family: "use the vehicle edges and flaws, below"
+  var VEHICLE_EDGES = [
+    ['nimble', 'Nimble', 'The vehicle handles easily. Consider this an assist for tricky maneuvers.'],
+    ['simple', 'Simple', 'The vehicle is easy to repair. Remove all of its harm during downtime.'],
+    ['sturdy', 'Sturdy', 'The vehicle keeps operating even when broken.']
+  ];
+  var VEHICLE_FLAWS = [
+    ['costly', 'Costly', 'The vehicle costs 1 coin per downtime to keep in operation.'],
+    ['distinct', 'Distinct', 'The vehicle has memorable features. Take +1 heat when you use it on a score.'],
+    ['finicky', 'Finicky', 'The vehicle has quirks that only one person understands. When operated without them, it has -1 quality.']
+  ];
+  // Deep Cuts crew sheets v1.2b (Smugglers), shown beside the core Nimble text with the Action module on
+  var VEHICLE_NIMBLE_DC = 'The vehicle handles easily. +1d to threat rolls when appropriate.';
+  // Hooked (Hawkers): these flaws give a gang +1 quality, to a rating of 4 at most
+  var HOOKED_FLAWS = ['savage', 'unreliable', 'wild'];
+  var HOOKED_MAX = 4;
+  var COHORT_LEVELS = [
+    ['Fit', 'The cohort has no harm.'],
+    ['Weakened', 'The cohort has reduced effect.'],
+    ['Impaired', 'The cohort operates with reduced quality (-1d).'],
+    ['Broken', 'The cohort can\'t do anything until they recover.'],
+    ['Destroyed', 'The cohort is destroyed.']
+  ];
+  var COHORT_BOXES = ['_weak', '_impaired', '_broken'];
+  var COHORT_HARM_RULE = 'Cohorts suffer harm similarly to PCs. A cohort can suffer four levels of harm: 1. Weakened. The cohort has reduced effect. 2. Impaired. The cohort operates with reduced quality (-1d). 3. Broken. The cohort can\'t do anything until they recover. 4. Dead. The cohort is destroyed.';
+  var COHORT_HEAL_RULE = 'All of your cohorts heal during downtime. If circumstances are amenable for recovery, each cohort removes one level of harm (or two levels of harm instead, if a PC spends a downtime activity helping them recuperate).';
+  var COHORT_HEAL_DC = 'First, each cohort heals one level of Harm.';
+  var COHORT_REPLACE_RULE = 'If a cohort is destroyed, it may be replaced. Spend coin equal to your Tier +2 to restore it, plus two downtime activities to recruit new gang members, or hire a new expert.';
+  var COHORT_ARMOR_RULE = 'If you have a type of armor that applies to the situation, you can mark an armor box to reduce or avoid a consequence, instead of rolling to resist. When an armor box is marked, it can\'t be used again until it\'s restored.';
+  // the three ways a cohort gets armor: the Vehicle upgrade (permanent), Leader and Reavers (by exception, in a fight)
+  var COHORT_ARMOR_VEHICLE = 'Vehicle: All smugglers start with a vehicle. When the vehicle is upgraded (two boxes), it also gets armor.';
+  var COHORT_ARMOR_LEADER = 'Leader: When you Command a cohort in combat, they continue to fight when they would otherwise break (they\'re not taken out when they suffer level 3 harm). They gain +1 effect and 1 armor.';
+  var COHORT_ARMOR_REAVERS = 'Reavers: When you go into conflict aboard a vehicle, you add +1 Quality to the vehicle\'s damage and speed. The vehicle also gains +1 armor to represent skillful maneuvering.';
+  var COHORT_SCALE = ['1 or 2 people', 'A small gang (3-6)', 'A medium gang (12)', 'A large gang (20)', 'A huge gang (40)', 'A massive gang (80)', 'A colossal gang (160)'];
+  var VEHICLE_RE = /\b(vehicle|boat|carriage|barge|skiff|cart|wagon)s?\b/i;
+  var COHORT_MAX_NAMES = 6;
+  // the sheet puts this key in the type box of a Smugglers vehicle until a type is chosen
+  var COHORT_PLACEHOLDER = 'boat_carriage_other';
 
   // ---------------------------------------------------------------- helpers
 
@@ -616,11 +679,6 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var t = String(getAttr(cid, prefix + '_type', 'gang')).toLowerCase();
     return (t === 'gang' || t === 'elite' || t === 'expert') ? t : 'gang';
   }
-  // sheet rule (calculateCohortDice): Tier, minus impaired, plus 1 for elite or expert
-  function cohortPool(cid, prefix) {
-    return getNum(cid, 'crew_tier', 0) - getNum(cid, prefix + '_impaired', 0) +
-      ((cohortType(cid, prefix) === 'elite' || cohortType(cid, prefix) === 'expert') ? 1 : 0);
-  }
 
   // ---------------------------------------------------------------- setup
 
@@ -681,10 +739,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       [ABILITY_NAMES[6], CMD + ' contacts'],
       [ABILITY_NAMES[7], CMD + ' claims'],
       [ABILITY_NAMES[8], CMD + ' upgrades'],
-      [ABILITY_NAMES[9], CMD + ' adj ?{Adjust|' + adjust + '}'],
-      [ABILITY_NAMES[10], CMD + ' clocks'],
-      [ABILITY_NAMES[11], CMD + ' status'],
-      [ABILITY_NAMES[12], CMD + ' setup']
+      [ABILITY_NAMES[9], CMD + ' cohorts'],
+      [ABILITY_NAMES[10], CMD + ' adj ?{Adjust|' + adjust + '}'],
+      [ABILITY_NAMES[11], CMD + ' clocks'],
+      [ABILITY_NAMES[12], CMD + ' status'],
+      [ABILITY_NAMES[13], CMD + ' setup']
     );
     return list;
   }
@@ -733,6 +792,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       var text = made + ' created. Deep Cuts modules on: ' + (on.length ? on.join(', ') : 'none') + '. Rules used: ' +
         (m.downtime ? 'Deep Cuts Downtime' : 'core') + '.';
       if (skipped.length) { text += ' Skipped (an ability with that name already exists): ' + skipped.join(', ') + '.'; }
+      var armorSet = cohortSync(cid);
+      if (armorSet) { text += ' Cohort armor boxes set: ' + armorSet + '.'; }
       var linked = (tokens[cid] || []).map(function (tok) { return linkHeatBar(tok, cid); }).length;
       if (linked) { text += ' Bar 1 is linked to Heat on ' + linked + ' token' + (linked > 1 ? 's' : '') + '.'; }
       note(msg, t.c, 'Setup', 'Token actions ready', text);
@@ -976,12 +1037,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     } else if (what === 'cohort1' || what.indexOf('cohort:') === 0) {
       var co = cohortList(cid).filter(function (c) { return c.code === what; })[0];
       if (!co) { whisper(msg, 'BitDCrew: that cohort is no longer on the sheet. Run ~ Rebuild to refresh the Roll list.'); return; }
-      var type = cohortType(cid, co.prefix), sub = clean(getAttr(cid, co.prefix + '_subtype', ''));
-      var verb = clean(getAttr(cid, co.prefix + '_verb', type === 'expert' ? '^{rolls_their}' : '^{roll_their}'));
-      pool = cohortPool(cid, co.prefix) + bonus;
-      text = '&{template:blades} {{type=resist}} {{short=short}} {{charname=' + clean(co.name).replace(/\s+/g, ' ') + ' (^{' + type + '}' + (sub ? ', ' + sub : '') + ')}} ' +
-        '{{title-cohort_quality=1}} {{title=^{cohort_quality}}} {{subtitle=' + verb + '}} {{' + diceField(pool) + '}}' + tail(cid, t.c);
-      sendChat('player|' + msg.playerid, text);
+      sendChat('player|' + msg.playerid, cohortRollText(cid, t, co, bonus));
     } else {
       whisper(msg, 'BitDCrew: unknown roll "' + clean(o.pos[0]) + '".');
     }
@@ -1499,6 +1555,491 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     post(L);
   }
 
+  // ---------------------------------------------------------------- cohorts (6d. Cohorts)
+  // A cohort card reads the sheet when a button is clicked, so it is never stale. The script writes only the cohort's three harm boxes
+  // (weak, impaired, broken) and its armor box, only on a button click, plus the armor box sync described at cohortSync.
+
+  // the button code of a cohort: no colon (Roll20 does not run a button whose command argument holds one)
+  function cohortRef(c) { return c.code === 'cohort1' ? 'cohort1' : c.code.slice(7); }
+  function cohortByRef(cid, ref) {
+    var r = String(ref === null || ref === undefined ? '' : ref);
+    return cohortList(cid).filter(function (c) { return cohortRef(c) === r; })[0] || null;
+  }
+  // the name as one safe line; a lower-case one-word name (the sheet's own "vehicle") is capitalized
+  function cohortLabel(c) {
+    var s = chatNotes(c.name, 100000).replace(/[{}]/g, '').replace(/\s*\n\s*/g, ' ').slice(0, 60).trim();
+    return /^[a-z_]+$/.test(s) ? cap(s.replace(/_/g, ' ')) : s;
+  }
+  function cohortMem(kind) {
+    var st = botState();
+    st[kind] = st[kind] || {};
+    return st[kind];
+  }
+  function cohortKey(cid, c) { return cid + '|' + cohortRef(c); }
+
+  // free text to a list of names matched to a book table: split on commas, semicolons, slashes, plus, "and" and lines; bracket text is dropped.
+  // A name the table lacks stays as typed ({key: '', text: ''}).
+  function cohortNames(raw, table) {
+    var t = String(raw === undefined || raw === null ? '' : raw).replace(/_/g, ' ').replace(/\([^)]*\)|\[[^\]]*\]/g, ' '), out = [], seen = {};
+    t.split(/[,;\n\/&+]|\band\b/i).forEach(function (part) {
+      var s = part.replace(/\s+/g, ' ').trim(), key, hit = null;
+      if (!s || out.length >= COHORT_MAX_NAMES) { return; }
+      key = normName(s).replace(/s$/, '');
+      table.forEach(function (e) { if (normName(e[1]).replace(/s$/, '') === key) { hit = e; } });
+      if (seen[key]) { return; }
+      seen[key] = true;
+      out.push(hit ? { key: hit[0], name: hit[1], text: hit[2] } : { key: '', name: chatNotes(s, 40).replace(/\s*\n\s*/g, ' '), text: '' });
+    });
+    return out;
+  }
+  function cohortTypeNames(cid, prefix) {
+    var raw = String(getAttr(cid, prefix + '_subtype', ''));
+    return normName(raw) === COHORT_PLACEHOLDER ? [] : cohortNames(raw, COHORT_TYPES);
+  }
+  function cohortEdgeNames(cid, prefix) { return cohortNames(getAttr(cid, prefix + '_edges', ''), COHORT_EDGES.concat(VEHICLE_EDGES)); }
+  function cohortFlawNames(cid, prefix) { return cohortNames(getAttr(cid, prefix + '_flaws', ''), COHORT_FLAWS.concat(VEHICLE_FLAWS)); }
+  function hasKey(list, keys) { return list.some(function (x) { return x.key && keys.indexOf(x.key) >= 0; }); }
+
+  // the dice a cohort rolls: Tier, +1 for an expert or an Elite, +1 for Hooked (gangs with a savage, unreliable or wild flaw, to a rating of 4),
+  // minus 1 when the Impaired box is marked. The sheet's own roll formula knows only the Tier, the type and Impaired.
+  function cohortQuality(cid, prefix) {
+    var type = cohortType(cid, prefix), tier = getNum(cid, 'crew_tier', 0), q = tier, parts = ['Tier ' + tier], imp = getNum(cid, prefix + '_impaired', 0), hooked = '';
+    if (type === 'expert') { q++; parts.push('Expert +1'); }
+    else if (type === 'elite') { q++; parts.push('Elite +1d'); }
+    if (type !== 'expert' && q < HOOKED_MAX && crewAbilityOn(cid, 'Hooked')) {
+      cohortFlawNames(cid, prefix).forEach(function (f) { if (!hooked && HOOKED_FLAWS.indexOf(f.key) >= 0) { hooked = f.name; } });
+      if (hooked) { q++; parts.push('Hooked +1 (' + hooked + ')'); }
+    }
+    if (imp) { parts.push('Impaired -1d'); }
+    return { pool: q - imp, quality: q, parts: parts, hooked: hooked };
+  }
+  // sheet rule (calculateCohortDice): Tier, minus Impaired, plus 1 for an Elite or an expert; plus the Hooked flaw bonus
+  function cohortPool(cid, prefix) { return cohortQuality(cid, prefix).pool; }
+
+  function cohortBoxes(cid, c) { return COHORT_BOXES.map(function (n) { return isOn(cid, c.prefix + n); }); }
+  function setBoxes(cid, c, want) {
+    COHORT_BOXES.forEach(function (n, i) { if (isOn(cid, c.prefix + n) !== want[i]) { setAttr(cid, c.prefix + n, want[i] ? '1' : '0'); } });
+  }
+  // Destroyed: the sheet has no Dead box, so the script marks all three and remembers it (three marked boxes alone can be three separate harms)
+  function cohortDead(cid, c) {
+    var b = cohortBoxes(cid, c), dead = cohortMem('cohortDead');
+    if (dead[cohortKey(cid, c)] === true && !(b[0] && b[1] && b[2])) { delete dead[cohortKey(cid, c)]; }
+    return dead[cohortKey(cid, c)] === true;
+  }
+  // 0 fit, 1 weakened, 2 impaired, 3 broken, 4 destroyed
+  function cohortLevel(cid, c) {
+    var b = cohortBoxes(cid, c);
+    if (cohortDead(cid, c)) { return 4; }
+    return b[2] ? 3 : b[1] ? 2 : b[0] ? 1 : 0;
+  }
+
+  // ---- armor
+
+  function cohortIsVehicle(cid, c) {
+    return VEHICLE_RE.test((c.name + ' ' + getAttr(cid, c.prefix + '_subtype', '')).replace(/_/g, ' '));
+  }
+  // the Carriage, Boat or Vehicle upgrade with both boxes marked ("improves the carriage with armor", "When the vehicle is upgraded (two boxes), it also gets armor"): its name or ''
+  function vehicleUpgraded(cid) {
+    var found = '';
+    upgradeItems(cid, 'lair').forEach(function (u) {
+      if (!found && (u.key === 'carriage' || u.key === 'boat') && u.boxes.length >= 2 && u.boxes.every(Boolean)) { found = u.short; }
+    });
+    upgradeItems(cid, 'special').forEach(function (u) {
+      if (!found && normName(u.short) === 'vehicle' && u.boxes.length >= 2 && u.boxes.every(Boolean)) { found = u.short; }
+    });
+    return found;
+  }
+  // the first Party player character with a ticked Leader ability: the name or ''
+  function partyLeader() {
+    var out = '';
+    partyPcs().forEach(function (pc) {
+      var ab = tickedRows(pc.id, 'ability');
+      if (!out && (ab.leader === true || ab.playbook_ability_leader === true)) { out = btn(pc.get('name')); }
+    });
+    return out;
+  }
+  // where armor could come from: {vehicle, perm (upgrade name), leader (PC name), reavers}
+  function cohortArmorInfo(cid, c) {
+    var veh = cohortIsVehicle(cid, c);
+    return { vehicle: veh, perm: veh ? vehicleUpgraded(cid) : '', leader: partyLeader(), reavers: veh && crewAbilityOn(cid, 'Reavers') };
+  }
+  // '' none, 'perm' (the upgrade gives it all the time), 'granted' (Leader or Reavers, for one fight): kept in state, because the box alone cannot say
+  function armorState(cid, c) { return cohortMem('cohortArmor')[cohortKey(cid, c)] || ''; }
+  function armorFree(cid, c) { return armorState(cid, c) !== '' && !isOn(cid, c.prefix + '_armor'); }
+
+  // The sheet's armor box means "no armor available now" (marked) or "armor available" (clear). A cohort with no armor keeps its box marked;
+  // a cohort the Vehicle upgrade armors has its box cleared once, when the script first sees the armor. Returns true when it wrote the box.
+  function cohortSyncOne(cid, c) {
+    var mem = cohortMem('cohortArmor'), key = cohortKey(cid, c), st = mem[key] || '', box = isOn(cid, c.prefix + '_armor'), a = cohortArmorInfo(cid, c), want = null;
+    if (a.perm) {
+      if (st !== 'perm') { mem[key] = 'perm'; want = '0'; }
+    } else {
+      if (st === 'perm') { delete mem[key]; st = ''; }
+      if (st !== 'granted' && !box) { want = '1'; }
+    }
+    if (want !== null) { setAttr(cid, c.prefix + '_armor', want); }
+    dbg('cohort armor sync ' + c.name + ': upgrade ' + (a.perm || 'none') + ', state ' + (mem[key] || 'none') + ', box was ' + (box ? 'marked' : 'clear') + (want === null ? ', not changed' : ', set to ' + (want === '1' ? 'marked' : 'clear')));
+    return want !== null;
+  }
+  function cohortSync(cid) {
+    var n = 0;
+    cohortList(cid).forEach(function (c) { if (cohortSyncOne(cid, c)) { n++; } });
+    return n;
+  }
+
+  // ---- harm and healing
+
+  // harm at a level whose box is already marked moves up to the next level; past Broken the cohort is destroyed (all three boxes)
+  function cohortApplyHarm(cid, c, level) {
+    var b = cohortBoxes(cid, c), landed = level, moved = false;
+    while (landed <= 3 && b[landed - 1]) { landed++; moved = true; }
+    if (landed >= 4) {
+      setBoxes(cid, c, [true, true, true]);
+      cohortMem('cohortDead')[cohortKey(cid, c)] = true;
+      return { landed: 4, moved: moved };
+    }
+    b[landed - 1] = true;
+    setBoxes(cid, c, b);
+    return { landed: landed, moved: moved };
+  }
+  // each harm moves down one level for every level healed: weak is gone, impaired becomes weak, broken becomes impaired
+  function cohortHeal(cid, c, levels) {
+    var b = cohortBoxes(cid, c), i;
+    for (i = 0; i < levels; i++) { b = [b[1], b[2], false]; }
+    setBoxes(cid, c, b);
+  }
+  // what lets a Broken cohort still act: the Leader ability of a Party PC, or the Sturdy vehicle edge: text or ''
+  function cohortBrokenOk(cid, c) {
+    if (hasKey(cohortEdgeNames(cid, c.prefix), ['sturdy']) && cohortIsVehicle(cid, c)) { return 'Sturdy'; }
+    var lead = partyLeader();
+    return lead ? 'Leader (' + lead + ')' : '';
+  }
+
+  // ---- cards
+
+  function cohortTarget(msg, o) {
+    var t = target(msg, o); if (!t) { return null; }
+    var c = cohortByRef(t.ch.id, o.row);
+    if (!c) { whisper(msg, 'BitDCrew: that cohort is no longer on the sheet. Run 6d. Cohorts again.'); return null; }
+    return { t: t, cid: t.ch.id, c: c };
+  }
+  function cmdBtn(label, verb, cid, c, n, extra) {
+    return '[' + btn(label) + '](' + CMD + ' ' + verb + ' --c ' + cid + ' --row ' + cohortRef(c) + (n === undefined || n === null ? '' : ' --n ' + n) + (extra ? ' ' + extra : '') + ')';
+  }
+  function condText(lvl) { return COHORT_LEVELS[lvl][0]; }
+  function harmCircles(cid, c) { return boxGlyphs(cohortBoxes(cid, c)); }
+
+  // a cohort card to the table: a sheet card as the player, or the styled HTML card (see cardMode)
+  function postCohortCard(msg, t, c, type, title, lines) {
+    postRulesCard(msg, t, type, title, lines);
+  }
+
+  // first card (whisper): one button per cohort, the table summary, the heal-all button
+  function doCohorts(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, list = cohortList(cid), lines = [];
+    var synced = cohortSync(cid);
+    list.forEach(function (c) {
+      lines.push(cmdBtn(harmCircles(cid, c) + ' ' + cohortLabel(c) + ', ' + condText(cohortLevel(cid, c)).toLowerCase(), 'cohort', cid, c));
+    });
+    if (list.length) {
+      lines.push('[' + btn('Show every cohort to the table') + '](' + CMD + ' cohortall --c ' + cid + ')');
+      lines.push('[' + btn('Heal every cohort one level') + '](' + CMD + ' cohortrest --c ' + cid + ')');
+      lines.push(ital('One circle per harm box on the sheet (weak, impaired, broken): ' + G_ON + ' marked, ' + G_OFF + ' empty.'));
+    }
+    dbg('cohorts: ' + list.length + ' found, ' + synced + ' armor box(es) set');
+    whisper(msg, broadcast(t.c, {
+      type: 'Cohorts',
+      title: 'Show to the table',
+      content: list.length ? lines.join(NL) : 'There are no cohorts on this sheet. Give a cohort a name on the sheet, then run ~ Rebuild.'
+    }));
+  }
+
+  // the armor lines of the status card, and its armor buttons
+  function cohortArmorLines(cid, c, a, L, B) {
+    var st = armorState(cid, c), free = armorFree(cid, c);
+    if (st === 'perm') {
+      L.push(bold('Armor:') + ' 1, ' + (free ? 'available' : 'used (the armor box is marked)') + '. ' + ital(a.perm + ' has both boxes marked.'));
+      L.push(ital('Vehicle upgrade (core book): ' + COHORT_ARMOR_VEHICLE.replace(/^Vehicle: /, '')));
+      if (!free) { B.push(cmdBtn('Restore armor', 'cohortarmor', cid, c, 'restore')); }
+    } else if (st === 'granted') {
+      L.push(bold('Armor:') + ' 1 for this fight, ' + (free ? 'available' : 'used (the armor box is marked)') + '.');
+      B.push(cmdBtn('Armor ends (the fight is over)', 'cohortarmor', cid, c, 'end'));
+    } else {
+      L.push(bold('Armor:') + ' none' + (a.leader || a.reavers ? ' right now.' : '. ' + ital('The sheet\'s armor box is kept marked: it means no armor available.')));
+      if (a.leader) { L.push(bold('Leader:') + ' ' + a.leader + ' is in the party. ' + mech(COHORT_ARMOR_LEADER.replace(/^Leader: /, ''))); }
+      if (a.reavers) { L.push(bold('Reavers:') + ' ' + mech(COHORT_ARMOR_REAVERS.replace(/^Reavers: /, ''))); }
+      if (a.leader || a.reavers) { B.push(cmdBtn((a.leader ? 'Leader' : 'Reavers') + ' grants 1 armor for this fight', 'cohortarmor', cid, c, 'grant')); }
+    }
+    if (st === 'perm' && (a.leader || a.reavers)) {
+      L.push(ital('Leader or Reavers would add more armor, but the sheet has one armor box, so only the one is tracked.'));
+    }
+  }
+
+  // the elite upgrade ("Elite Thugs") that is taken for a gang type this cohort has while the cohort is not set to Elite on the sheet
+  function eliteReminder(cid, c, types) {
+    var out = '';
+    if (cohortType(cid, c.prefix) !== 'gang') { return out; }
+    upgradeItems(cid, 'special').forEach(function (u) {
+      var m = /^elite (\w+)/i.exec(u.short);
+      if (!out && m && u.state === 'taken' && types.some(function (x) { return x.key && normName(x.name).replace(/s$/, '') === normName(m[1]).replace(/s$/, ''); })) { out = u.short; }
+    });
+    return out;
+  }
+
+  // second card (public): the status of one cohort
+  function doCohort(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    BUILD_HTML = cardMode() === 'html';
+    var t = x.t, cid = x.cid, c = x.c, p = c.prefix, L = [], B = [], R = [];
+    cohortSyncOne(cid, c);
+    var type = cohortType(cid, p), lvl = cohortLevel(cid, c), q = cohortQuality(cid, p), tier = getNum(cid, 'crew_tier', 0), a = cohortArmorInfo(cid, c);
+    var types = cohortTypeNames(cid, p), edges = cohortEdgeNames(cid, p), flaws = cohortFlawNames(cid, p), veh = a.vehicle, scale = type === 'expert' ? 0 : clamp(tier, 0, 6);
+    L.push(bold('Condition: ' + condText(lvl)));
+    L.push(bold('Harm:') + ' ' + harmCircles(cid, c) + ' ' + ital('(weak, impaired, broken boxes on the sheet)'));
+    if (lvl > 0 && lvl < 4) { L.push(bold(condText(lvl) + ':') + ' ' + mech(COHORT_LEVELS[lvl][1])); }
+    L.push(bold('Type:') + ' ' + (type === 'expert' ? 'Expert' : type === 'elite' ? 'Elite gang' : 'Gang') + (veh ? ', vehicle' : '') + '.');
+    types.forEach(function (ty) {
+      L.push(bold((type === 'expert' ? 'Specialty' : 'Gang type') + ', ' + ty.name + ':') + ' ' + (ty.text ? ital(ty.text) : ital(type === 'expert' ? 'as typed on the sheet.' : 'not one of the five core book gang types.')));
+    });
+    if (types.length > 2) { L.push(ital('A given cohort can have up to two types (core book).')); }
+    if (lvl < 4) { L.push(bold('Quality:') + ' rolls ' + q.pool + 'd (' + q.parts.join(', ') + ')' + (q.pool <= 0 ? '. No dice: roll 2d and keep the lowest' : '') + '.'); }
+    L.push(bold('Scale ' + scale + ':') + ' ' + COHORT_SCALE[scale] + '. ' + (type === 'expert' ? 'An expert\'s scale is always zero.' : 'A gang\'s scale equals the crew Tier.'));
+    cohortArmorLines(cid, c, a, L, B);
+    edges.forEach(function (e) {
+      L.push(bold('Edge, ' + e.name + ':') + ' ' + (e.text ? ital(e.text) : ital('no book text: not one of the core book edges.')));
+      if (e.key === 'nimble' && veh && mods(cid).action) { L.push(ital('Deep Cuts crew sheets v1.2b (Action module): ' + VEHICLE_NIMBLE_DC)); }
+    });
+    flaws.forEach(function (f) { L.push(bold('Flaw, ' + f.name + ':') + ' ' + (f.text ? ital(f.text) : ital('no book text: not one of the core book flaws.'))); });
+    if (q.hooked) { L.push(bold('Hooked:') + ' +1 quality from the ' + q.hooked + ' flaw (a gang can reach quality ' + HOOKED_MAX + ' at most).'); }
+    var notes = String(getAttr(cid, c.prefix + '_description', ''));
+    if (notes && !/^[a-z_]+$/.test(notes.trim())) { L.push(bold('Notes:') + ' ' + chatNotes(notes, 400).replace(/\s*\n\s*/g, ' ')); }
+    var el = eliteReminder(cid, c, types);
+    if (el) { L.push(ital(el + ' is taken, but this cohort is set to Gang on the sheet. Set its type to Elite for +1d (core book).')); }
+    // rolling
+    var broken = lvl === 3 ? cohortBrokenOk(cid, c) : '';
+    if (lvl === 4) {
+      L.push(bold('Destroyed.') + ' ' + ital(COHORT_REPLACE_RULE));
+      B.push(cmdBtn('Replace for ' + (tier + 2) + ' Coin', 'cohortreplace', cid, c));
+    } else if (lvl === 3 && !broken) {
+      L.push(bold('Broken.') + ' The cohort can\'t do anything until they recover, so there is no roll button.');
+    } else {
+      if (lvl === 3) {
+        L.push(bold('Broken, still fighting:') + ' ' + broken + ' lets this cohort act while Broken.');
+        R.push(cmdBtn('Roll anyway, ' + broken.replace(/ \(.*$/, ''), 'cohortroll', cid, c, 0, 'anyway'));
+      } else {
+        [-3, -2, -1, 0, 1, 2, 3].forEach(function (n) { R.push(cmdBtn(n === 0 ? 'Roll' : (n > 0 ? '+' : '') + n + 'd', 'cohortroll', cid, c, n)); });
+      }
+    }
+    if (R.length) { L.push(R.join(' ')); }
+    var act = [];
+    if (lvl < 4) {
+      act.push(cmdBtn('Take harm', 'cohortharm', cid, c));
+      if (lvl > 0) { act.push(cmdBtn('Heal', 'cohortheal', cid, c)); }
+    }
+    L.push(act.concat(B).join(' '));
+    dbg('cohort ' + c.name + ' (' + cohortRef(c) + '): level ' + lvl + ', pool ' + q.pool + ', types ' + types.length + ', edges ' + edges.length + ', flaws ' + flaws.length + ', armor ' + (armorState(cid, c) || 'none'));
+    postCohortCard(msg, t, c, 'Cohort', cohortLabel(c), L.filter(function (s) { return s; }));
+  }
+
+  // the cohort roll: the same blades card 1. Roll posts, with the cohort's own dice (Hooked included)
+  function cohortRollText(cid, t, c, bonus) {
+    var type = cohortType(cid, c.prefix), sub = clean(getAttr(cid, c.prefix + '_subtype', '')), pool = cohortPool(cid, c.prefix) + bonus;
+    var verb = clean(getAttr(cid, c.prefix + '_verb', type === 'expert' ? '^{rolls_their}' : '^{roll_their}'));
+    return '&{template:blades} {{type=resist}} {{short=short}} {{charname=' + clean(c.name).replace(/\s+/g, ' ') + ' (^{' + type + '}' + (sub ? ', ' + sub : '') + ')}} ' +
+      '{{title-cohort_quality=1}} {{title=^{cohort_quality}}} {{subtitle=' + verb + '}} {{' + diceField(pool) + '}}' + tail(cid, t.c);
+  }
+
+  function doCohortRoll(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var cid = x.cid, c = x.c, bonus = parseInt(o.n, 10), lvl = cohortLevel(cid, c), anyway = String(o.pos[0] || '') === 'anyway';
+    if (isNaN(bonus)) { bonus = 0; }
+    bonus = clamp(bonus, -3, 3);
+    if (lvl === 4) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' is destroyed and cannot roll. Replace it first.'); return; }
+    if (lvl === 3 && !(anyway && cohortBrokenOk(cid, c))) {
+      whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' is Broken and can\'t do anything until they recover.' + (anyway ? ' Nothing lets it act (no Party PC with Leader, no Sturdy edge).' : ''));
+      return;
+    }
+    dbg('cohort roll ' + c.name + ' bonus ' + bonus + (anyway ? ' (broken, ' + cohortBrokenOk(cid, c) + ')' : ''));
+    sendChat('player|' + msg.playerid, cohortRollText(cid, x.t, c, bonus));
+  }
+
+  // whisper: the harm levels, and the same levels after using armor when the cohort has armor free
+  function doCohortHarm(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var t = x.t, cid = x.cid, c = x.c, lvl = cohortLevel(cid, c), n = parseInt(o.n, 10);
+    if (lvl === 4) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' is already destroyed.'); return; }
+    if (isNaN(n)) {
+      var L = [], names = ['Weakened', 'Impaired', 'Broken', 'Dead'], i;
+      cohortSyncOne(cid, c);
+      for (i = 1; i <= 4; i++) { L.push(cmdBtn('Level ' + i + ': ' + names[i - 1], 'cohortharm', cid, c, i)); }
+      if (armorFree(cid, c)) {
+        L.push(bold('Use the armor box first (it is then marked):'));
+        for (i = 1; i <= 4; i++) { L.push(cmdBtn('Armor, level ' + i + ': ' + (i === 1 ? 'no harm' : names[i - 2]), 'cohortharm', cid, c, i, 'armor')); }
+      } else {
+        L.push(ital('No armor to use: ' + (armorState(cid, c) ? 'the armor box is marked (used).' : 'this cohort has no armor.')));
+      }
+      L.push(ital('Harm at a level that is already marked moves up one level. Past Broken the cohort is destroyed.'));
+      whisper(msg, broadcast(t.c, { type: 'Harm to ' + cohortLabel(c), title: 'Pick the harm level', content: L.join(NL) }));
+      return;
+    }
+    if (n < 1 || n > 4) { whisper(msg, 'BitDCrew: harm levels run from 1 to 4. Open the harm menu again.'); return; }
+    var useArmor = String(o.pos[0] || '') === 'armor', R = [], level = n, usedNote = '';
+    if (useArmor) {
+      if (!armorFree(cid, c)) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' has no armor to use. Its armor box is marked.'); return; }
+      setAttr(cid, c.prefix + '_armor', '1');
+      level = n - 1;
+      usedNote = 'Armor used (the armor box is now marked): level ' + n + ' harm is reduced to ' + (level ? 'level ' + level + ' (' + COHORT_LEVELS[level][0] + ')' : 'no harm') + '. ' + ital('Core book: ' + COHORT_ARMOR_RULE);
+    }
+    if (usedNote) { R.push(usedNote); }
+    BUILD_HTML = cardMode() === 'html';
+    var res = null;
+    if (level > 0) { res = cohortApplyHarm(cid, c, level); }
+    dbg('cohort harm ' + c.name + ': asked ' + n + ', armor ' + useArmor + ', landed ' + (res ? res.landed : 'none'));
+    if (!res) {
+      R.push(bold('No harm.') + ' ' + cohortLabel(c) + ' stays ' + condText(cohortLevel(cid, c)).toLowerCase() + '.');
+      postCohortCard(msg, t, c, 'Cohort harm', cohortLabel(c), R.concat([bold('Condition: ' + condText(cohortLevel(cid, c)))]));
+      return;
+    }
+    if (res.moved) { R.unshift('Level ' + level + ' was already marked, so the harm moves up to level ' + res.landed + '.'); }
+    if (res.landed === 4) { cohortDestroyedCard(msg, t, c, cid, R); return; }
+    R.unshift(bold('Level ' + res.landed + ' harm: ' + COHORT_LEVELS[res.landed][0] + '.') + ' ' + mech(COHORT_LEVELS[res.landed][1]));
+    R.push(bold('Condition: ' + condText(cohortLevel(cid, c))));
+    R.push(bold('Harm:') + ' ' + harmCircles(cid, c));
+    if (res.landed === 3) {
+      var ok3 = cohortBrokenOk(cid, c);
+      if (ok3) { R.push(ital(ok3 + ' lets this cohort keep acting while Broken.')); }
+    }
+    R.push(cmdBtn('Open the cohort card', 'cohort', cid, c));
+    postCohortCard(msg, t, c, 'Cohort harm', cohortLabel(c), R);
+  }
+
+  function cohortDestroyedCard(msg, t, c, cid, R) {
+    var tier = getNum(cid, 'crew_tier', 0), cost = tier + 2, tr = coinTrack(cid), coin = getNum(cid, tr.attr, 0), L = R.slice();
+    L.push(bold('Condition: Destroyed'));
+    L.push(bold('Level 4 harm: Dead.') + ' ' + COHORT_LEVELS[4][1]);
+    L.push(ital(COHORT_REPLACE_RULE));
+    L.push(bold('To replace it:') + ' ' + cost + ' Coin (Tier ' + tier + ' +2) plus two downtime activities. The crew has ' + coin + ' Coin.');
+    L.push(cmdBtn('Replace for ' + cost + ' Coin', 'cohortreplace', cid, c));
+    postCohortCard(msg, t, c, 'Cohort destroyed', cohortLabel(c), L);
+  }
+
+  function doCohortReplace(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var t = x.t, cid = x.cid, c = x.c;
+    if (cohortLevel(cid, c) !== 4) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' is not destroyed, so there is nothing to replace.'); return; }
+    var tier = getNum(cid, 'crew_tier', 0), cost = tier + 2, tr = coinTrack(cid), coin = getNum(cid, tr.attr, 0);
+    if (coin < cost) { whisper(msg, 'BitDCrew: replacing ' + cohortLabel(c) + ' costs ' + cost + ' Coin (Tier ' + tier + ' +2) and the crew has ' + coin + '. Nothing was changed.'); return; }
+    BUILD_HTML = cardMode() === 'html';
+    setAttr(cid, tr.attr, coin - cost);
+    setBoxes(cid, c, [false, false, false]);
+    delete cohortMem('cohortDead')[cohortKey(cid, c)];
+    cohortSyncOne(cid, c);
+    dbg('cohort replaced ' + c.name + ': ' + cost + ' Coin, ' + coin + ' to ' + (coin - cost));
+    postCohortCard(msg, t, c, 'Cohort replaced', cohortLabel(c), [
+      bold('Replaced.') + ' ' + cost + ' Coin paid (Tier ' + tier + ' +2), ' + (coin - cost) + ' Coin left. All harm is cleared.',
+      bold('Still owed:') + ' two downtime activities to recruit new gang members, or hire a new expert.',
+      ital(COHORT_REPLACE_RULE),
+      cmdBtn('Open the cohort card', 'cohort', cid, c)
+    ]);
+  }
+
+  // whisper: heal one level, two levels (a PC spent a downtime activity), all of it (a Simple vehicle); then public result
+  function doCohortHeal(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var t = x.t, cid = x.cid, c = x.c, lvl = cohortLevel(cid, c), n = String(o.n === null || o.n === undefined ? '' : o.n);
+    if (lvl === 4) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' is destroyed. Healing does not apply: replace it.'); return; }
+    var simple = hasKey(cohortEdgeNames(cid, c.prefix), ['simple']) && cohortIsVehicle(cid, c);
+    if (n === '') {
+      var L = [cmdBtn('Heal one level', 'cohortheal', cid, c, 1), cmdBtn('Heal two levels, a PC spent a downtime activity', 'cohortheal', cid, c, 2)];
+      if (simple) { L.push(cmdBtn('Remove all harm (Simple vehicle)', 'cohortheal', cid, c, 'all')); }
+      L.push(ital(COHORT_HEAL_RULE));
+      whisper(msg, broadcast(t.c, { type: 'Heal ' + cohortLabel(c), title: 'Pick how much', content: L.join(NL) }));
+      return;
+    }
+    var levels = n === 'all' ? 3 : clamp(parseInt(n, 10) || 1, 1, 3);
+    if (n === 'all' && !simple) { whisper(msg, 'BitDCrew: only a vehicle with the Simple edge removes all its harm at once.'); return; }
+    if (lvl === 0) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' has no harm to heal.'); return; }
+    BUILD_HTML = cardMode() === 'html';
+    cohortHeal(cid, c, levels);
+    dbg('cohort heal ' + c.name + ': ' + levels + ' level(s), ' + condText(lvl) + ' to ' + condText(cohortLevel(cid, c)));
+    postCohortCard(msg, t, c, 'Cohort heals', cohortLabel(c), [
+      bold('Healed ' + (n === 'all' ? 'all harm' : levels + (levels === 1 ? ' level' : ' levels')) + ':') + ' ' + condText(lvl) + ' to ' + condText(cohortLevel(cid, c)) + '.',
+      bold('Condition: ' + condText(cohortLevel(cid, c))),
+      bold('Harm:') + ' ' + harmCircles(cid, c),
+      cmdBtn('Open the cohort card', 'cohort', cid, c)
+    ]);
+  }
+
+  // the armor buttons: grant (Leader or Reavers), end the grant, restore a permanent armor
+  function doCohortArmor(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var t = x.t, cid = x.cid, c = x.c, what = String(o.n || ''), mem = cohortMem('cohortArmor'), key = cohortKey(cid, c), a = cohortArmorInfo(cid, c), say;
+    if (what === 'grant') {
+      if (a.perm || !(a.leader || a.reavers)) { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' has no armor to grant (Leader needs a Party PC with the ability, Reavers needs a vehicle).'); return; }
+      mem[key] = 'granted';
+      setAttr(cid, c.prefix + '_armor', '0');
+      say = '1 armor granted for this fight (' + (a.leader ? 'Leader' : 'Reavers') + '). The armor box is clear.';
+    } else if (what === 'end') {
+      delete mem[key];
+      setAttr(cid, c.prefix + '_armor', '1');
+      say = 'The granted armor ends. The armor box is marked: no armor available.';
+    } else if (what === 'restore') {
+      if (armorState(cid, c) !== 'perm') { whisper(msg, 'BitDCrew: ' + cohortLabel(c) + ' has no permanent armor to restore.'); return; }
+      setAttr(cid, c.prefix + '_armor', '0');
+      say = 'Armor restored. The armor box is clear.';
+    } else {
+      whisper(msg, 'BitDCrew: unknown armor action. Open the cohort card again.');
+      return;
+    }
+    dbg('cohort armor ' + what + ' ' + c.name);
+    BUILD_HTML = cardMode() === 'html';
+    postCohortCard(msg, t, c, 'Cohort armor', cohortLabel(c), [say, cmdBtn('Open the cohort card', 'cohort', cid, c)]);
+  }
+
+  // public: one line per cohort
+  function doCohortAll(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    BUILD_HTML = cardMode() === 'html';
+    var cid = t.ch.id, list = cohortList(cid), L = [];
+    cohortSync(cid);
+    list.forEach(function (c) {
+      var type = cohortType(cid, c.prefix), q = cohortQuality(cid, c.prefix), lvl = cohortLevel(cid, c), ty = cohortTypeNames(cid, c.prefix).map(function (x) { return x.name; }).join(' and ');
+      L.push(bold(cohortLabel(c)) + ' (' + type + (ty ? ', ' + ty : '') + '): ' + bold(condText(lvl)) + ' ' + harmCircles(cid, c) + ', rolls ' + q.pool + 'd, armor ' +
+        (armorState(cid, c) ? (armorFree(cid, c) ? 'available' : 'used') : 'none') + '.');
+    });
+    if (!list.length) { whisper(msg, 'BitDCrew: there are no cohorts on this sheet.'); return; }
+    L.push(ital('One circle per harm box (weak, impaired, broken): ' + G_ON + ' marked, ' + G_OFF + ' empty.'));
+    postRulesCard(msg, t, 'Cohorts', 'Every cohort', L);
+  }
+
+  // public: every cohort heals one level (Deep Cuts crew phase with the Downtime module, the core downtime rule otherwise)
+  function doCohortRest(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    BUILD_HTML = cardMode() === 'html';
+    var cid = t.ch.id, list = cohortList(cid), L = [], dt = mods(cid).downtime, tier = getNum(cid, 'crew_tier', 0);
+    if (!list.length) { whisper(msg, 'BitDCrew: there are no cohorts on this sheet.'); return; }
+    list.forEach(function (c) {
+      var lvl = cohortLevel(cid, c), name = bold(cohortLabel(c));
+      if (lvl === 4) { L.push(name + ': destroyed. Replace it for ' + (tier + 2) + ' Coin (healing does not apply).'); return; }
+      if (lvl === 0) { L.push(name + ': no harm.'); return; }
+      var simple = hasKey(cohortEdgeNames(cid, c.prefix), ['simple']) && cohortIsVehicle(cid, c);
+      cohortHeal(cid, c, simple ? 3 : 1);
+      L.push(name + ': ' + condText(lvl) + ' to ' + condText(cohortLevel(cid, c)) + (simple ? ' (Simple edge: all harm removed in downtime)' : '') + '.');
+    });
+    L.push(dt ? ital('Deep Cuts, Downtime module, crew phase (p80): ' + COHORT_HEAL_DC) : ital('Core book: ' + COHORT_HEAL_RULE));
+    L.push(ital('A PC who spends a downtime activity on a cohort heals it one more level: use Heal on its card.'));
+    dbg('cohort rest: ' + list.length + ' cohorts');
+    postRulesCard(msg, t, 'Cohorts heal', 'Every cohort heals one level', L);
+  }
+
+  // GM or player: set the armor boxes now (the same sync that runs when 6d. Cohorts or a cohort card opens)
+  function doCohortSync(msg, o) {
+    var t = target(msg, o); if (!t) { return; }
+    var cid = t.ch.id, n = cohortSync(cid), count = cohortList(cid).length;
+    note(msg, t.c, 'Cohorts', 'Armor boxes', count + ' cohort' + (count === 1 ? '' : 's') + ' checked, ' + n + ' armor box' + (n === 1 ? '' : 'es') + ' set. A marked box means no armor available.');
+  }
+
   function clockSize(cid, base) {
     var n = getNum(cid, base + '_size', 0);
     return [4, 6, 8, 10, 12].indexOf(n) >= 0 ? n : 4;
@@ -1689,7 +2230,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   function startDowntime(cid, why) {
     var st = botState(), prev = st.downtime[cid];
-    var rec = { id: Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), at: Date.now(), used: {}, pending: {}, log: [], ended: false, startHeat: null, assessed: null };
+    var id;
+    // a new id never equals the previous one, even when both are made in the same millisecond
+    do { id = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); } while (prev && prev.id === id);
+    var rec = { id: id, at: Date.now(), used: {}, pending: {}, log: [], ended: false, startHeat: null, assessed: null };
     st.downtime[cid] = rec;
     dbg('downtime start ' + cid + ' ' + rec.id + ' (' + why + ')' + (prev && !prev.ended ? ', replacing an open one' : ''));
     return rec;
@@ -1826,7 +2370,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   function intOk(v, list) { return !isNaN(v) && list.indexOf(v) >= 0; }
 
   function newFlow(cid, data) {
-    var st = botState(), nonce = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    var st = botState(), nonce;
+    do { nonce = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); } while (st.flows[nonce]);
     data.cid = cid; data.at = Date.now(); data.done = {};
     st.flows[nonce] = data;
     var keys = Object.keys(st.flows);
@@ -2228,8 +2773,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     }
     crewClocks(cid).forEach(function (k) { L.push('Clock: ' + btn(k.name) + ' ' + k.progress + '/' + k.size); });
     cohortList(cid).forEach(function (c) {
-      var imp = getNum(cid, c.prefix + '_impaired', 0);
-      L.push('Cohort: ' + btn(c.name) + ' (' + cohortType(cid, c.prefix) + ', quality ' + cohortPool(cid, c.prefix) + (imp ? ', impaired' : '') + ')');
+      var lvl = cohortLevel(cid, c);
+      L.push('Cohort: ' + btn(c.name) + ' (' + cohortType(cid, c.prefix) + ', quality ' + cohortPool(cid, c.prefix) + (lvl ? ', ' + condText(lvl).toLowerCase() : '') + ')');
     });
     whisper(msg, broadcast(t.c, { type: '', title: 'Status', content: L.join(NL) }));
   }
@@ -2280,6 +2825,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     src: 'margin:4px 0;color:#9d9288;font-size:12px;',
     btn: 'display:inline-block;margin:4px 4px 2px 0;padding:2px 10px;border:1px solid #ef4a1e;border-radius:12px;background:#1b120d;color:#ef4a1e;font-size:12px;font-weight:bold;text-decoration:none;',
     foot: 'padding:0 10px 6px;color:#7d7268;font-size:10px;',
+    cond: 'display:inline-block;margin:4px 0;padding:1px 10px;border-radius:10px;font-weight:bold;font-size:12px;',
+    condColor: {
+      Fit: 'background:#2e5e3a;color:#eaffea;', Weakened: 'background:#6e5a1e;color:#fff3d0;', Impaired: 'background:#8a4a1a;color:#ffe9dc;',
+      Broken: 'background:#8a2a1e;color:#ffe3df;', Destroyed: 'background:#4a1010;color:#ffd0d0;'
+    },
     num: '#f5c542', bold: '#ffffff'
   };
   function htmlEsc(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -2293,7 +2843,9 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // one card line as a block: the held badge, a rule box, a source line, a button row, or a plain line
   function htmlLine(line) {
     var m;
-    if (/^\[[^\]]+\]\(![^)]*\)$/.test(line)) { return '<div>' + htmlInline(line, HC.bold) + '</div>'; }
+    if (/^(\[[^\]]+\]\(![^)]*\) ?)+$/.test(line)) { return '<div>' + htmlInline(line, HC.bold) + '</div>'; }
+    m = /^\*\*Condition: (Fit|Weakened|Impaired|Broken|Destroyed)\*\*$/.exec(line);
+    if (m) { return '<div><span style="' + HC.cond + (HC.condColor[m[1]] || '') + '">' + htmlEsc('CONDITION: ' + m[1].toUpperCase()) + '</span></div>'; }
     m = /^\*\*(Held by this crew\.|Not held by this crew\.)\*\*$/.exec(line);
     if (m) { return '<div><span style="' + (m[1].charAt(0) === 'H' ? HC.held : HC.notheld) + '">' + htmlEsc(m[1].replace(/\.$/, '').toUpperCase()) + '</span></div>'; }
     m = /^\*\*((?:Rules in force|Rules \(core book\)|Also in force)[^*]*)\*\* ?([\s\S]*)$/.exec(line);
@@ -2383,6 +2935,16 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'upgrades': return doUpgrades(msg, o);
       case 'upgradelist': return doUpgradeList(msg, o);
       case 'upgradeinfo': return doUpgradeInfo(msg, o);
+      case 'cohorts': return doCohorts(msg, o);
+      case 'cohort': return doCohort(msg, o);
+      case 'cohortroll': return doCohortRoll(msg, o);
+      case 'cohortharm': return doCohortHarm(msg, o);
+      case 'cohortheal': return doCohortHeal(msg, o);
+      case 'cohortarmor': return doCohortArmor(msg, o);
+      case 'cohortall': return doCohortAll(msg, o);
+      case 'cohortrest': return doCohortRest(msg, o);
+      case 'cohortreplace': return doCohortReplace(msg, o);
+      case 'cohortsync': return doCohortSync(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
       case 'adj': return doAdjust(msg, o);
@@ -2445,5 +3007,6 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   register();
 
-  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS, _claimText: CLAIM_TEXT, _upgradeSheetText: UPGRADE_SHEET_TEXT, _upgradeBook: UPGRADE_BOOK };
+  return { VERSION: VERSION, _route: route, _parse: parse, _entanglement: ENT_COLUMNS, _claimText: CLAIM_TEXT, _upgradeSheetText: UPGRADE_SHEET_TEXT, _upgradeBook: UPGRADE_BOOK,
+    _cohortText: { types: COHORT_TYPES, edges: COHORT_EDGES, flaws: COHORT_FLAWS, vehicleEdges: VEHICLE_EDGES, vehicleFlaws: VEHICLE_FLAWS, levels: COHORT_LEVELS, scale: COHORT_SCALE } };
 }());

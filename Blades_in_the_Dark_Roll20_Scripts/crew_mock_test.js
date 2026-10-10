@@ -125,14 +125,14 @@ function queries(action) {
   const a = E.crew('Bravos', pat), b = E.crew('Hawkers', quinn), ta = E.token(a), tb = E.token(b);
   let o = E.run('!bitdcrew setup', pat, ta);
   const names = E.abil(a).map(x => x.name);
-  ok(names.length === 12 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 12 token actions in order, with a gap at 5 (no Downtime button)', names);
+  ok(names.length === 13 && names.join('|') === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|6d. Cohorts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew gets 13 token actions in order, with a gap at 5 (no Downtime button)', names);
   ok(E.abil(a).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'abilities flagged with the crew marker');
   E.run('!bitdcrew setup', pat, ta);
-  ok(E.abil(a).length === 12, 'rebuild is idempotent');
+  ok(E.abil(a).length === 13, 'rebuild is idempotent');
   o = E.run('!bitdcrew setup', pat, tb);
   ok(has(o, /only use this on crews you control/) && E.abil(b).length === 0, 'player refused on another crew, nothing written', o);
   E.run('!bitdcrew setup', gm, tb);
-  ok(E.abil(b).length === 12, 'GM can set up any crew');
+  ok(E.abil(b).length === 13, 'GM can set up any crew');
   // a user-made ability with a clashing name is skipped, not replaced
   E.store.abilities.push({ id: 'u1', _characterid: a, name: '9. Status', description: 'mine', action: 'x', istokenaction: true });
   o = E.run('!bitdcrew setup', pat, ta);
@@ -140,11 +140,11 @@ function queries(action) {
   o = E.run('!bitdcrew setup', pat);
   ok(has(o, /select one or more crew tokens/), 'setup without a token', o);
   o = E.run('!bitdcrew setup --c ' + a, pat);
-  ok(E.abil(a).length === 12 && !has(o, /select/), 'setup by id works without a token', o);
+  ok(E.abil(a).length === 13 && !has(o, /select/), 'setup by id works without a token', o);
   // crew controlled by everyone
   const c = E.crew('Smugglers', 'all'); const tc = E.token(c);
   E.run('!bitdcrew setup', quinn, tc);
-  ok(E.abil(c).length === 12, 'crew controlled by all: any player can set it up');
+  ok(E.abil(c).length === 13, 'crew controlled by all: any player can set it up');
   // crew-only gating: character and faction sheets refused by every verb
   const pc = E.char('Ayla', pat), tp = E.token(pc);
   const fac = E.char('Faction Status', ''); E.attr(fac, 'sheet_type', 'faction'); const tf = E.token(fac);
@@ -200,7 +200,7 @@ function queries(action) {
   const a = E.crew('crew new', pat), ta = E.token(a);
   ['setting_dc_action', 'setting_dc_downtime', 'setting_dc_advancement', 'setting_dc_harm', 'setting_dc_load'].forEach(k => E.attr(a, k, '1'));
   let o = E.run('!bitdcrew setup', pat, ta);
-  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 13 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 13 actions with 5. Downtime', o);
+  ok(has(o, /Deep Cuts modules on: Advancement, Downtime, Harm, Load, Action\./) && has(o, /Rules used: Deep Cuts Downtime/) && E.abil(a).length === 14 && E.abil(a).some(x => x.name === '5. Downtime'), 'all five modules on: setup lists them, Deep Cuts Downtime rules, 13 actions with 5. Downtime', o);
   E.attr(a, 'crew_tier', 2);
   o = E.run('!bitdcrew roll tier 1', pat, ta)[0];
   ok(dice(o) === 3 && /\{\{title-crew_tier=1\}\}/.test(o), 'Tier roll is the same with the Action module on', o);
@@ -227,7 +227,7 @@ function queries(action) {
   E.run('!bitdcrew setup', pat, tb);
   ok(E.val(b, 'heat') === '0' && E.tok(tb).bar1_link && E.tok(tb).bar1_max === 9, 'a missing heat attribute is created at 0', E.tok(tb));
   const c = E.crew('Cult', pat); const o = E.run('!bitdcrew setup --c ' + c, pat);
-  ok(E.abil(c).length === 12 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
+  ok(E.abil(c).length === 13 && E.val(c, 'heat') === undefined, 'setup by id does not touch bars or create heat', o);
   ok(has(E.run('!bitdcrew setup', pat, ta), /Bar 1 is linked to Heat on 1 token/), 'setup reports the bar');
 }
 
@@ -1460,8 +1460,8 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const { E, gm, pat, quinn } = table();
   const names = (c) => { E.run('!bitdcrew setup', pat, E.token(c)); return E.abil(c).map(x => x.name).join('|'); };
   const dtc = dtCrew(E, pat, 'Hawkers', 2), core = E.crew('Bravos', pat);
-  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 13 token actions with 5. Downtime after Score', names(dtc));
-  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
+  ok(names(dtc) === '1. Roll|2. Engagement|3. Fortune|4. Score|5. Downtime|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|6d. Cohorts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a Downtime crew has 14 token actions with 5. Downtime after Score', names(dtc));
+  ok(names(core) === '1. Roll|2. Engagement|3. Fortune|4. Score|6. Abilities|6a. Contacts|6b. Claims|6c. Crew Upgrades|6d. Cohorts|7. Adjust|8. Clocks|9. Status|~ Rebuild', 'a core crew has the gap at 5');
   ok(E.abil(dtc).find(x => x.name === '5. Downtime').action === '!bitdcrew hh' && E.abil(dtc).every(x => x.istokenaction === true && x.description === 'bitd-crew-tam'), 'the Downtime button runs the Heat and Hold command, no prompt');
   const adjOf = (c) => queries(E.abil(c).find(x => x.name === '7. Adjust').action)[0];
   const optsD = adjOf(dtc).slice(1).map(x => x.split(',').slice(-1)[0]), optsC = adjOf(core).slice(1).map(x => x.split(',').slice(-1)[0]);
@@ -1539,7 +1539,7 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
 
   // the bar: 6a sorts right after 6 and before 7, character by character
   const core = E.crew('Bravos', pat), dtc = E.crew('Smugglers', pat); E.attr(dtc, 'setting_dc_downtime', '1');
-  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6a. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('6b. Claims') === n.indexOf('6a. Contacts') + 1 && n.indexOf('6c. Crew Upgrades') === n.indexOf('6b. Claims') + 1 && n.indexOf('7. Adjust') === n.indexOf('6c. Crew Upgrades') + 1, 'the token action bar sorts 6a. Contacts, 6b. Claims and 6c. Crew Upgrades between Abilities and Adjust', n); });
+  [core, dtc].forEach(c => { E.run('!bitdcrew setup', pat, E.token(c)); const n = E.abil(c).map(x => x.name); ok(n.slice().sort().join('|') === n.join('|') && n.indexOf('6a. Contacts') === n.indexOf('6. Abilities') + 1 && n.indexOf('6b. Claims') === n.indexOf('6a. Contacts') + 1 && n.indexOf('6c. Crew Upgrades') === n.indexOf('6b. Claims') + 1 && n.indexOf('6d. Cohorts') === n.indexOf('6c. Crew Upgrades') + 1 && n.indexOf('7. Adjust') === n.indexOf('6d. Cohorts') + 1, 'the token action bar sorts 6a. Contacts, 6b. Claims, 6c. Crew Upgrades and 6d. Cohorts between Abilities and Adjust', n); });
   ok(E.abil(core).find(x => x.name === '6a. Contacts').action === '!bitdcrew contacts' && E.abil(dtc).find(x => x.name === '6a. Contacts').action === '!bitdcrew contacts', 'the button runs the contacts command, no prompt, on both kinds of crew');
 
   // the menu card
@@ -2057,10 +2057,10 @@ if (PC_SRC) {
   let o = E.run('!bitd setup', pat, tp); const pcMade = E.abil(pc).length;
   ok(pcMade === 9 && E.abil(pc).every(x => x.description === 'bitd-tam'), 'PC setup still makes its 9 PC actions', pcMade);
   o = E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(crew).length === 12 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 12 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
+  ok(E.abil(crew).length === 13 && E.abil(crew).every(x => x.description === 'bitd-crew-tam') && E.abil(pc).length === pcMade, 'crew setup makes its own 13 and leaves the PC ones alone', [E.abil(crew).length, E.abil(pc).length]);
   ok(E.abil(crew).map(x => x.name).join() !== E.abil(pc).map(x => x.name).join(), 'the two sets have different names');
   E.run('!bitd setup', pat, tp); E.run('!bitdcrew setup', pat, tc);
-  ok(E.abil(pc).length === 9 && E.abil(crew).length === 12, 'rebuilding either leaves the other intact');
+  ok(E.abil(pc).length === 9 && E.abil(crew).length === 13, 'rebuilding either leaves the other intact');
   // each script ignores the other's command and refuses the other's sheets
   o = E.run('!bitdcrew status', pat, tp); ok(has(o, /crew sheets only/) && !has(o, /Stress/), 'crew script refuses a PC sheet', o);
   o = E.run('!bitd status', pat, tc); ok(has(o, /crew or faction sheet/), 'PC script refuses a crew sheet', o);
@@ -2137,6 +2137,384 @@ if (PC_SRC) {
   const missing = Object.keys(keys).filter(k => !(k in TR));
   ok(Object.keys(keys).length >= 12 && missing.length === 0, 'every ^{key} the script uses exists in translation.json (' + Object.keys(keys).length + ' keys)', missing);
   ok(Object.keys(keys).indexOf('crew_tier') >= 0 && Object.keys(keys).indexOf('wantedroll1') >= 0 && Object.keys(keys).indexOf('cohort_quality') >= 0, 'the key list includes the crew roll keys', Object.keys(keys));
+}
+
+// ---------------------------------------------------------------- T30 6d. Cohorts
+{
+  const { E, gm, pat, quinn } = table();
+  const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB);
+  const CT = E.env.BitDCrewTAM._cohortText;
+  E.run('!bitdcrew fmt off', gm);   // these checks read the plain text; the markup has its own block (T29), the HTML card is checked below
+  const mk = (name, tier, type, who) => { const c = E.crew(name, who || pat); E.attr(c, 'crew_tier', String(tier)); if (type) E.attr(c, 'crew_type', type); return c; };
+  const first = (c, name, type, sub, edges, flaws, notes) => {
+    E.attr(c, 'cohort1_name', name); E.attr(c, 'cohort1_type', type || 'gang');
+    if (sub !== undefined) E.attr(c, 'cohort1_subtype', sub); if (edges !== undefined) E.attr(c, 'cohort1_edges', edges);
+    if (flaws !== undefined) E.attr(c, 'cohort1_flaws', flaws); if (notes !== undefined) E.attr(c, 'cohort1_description', notes);
+  };
+  const row = (c, id, name, type, sub, edges, flaws) => {
+    const b = 'repeating_cohort_' + id; E.attr(c, b + '_name', name); E.attr(c, b + '_type', type || 'gang');
+    if (sub !== undefined) E.attr(c, b + '_subtype', sub); if (edges !== undefined) E.attr(c, b + '_edges', edges); if (flaws !== undefined) E.attr(c, b + '_flaws', flaws);
+  };
+  const BOXES = ['_weak', '_impaired', '_broken'];
+  const setb = (c, prefix, s) => BOXES.forEach((n, i) => E.attr(c, prefix + n, s[i]));
+  const getb = (c, prefix) => BOXES.map(n => E.val(c, prefix + n) === '1' ? '1' : '0').join('');
+  const card = (c, ref, who) => E.run('!bitdcrew cohort --c ' + c + ' --row ' + ref, who || pat);
+  const harm = (c, ref, n, extra, who) => E.run('!bitdcrew cohortharm --c ' + c + ' --row ' + ref + (n === undefined ? '' : ' --n ' + n) + (extra ? ' ' + extra : ''), who || pat);
+  const heal = (c, ref, n, who) => E.run('!bitdcrew cohortheal --c ' + c + ' --row ' + ref + (n === undefined ? '' : ' --n ' + n), who || pat);
+  const roll = (c, ref, n, extra, who) => E.run('!bitdcrew cohortroll --c ' + c + ' --row ' + ref + ' --n ' + n + (extra ? ' ' + extra : ''), who || pat);
+  const armorBtn = (c, ref, what) => E.run('!bitdcrew cohortarmor --c ' + c + ' --row ' + ref + ' --n ' + what, pat);
+  const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  const cmds = (o) => (o.join('\n').match(/\(!bitdcrew [^)]*\)/g) || []);
+  const rolled = (o) => /zerodice/.test(o[0]) ? 0 : dice(o[0]);
+  const armor = (c, prefix) => E.val(c, prefix + '_armor');
+
+  // ---- the book tables
+  const all = [].concat(CT.types, CT.edges, CT.flaws, CT.vehicleEdges, CT.vehicleFlaws);
+  ok(CT.types.length === 5 && CT.edges.length === 4 && CT.flaws.length === 4 && CT.vehicleEdges.length === 3 && CT.vehicleFlaws.length === 3 && CT.levels.length === 5 && CT.scale.length === 7,
+    'cohort tables: 5 types, 4 edges, 4 flaws, 3 vehicle edges, 3 vehicle flaws, 5 conditions, 7 scale rows');
+  ok(all.every(e => /^[\x20-\x7e]+$/.test(e[2]) && /^[A-Z]/.test(e[2]) && /\.$/.test(e[2])) && CT.levels.every(e => /^[\x20-\x7e]+$/.test(e[1])), 'the cohort texts are plain ASCII sentences');
+  const tx = (list, k) => list.find(e => e[0] === k)[2];
+  ok(tx(CT.types, 'thugs') === 'Killers, brawlers, and roustabouts.' && tx(CT.types, 'rovers') === 'Sailors, carriage drivers, and deathlands scavengers.' &&
+     tx(CT.edges, 'loyal') === 'The cohort can\'t be bribed or turned against you.' && tx(CT.edges, 'independent') === 'The cohort can be trusted to make good decisions and act on their own initiative in the absence of direct orders.' &&
+     tx(CT.flaws, 'unreliable') === 'The cohort isn\'t always available, due to other obligations, stupefaction from their vices, etc.' && tx(CT.flaws, 'wild') === 'The cohort is drunken, debauched, and loud-mouthed.' &&
+     tx(CT.vehicleEdges, 'sturdy') === 'The vehicle keeps operating even when broken.' && tx(CT.vehicleFlaws, 'distinct') === 'The vehicle has memorable features. Take +1 heat when you use it on a score.' &&
+     CT.scale[0] === '1 or 2 people' && CT.scale[2] === 'A medium gang (12)' && CT.scale[6] === 'A colossal gang (160)' && CT.levels[3][1] === 'The cohort can\'t do anything until they recover.', 'verbatim samples from the core book');
+
+  ok(CT.levels[1][1] === 'The cohort has reduced effect.' && CT.levels[2][1] === 'The cohort operates with reduced quality (-1d).' && CT.levels[4][1] === 'The cohort is destroyed.' && CT.levels.map(l => l[0]).join(',') === 'Fit,Weakened,Impaired,Broken,Destroyed', 'the harm levels from the core book');
+  ok(CT.types.map(e => e[0]).join() === 'adepts,rooks,rovers,skulks,thugs' && CT.edges.map(e => e[0]).join() === 'fearsome,independent,loyal,tenacious' && CT.flaws.map(e => e[0]).join() === 'principled,savage,unreliable,wild' &&
+     CT.vehicleEdges.map(e => e[0]).join() === 'nimble,simple,sturdy' && CT.vehicleFlaws.map(e => e[0]).join() === 'costly,distinct,finicky', 'the table keys the script reads (Hooked, Simple, Sturdy) are the book names');
+  // ---- the token action, on both kinds of crew
+  const core = mk('Core crew', 2, 'Bravos'), dtc = mk('Downtime crew', 2, 'Bravos'); E.attr(dtc, 'setting_dc_downtime', '1');
+  E.run('!bitdcrew setup', pat, E.token(core)); E.run('!bitdcrew setup', pat, E.token(dtc));
+  ok([core, dtc].every(c => { const a = E.abil(c).find(x => x.name === '6d. Cohorts'); return a && a.action === '!bitdcrew cohorts' && a.istokenaction === true; }), 'the 6d. Cohorts token action runs the cohorts command, no prompt, on both kinds of crew');
+
+  // ---- card 1: the list
+  const crew = mk('The Bloodletters', 2, 'Bravos'), tk = E.token(crew);
+  let o = E.run('!bitdcrew cohorts', pat, tk);
+  ok(o.length === 1 && /Pat/.test(o[0]) && /There are no cohorts on this sheet/.test(o[0]), 'no cohorts: said so', o);
+  first(crew, 'Thugs', 'gang', 'Thugs'); row(crew, '-RowA', 'Hounds, the (best) [of] {all}|x', 'gang', 'Rooks'); row(crew, '-RowB', '   ', 'gang'); row(crew, '-RowC', 'Physicker', 'expert', 'Physicker');
+  setb(crew, 'repeating_cohort_-RowA', '010');
+  o = E.run('!bitdcrew cohorts', pat, tk);
+  const lb = (o[0].match(/\[[^\]]*\]\(!bitdcrew cohort --c [^)]*\)/g) || []);
+  ok(/^\/w "Pat" /.test(o[0]) && /\{\{type=Cohorts\}\}/.test(o[0]) && /\{\{title=Show to the table\}\}/.test(o[0]) && lb.length === 3, 'the list is a whisper with one button per named cohort (blank row skipped)', o[0]);
+  ok(lb[0].indexOf('Thugs, fit') > 0 && lb[0].indexOf('--row cohort1') > 0 && lb[1].indexOf(OFF + ON + OFF + ' Hounds') > 0 && lb[1].indexOf('impaired') > 0 && lb[1].indexOf('--row -RowA') > 0 && lb[2].indexOf('Physicker, fit') > 0 && lb[2].indexOf('--row -RowC') > 0, 'buttons in sheet order with one circle per harm box and the condition', lb);
+  ok(!/[\[\]{}|]/.test(lb[1].replace(/^\[|\]\(.*$/g, '')) && cmds(o).every(c => c.indexOf(':') < 0), 'an odd cohort name does not break the card, and no button command holds a colon', cmds(o));
+  ok(has(o, /\[Show every cohort to the table\]\(!bitdcrew cohortall --c /) && has(o, /\[Heal every cohort one level\]\(!bitdcrew cohortrest --c /), 'the table summary and heal-all buttons');
+  o = E.run('!bitdcrew cohorts', quinn, tk);
+  ok(has(o, /only use this on crews you control/) && !has(o, /Thugs/), 'a player who does not control the crew is refused', o);
+  o = E.run('!bitdcrew cohorts', gm, tk); ok(has(o, /Thugs/), 'the GM can open any crew');
+
+  // ---- armor boxes: a cohort with no armor keeps its box marked
+  ok(armor(crew, 'cohort1') === '1' && armor(crew, 'repeating_cohort_-RowA') === '1' && armor(crew, 'repeating_cohort_-RowC') === '1' && armor(crew, 'repeating_cohort_-RowB') === undefined, 'opening the list marks the armor box of every named cohort with no armor');
+  E.attr(crew, 'cohort1_armor', '0'); card(crew, 'cohort1');
+  ok(armor(crew, 'cohort1') === '1', 'a box cleared by hand on a cohort with no armor is marked again when its card opens');
+  o = E.run('!bitdcrew cohortsync', pat, tk); E.attr(crew, 'repeating_cohort_-RowC_armor', '0');
+  o = E.run('!bitdcrew cohortsync', pat, tk);
+  ok(armor(crew, 'repeating_cohort_-RowC') === '1' && has(o, /3 cohorts checked, 1 armor box set\./), 'cohortsync marks the boxes and says how many it set', o);
+  o = E.run('!bitdcrew setup', pat, tk); E.attr(crew, 'cohort1_armor', '0'); o = E.run('!bitdcrew setup', pat, tk);
+  ok(armor(crew, 'cohort1') === '1' && has(o, /Cohort armor boxes set: 1\./), '~ Rebuild also marks the boxes and reports it', o);
+
+  // ---- the status card
+  const sc = mk('Status crew', 2, 'Bravos');
+  first(sc, 'Thugs', 'gang', 'Thugs and Rooks', 'Fearsome, loyal', 'Savage, Foo', 'Led by Cutter');
+  o = card(sc, 'cohort1');
+  const b = body(o);
+  ok(o.length === 1 && /^&\{template:bitd-broadcast\}/.test(o[0]) && !/^\/w/.test(o[0]) && /\{\{type=Cohort\}\}/.test(o[0]) && /\{\{title=Thugs\}\}/.test(o[0]), 'the status card goes to the table (not a whisper), titled with the cohort', o[0].slice(0, 160));
+  ok(/Condition: Fit/.test(b) && /Harm: ○○○/.test(b) && /Type: Gang\./.test(b) && /Gang type, Thugs: Killers, brawlers, and roustabouts\./.test(b) && /Gang type, Rooks: Con artists, spies, and socialites\./.test(b), 'condition, harm circles, type and both gang types with the book text', b);
+  ok(/Quality: rolls 2d \(Tier 2\)\./.test(b) && /Scale 2: A medium gang \(12\)\. A gang's scale equals the crew Tier\./.test(b), 'quality and scale', b);
+  ok(/Edge, Fearsome: The cohort is terrifying in aspect and reputation\./.test(b) && /Edge, Loyal: The cohort can't be bribed or turned against you\./.test(b) && /Flaw, Savage: The cohort is excessively violent and cruel\./.test(b), 'edges and flaws with the book text, any case', b);
+  ok(/Flaw, Foo: no book text: not one of the core book flaws\./.test(b) && /Notes: Led by Cutter/.test(b), 'an unknown flaw is shown as typed with no book text; the notes are shown', b);
+  ok(/Armor: none\./.test(b) && /kept marked/.test(b) && !/Grant 1 armor/.test(b), 'no armor: said so, no armor button', b);
+  ok(has(o, /\[Take harm\]\(!bitdcrew cohortharm --c [^ ]+ --row cohort1\)/) && !has(o, /\[Heal\]/), 'Take harm is offered; Heal only when there is harm', b);
+  const rb = (b.match(/\[[^\]]*\]\(!bitdcrew cohortroll [^)]*\)/g) || []);
+  ok(rb.length === 7 && rb.map(x => x.replace(/\]\(.*$/, '').slice(1)).join(' ') === '-3d -2d -1d Roll +1d +2d +3d' && rb.map(x => /--n (-?\d)/.exec(x)[1]).join(',') === '-3,-2,-1,0,1,2,3', 'seven roll buttons, -3d to +3d', rb);
+  row(sc, '-R2', 'Mixed', 'gang', 'Thugs/Rooks/Skulks', 'Loyal (the best) and Tenacious; Fearsome', 'principled');
+  let b2 = body(card(sc, '-R2'));
+  ok(/up to two types/.test(b2) && /Gang type, Skulks/.test(b2) && /Edge, Loyal/.test(b2) && !/the best/.test(b2) && /Edge, Tenacious/.test(b2) && /Edge, Fearsome/.test(b2) && /Flaw, Principled: The cohort has an ethic or values that it won't betray\./.test(b2), 'types, edges and flaws parse from slashes, "and", semicolons and commas; bracket text is dropped; more than two types are flagged', b2);
+  row(sc, '-R3', 'Singular', 'gang', 'thug', 'LOYAL, loyal', 'savages');
+  b2 = body(card(sc, '-R3'));
+  ok(/Gang type, Thugs:/.test(b2) && /Edge, Loyal:/.test(b2) && /Flaw, Savage:/.test(b2), 'singular and plural forms and any case match the book names', b2);
+  ok((b2.match(/Edge, Loyal:/g) || []).length === 1, 'a name typed twice is listed once', b2);
+  row(sc, '-R6', 'Many', 'gang', 'Thugs', 'Loyal', 'a, b, c, d, e, f, g, h');
+  ok((body(card(sc, '-R6')).match(/Flaw, /g) || []).length === 6, 'at most six names are read from one box', body(card(sc, '-R6')));
+  const el = mk('Elite crew', 2, 'Cult'); first(el, 'Thugs', 'gang', 'Thugs', 'Loyal');
+  E.attr(el, 'repeating_upgrade_-E_name', 'Elite Thugs'); E.attr(el, 'repeating_upgrade_-E_numboxes', '1'); E.attr(el, 'repeating_upgrade_-E_check_1', '1');
+  ok(/Elite Thugs is taken, but this cohort is set to Gang on the sheet\. Set its type to Elite for \+1d \(core book\)\./.test(body(card(el, 'cohort1'))), 'a taken Elite upgrade for the cohort\'s type, with the cohort still set to Gang: a reminder', body(card(el, 'cohort1')));
+  E.attr(el, 'cohort1_type', 'elite'); ok(!/Elite Thugs is taken/.test(body(card(el, 'cohort1'))), 'no reminder once the cohort is set to Elite');
+  E.attr(el, 'cohort1_type', 'gang'); E.attr(el, 'cohort1_subtype', 'Rooks'); ok(!/Elite Thugs is taken/.test(body(card(el, 'cohort1'))), 'no reminder for a cohort of another type');
+  E.attr(el, 'cohort1_subtype', 'Thugs'); E.attr(el, 'repeating_upgrade_-E_check_1', '0'); ok(!/Elite Thugs is taken/.test(body(card(el, 'cohort1'))), 'no reminder while the upgrade is not taken');
+  row(sc, '-R4', 'Expert', 'expert', 'Physicker'); b2 = body(card(sc, '-R4'));
+  ok(/Type: Expert\./.test(b2) && /Specialty, Physicker: as typed on the sheet\./.test(b2) && /Quality: rolls 3d \(Tier 2, Expert \+1\)/.test(b2) && /Scale 0: 1 or 2 people\. An expert's scale is always zero\./.test(b2), 'an expert: specialty as typed, quality Tier +1, scale 0', b2);
+  row(sc, '-R5', 'Elite', 'elite', 'Rooks'); b2 = body(card(sc, '-R5'));
+  ok(/Type: Elite gang\./.test(b2) && /Quality: rolls 3d \(Tier 2, Elite \+1d\)/.test(b2), 'an Elite gang: Tier +1d', b2);
+  [0, 1, 2, 3, 4, 5, 6].forEach(t => { E.attr(sc, 'crew_tier', String(t)); const m = new RegExp('Scale ' + t + ': ' + CT.scale[t].replace(/[()]/g, '\\$&') + '\\.'); ok(m.test(body(card(sc, 'cohort1'))), 'scale ' + t + ' text from the table'); });
+  E.attr(sc, 'crew_tier', '8'); ok(/Scale 6: A colossal gang \(160\)/.test(body(card(sc, 'cohort1'))), 'a Tier past the scale table is held to scale 6');
+  E.attr(sc, 'crew_tier', '2');
+  E.attr(sc, 'cohort1_description', 'vehicle_edges_flaws'); ok(!/Notes:/.test(body(card(sc, 'cohort1'))), 'the sheet\'s own key in the notes box is not shown as notes'); E.attr(sc, 'cohort1_description', '');
+  o = card(sc, 'cohort:-R2'); ok(has(o, /no longer on the sheet/), 'a code with a colon (the Roll list form) is not a cohort here', o);
+  o = card(sc, '-Gone'); ok(has(o, /that cohort is no longer on the sheet/), 'a removed cohort is reported', o);
+  o = card(sc, 'cohort1', quinn); ok(has(o, /only use this on crews you control/), 'the card needs control of the crew', o);
+  o = card(sc, 'cohort1', gm); ok(has(o, /Condition: Fit/), 'the GM can open it');
+
+  // ---- conditions from the boxes
+  const cond = mk('Cond crew', 2, 'Bravos'); first(cond, 'Thugs', 'gang', 'Thugs');
+  [['000', 'Fit'], ['100', 'Weakened'], ['010', 'Impaired'], ['001', 'Broken'], ['110', 'Impaired'], ['101', 'Broken'], ['011', 'Broken'], ['111', 'Broken']].forEach(p => {
+    setb(cond, 'cohort1', p[0]); const bb = body(card(cond, 'cohort1'));
+    ok(new RegExp('Condition: ' + p[1] + '\n').test(bb), 'boxes ' + p[0] + ' read as ' + p[1] + ' (three marked boxes alone are Broken, not Destroyed)', bb.slice(0, 40));
+    if (p[1] !== 'Fit') { ok(bb.indexOf(p[1] + ': ' + CT.levels.find(l => l[0] === p[1])[1]) > 0, 'the book text of ' + p[1] + ' is on the card', bb); }
+  });
+  setb(cond, 'cohort1', '010'); o = E.run('!bitdcrew status', pat, E.token(cond));
+  ok(has(o, /Cohort: Thugs \(gang, quality 1, impaired\)/), '9. Status names the condition', o);
+  setb(cond, 'cohort1', '000');
+
+  // ---- dice: Tier, Elite or expert +1, Impaired -1 (the sheet rule), through the cohort roll and 1. Roll
+  const dp = mk('Dice crew', 0, 'Bravos'); first(dp, 'Thugs', 'gang', 'Thugs');
+  let bad = [];
+  [0, 1, 2, 3, 4].forEach(t => ['gang', 'elite', 'expert'].forEach(ty => [0, 1].forEach(im => {
+    E.attr(dp, 'crew_tier', String(t)); E.attr(dp, 'cohort1_type', ty); setb(dp, 'cohort1', im ? '010' : '000');
+    const want = Math.max(0, t - im + (ty === 'gang' ? 0 : 1)), got = rolled(roll(dp, 'cohort1', 0)), old = rolled(E.run('!bitdcrew roll cohort1 0', pat, E.token(dp)));
+    if (got !== want || old !== want) { bad.push([t, ty, im, want, got, old]); }
+  })));
+  ok(bad.length === 0, 'the cohort roll and 1. Roll agree on the dice for every Tier 0-4, type and Impaired', bad);
+  E.attr(dp, 'crew_tier', '2'); E.attr(dp, 'cohort1_type', 'gang'); setb(dp, 'cohort1', '000');
+  [-3, -2, -1, 0, 1, 2, 3].forEach(n => { const g = rolled(roll(dp, 'cohort1', n)); ok(g === Math.max(0, 2 + n), 'roll button ' + n + ': ' + Math.max(0, 2 + n) + ' dice', g); });
+  o = roll(dp, 'cohort1', -3); ok(/zerodice/.test(o[0]) && dice(o[0]) === 2, 'a pool at or below 0 rolls two dice and keeps the lowest (zerodice)', o[0]);
+  ok(rolled(roll(dp, 'cohort1', 9)) === 5 && rolled(roll(dp, 'cohort1', -9)) === 0, 'the bonus is held to -3 to +3', [rolled(roll(dp, 'cohort1', 9))]);
+  o = roll(dp, 'cohort1', 0);
+  ok(!/^\/w/.test(o[0]) && /\{\{title-cohort_quality=1\}\}/.test(o[0]) && /\{\{type=resist\}\}/.test(o[0]) && /\{\{charname=Thugs \(\^\{gang\}, Thugs\)\}\}/.test(o[0]) && /\{\{subtitle=\^\{roll_their\}\}\}/.test(o[0]), 'the roll is the sheet\'s blades cohort card, posted as the player', o[0]);
+
+  // ---- Hooked (Hawkers): a savage, unreliable or wild flaw gives a gang +1 quality, to a rating of 4
+  const hk = mk('Hawkers', 2, 'Hawkers'); first(hk, 'Peddlers', 'gang', 'Rooks', '', 'Savage');
+  ok(rolled(roll(hk, 'cohort1', 0)) === 2, 'without the Hooked ability the flaw changes nothing');
+  E.attr(hk, 'repeating_crewability_-H_name', 'Hooked'); E.attr(hk, 'repeating_crewability_-H_check', '1');
+  ok(rolled(roll(hk, 'cohort1', 0)) === 3 && rolled(E.run('!bitdcrew roll cohort1 0', pat, E.token(hk))) === 3, 'Hooked and a Savage gang: +1 die, in the cohort roll and in 1. Roll');
+  ok(/Hooked: \+1 quality from the Savage flaw/.test(body(card(hk, 'cohort1'))) && /Quality: rolls 3d \(Tier 2, Hooked \+1 \(Savage\)\)/.test(body(card(hk, 'cohort1'))), 'the card shows the Hooked bonus and where it comes from', body(card(hk, 'cohort1')));
+  ['Unreliable', 'wild', 'Principled', 'Loyal', ''].forEach(f => { E.attr(hk, 'cohort1_flaws', f); ok(rolled(roll(hk, 'cohort1', 0)) === (/unreliable|wild/i.test(f) ? 3 : 2), 'Hooked with flaw "' + f + '"'); });
+  E.attr(hk, 'cohort1_flaws', 'Savage'); E.attr(hk, 'crew_tier', '4'); ok(rolled(roll(hk, 'cohort1', 0)) === 4, 'Hooked does not take a Tier 4 gang past quality 4');
+  E.attr(hk, 'crew_tier', '3'); E.attr(hk, 'cohort1_type', 'elite'); ok(rolled(roll(hk, 'cohort1', 0)) === 4, 'an Elite gang at Tier 3 is already quality 4: no Hooked bonus');
+  E.attr(hk, 'crew_tier', '2'); ok(rolled(roll(hk, 'cohort1', 0)) === 4, 'an Elite gang at Tier 2 with a Savage flaw: 2 +1 Elite +1 Hooked');
+  E.attr(hk, 'cohort1_type', 'expert'); ok(rolled(roll(hk, 'cohort1', 0)) === 3, 'an expert is not a gang: no Hooked bonus');
+  E.attr(hk, 'cohort1_type', 'gang'); setb(hk, 'cohort1', '010'); ok(rolled(roll(hk, 'cohort1', 0)) === 2, 'Hooked and Impaired: 3 - 1');
+
+  // ---- harm
+  const hm = mk('Harm crew', 2, 'Bravos'); first(hm, 'Thugs', 'gang', 'Thugs'); row(hm, '-RowA', 'Rooks', 'gang', 'Rooks'); E.run('!bitdcrew cohortsync', pat, E.token(hm));
+  o = harm(hm, 'cohort1');
+  ok(/^\/w "Pat" /.test(o[0]) && /\{\{type=Harm to Thugs\}\}/.test(o[0]) && cmds(o).filter(c => /cohortharm .* --n [1-4]\)$/.test(c)).length === 4 && !/armor\)/.test(o.join('')) && /this cohort has no armor/.test(o[0]), 'the harm menu is a whisper with levels 1 to 4 and no armor row when the cohort has no armor', o[0]);
+  o = harm(hm, 'cohort1', 1);
+  ok(getb(hm, 'cohort1') === '100' && has(o, /Level 1 harm: Weakened\. The cohort has reduced effect\./) && has(o, /Condition: Weakened/) && !/^\/w/.test(o[0]), 'level 1 marks the Weakened box; the result goes to the table', o);
+  o = harm(hm, 'cohort1', 2); ok(getb(hm, 'cohort1') === '110' && has(o, /Level 2 harm: Impaired/), 'level 2 marks the Impaired box', o);
+  o = harm(hm, 'cohort1', 2);
+  ok(getb(hm, 'cohort1') === '111' && has(o, /Level 2 was already marked, so the harm moves up to level 3\./) && has(o, /Level 3 harm: Broken/) && has(o, /Condition: Broken/), 'harm at a marked level moves up: a second level 2 is level 3', o);
+  o = harm(hm, 'cohort1', 1);
+  ok(getb(hm, 'cohort1') === '111' && has(o, /Destroyed/) && has(o, /moves up to level 4/), 'harm that moves past Broken destroys the cohort', o);
+  const dead = body(o);
+  ok(/Condition: Destroyed/.test(dead) && /Level 4 harm: Dead\. The cohort is destroyed\./.test(dead) && /To replace it: 4 Coin \(Tier 2 \+2\) plus two downtime activities\. The crew has 0 Coin\./.test(dead) && /\[Replace for 4 Coin\]\(!bitdcrew cohortreplace --c /.test(dead) &&
+     /If a cohort is destroyed, it may be replaced\. Spend coin equal to your Tier \+2 to restore it, plus two downtime activities to recruit new gang members, or hire a new expert\./.test(dead), 'the Destroyed card: the book text, the cost (Tier +2) and a replace button', dead);
+  ok(!/Quality:/.test(body(card(hm, 'cohort1'))) && !/Destroyed: The cohort/.test(body(card(hm, 'cohort1'))), 'a destroyed cohort card shows no quality and no repeated condition line');
+  ok(has(card(hm, 'cohort1'), /Condition: Destroyed/) && !has(card(hm, 'cohort1'), /Take harm/) && !has(card(hm, 'cohort1'), /cohortroll/) && has(card(hm, 'cohort1'), /Replace for 4 Coin/), 'a destroyed cohort card has no roll or harm buttons, only Replace');
+  setb(hm, 'cohort1', '000'); ok(has(card(hm, 'cohort1'), /Condition: Fit/), 'boxes cleared by hand make a Destroyed cohort Fit again'); setb(hm, 'cohort1', '111'); ok(has(card(hm, 'cohort1'), /Condition: Broken/), 'three marked boxes after that read as Broken: the Destroyed flag went with the boxes');
+  harm(hm, 'cohort1', 4);
+  ok(has(harm(hm, 'cohort1', 1), /already destroyed/) && has(harm(hm, 'cohort1'), /already destroyed/) && has(roll(hm, 'cohort1', 0), /destroyed and cannot roll/) && has(heal(hm, 'cohort1', 1), /destroyed\. Healing does not apply/), 'a destroyed cohort takes no harm, rolls nothing and is not healed');
+  o = harm(hm, '-RowA', 4); ok(getb(hm, 'repeating_cohort_-RowA') === '111' && has(o, /Level 4 harm: Dead/) && !has(o, /moves up/), 'level 4 harm destroys at once', o);
+  row(hm, '-RowB', 'Skulks', 'gang', 'Skulks'); E.run('!bitdcrew cohortsync', pat, E.token(hm));
+  harm(hm, '-RowB', 3); o = harm(hm, '-RowB', 1); ok(getb(hm, 'repeating_cohort_-RowB') === '101', 'level 1 on a Broken cohort marks the free Weakened box (no stacking needed)', getb(hm, 'repeating_cohort_-RowB'));
+  o = harm(hm, '-RowB', 3); ok(has(o, /Destroyed/), 'level 3 on a Broken cohort destroys it', o);
+  o = harm(hm, '-RowB', 'x'); ok(has(o, /already destroyed/) || has(o, /Pick the harm level/), 'a non-number harm level is not applied');
+  ok(has(harm(hm, 'cohort1', 1, null, quinn), /only use this on crews you control/) && getb(hm, 'cohort1') === '111', 'a player who does not control the crew cannot apply harm');
+
+  // ---- healing: every harm moves down one level for each level healed
+  const hl = mk('Heal crew', 2, 'Bravos'); first(hl, 'Thugs', 'gang', 'Thugs'); E.run('!bitdcrew cohortsync', pat, E.token(hl));
+  o = heal(hl, 'cohort1'); ok(/^\/w "Pat" /.test(o[0]) && cmds(o).filter(c => /cohortheal .* --n [12]\)$/.test(c)).length === 2 && o[0].indexOf('All of your cohorts heal during downtime. If circumstances are amenable for recovery, each cohort removes one level of harm (or two levels of harm instead, if a PC spends a downtime activity helping them recuperate).') > 0 && !/--n all/.test(o[0]), 'the heal menu: one level, two levels, the book text', o[0]);
+  ok(has(heal(hl, 'cohort1', 1), /has no harm to heal/), 'a cohort with no harm has nothing to heal');
+  [['001', '010', 'Broken to Impaired'], ['010', '100', 'Impaired to Weakened'], ['100', '000', 'Weakened to Fit'], ['110', '100', 'Impaired to Weakened'], ['101', '010', 'Broken to Impaired'], ['111', '110', 'Broken to Impaired'], ['011', '110', 'Broken to Impaired']].forEach(p => {
+    setb(hl, 'cohort1', p[0]); o = heal(hl, 'cohort1', 1);
+    ok(getb(hl, 'cohort1') === p[1] && has(o, new RegExp('Healed 1 level: ' + p[2] + '\\.')) && !/^\/w/.test(o[0]), 'heal one level from ' + p[0] + ' gives ' + p[1] + ' (' + p[2] + ')', [getb(hl, 'cohort1'), o]);
+  });
+  setb(hl, 'cohort1', '001'); o = heal(hl, 'cohort1', 2); ok(getb(hl, 'cohort1') === '100' && has(o, /Healed 2 levels: Broken to Weakened\./), 'heal two levels (a PC spent a downtime activity): Broken to Weakened', o);
+  setb(hl, 'cohort1', '111'); heal(hl, 'cohort1', 2); ok(getb(hl, 'cohort1') === '100', 'two levels from 111 give 100', getb(hl, 'cohort1'));
+  setb(hl, 'cohort1', '010'); o = heal(hl, 'cohort1', 2); ok(getb(hl, 'cohort1') === '000' && has(o, /Healed 2 levels: Impaired to Fit\./), 'two levels cannot go below Fit', o);
+  setb(hl, 'cohort1', '010'); ok(has(heal(hl, 'cohort1', 'all'), /only a vehicle with the Simple edge/) && getb(hl, 'cohort1') === '010', 'remove-all is only for a Simple vehicle');
+  ok(has(heal(hl, 'cohort1', 1, quinn), /only use this on crews you control/) && getb(hl, 'cohort1') === '010', 'a player who does not control the crew cannot heal');
+
+  // ---- armor: the Vehicle upgrade is permanent, Leader and Reavers are by exception
+  const sm = mk('Smugglers', 2, 'Smugglers'); first(sm, 'vehicle', 'expert', 'boat_carriage_other', 'Simple, Sturdy', 'Costly', 'vehicle_edges_flaws');
+  row(sm, '-RowG', 'Boat crew', 'gang', 'Rovers');
+  E.attr(sm, 'upgrade_carriage_check_1', '1'); E.run('!bitdcrew cohortsync', pat, E.token(sm));
+  ok(armor(sm, 'cohort1') === '1', 'a vehicle with only the first Carriage box has no armor: the box is marked');
+  E.attr(sm, 'upgrade_carriage_check_2', '1'); E.run('!bitdcrew cohorts', pat, E.token(sm));
+  ok(armor(sm, 'cohort1') === '0' && armor(sm, 'repeating_cohort_-RowG') === '0', 'both Carriage boxes marked: the vehicle (and the cohort named Boat crew, by its name and type) gets armor, its box is cleared once');
+  let vb = body(card(sm, 'cohort1'));
+  ok(/Armor: 1, available\. Carriage has both boxes marked\./.test(vb) && /Vehicle upgrade \(core book\): All smugglers start with a vehicle\. When the vehicle is upgraded \(two boxes\), it also gets armor\./.test(vb) && !/Notes:/.test(vb) && !/Gang type/.test(vb) && /Type: Expert, vehicle\./.test(vb), 'the vehicle card: armor available, the book text, no type line for the sheet placeholder, no notes for the sheet key', vb);
+  ok(/Edge, Simple: The vehicle is easy to repair\. Remove all of its harm during downtime\./.test(vb) && /Edge, Sturdy: The vehicle keeps operating even when broken\./.test(vb) && /Flaw, Costly: The vehicle costs 1 coin per downtime to keep in operation\./.test(vb), 'vehicle edges and flaws from the core book', vb);
+  ok(!/threat rolls/.test(vb), 'the Deep Cuts Nimble wording is not shown with the Action module off');
+  row(sm, '-RowN', 'Wagon', 'expert', '', 'Nimble');
+  ok(!/threat rolls/.test(body(card(sm, '-RowN'))) && /Edge, Nimble: The vehicle handles easily\./.test(body(card(sm, '-RowN'))), 'a Nimble vehicle with the Action module off: the core wording only', body(card(sm, '-RowN')));
+  E.attr(sm, 'setting_dc_action', '1'); row(sm, '-RowQ', 'Thugs', 'gang', 'Thugs', 'Nimble');
+  ok(!/threat rolls/.test(body(card(sm, '-RowQ'))), 'the v1.2b Nimble wording is for vehicles only');
+  vb = body(card(sm, '-RowN'));
+  ok(/Edge, Nimble: The vehicle handles easily\. Consider this an assist for tricky maneuvers\./.test(vb) && /Deep Cuts crew sheets v1\.2b \(Action module\): The vehicle handles easily\. \+1d to threat rolls when appropriate\./.test(vb), 'Nimble: the core wording and, with the Action module on, the v1.2b wording beside it', vb);
+  E.attr(sm, 'setting_dc_action', '0');
+  ok(/Vehicle \(expert\): Fit \u25cb\u25cb\u25cb, rolls 3d, armor available\./.test(body(E.run('!bitdcrew cohortall --c ' + sm, pat))), 'the summary says a permanent armor is available', body(E.run('!bitdcrew cohortall --c ' + sm, pat)));
+  o = harm(sm, 'cohort1'); ok(/Use the armor box first/.test(o[0]) && cmds(o).filter(c => /--n [1-4] armor\)$/.test(c)).length === 4 && /Armor, level 1: no harm/.test(o[0]) && /Armor, level 4: Broken/.test(o[0]), 'the harm menu has the armor row when the cohort has armor free', o[0]);
+  o = harm(sm, 'cohort1', 1, 'armor');
+  ok(armor(sm, 'cohort1') === '1' && getb(sm, 'cohort1') === '000' && has(o, /Armor used \(the armor box is now marked\): level 1 harm is reduced to no harm\./) && has(o, /No harm\./), 'armor against level 1: the box is marked and there is no harm', o);
+  o = harm(sm, 'cohort1', 1, 'armor'); ok(has(o, /has no armor to use/) && getb(sm, 'cohort1') === '000', 'a used armor box cannot be used again', o);
+  ok(/Vehicle \(expert\): Fit \u25cb\u25cb\u25cb, rolls 3d, armor used\./.test(body(E.run('!bitdcrew cohortall --c ' + sm, pat))), 'the summary says when the armor is used', body(E.run('!bitdcrew cohortall --c ' + sm, pat)));
+  o = harm(sm, 'cohort1'); ok(!/Use the armor box first/.test(o[0]) && /armor box is marked \(used\)/.test(o[0]), 'the harm menu has no armor row once the box is marked', o[0]);
+  vb = body(card(sm, 'cohort1')); ok(/Armor: 1, used \(the armor box is marked\)\./.test(vb) && has(card(sm, 'cohort1'), /\[Restore armor\]\(!bitdcrew cohortarmor --c [^ ]+ --row cohort1 --n restore\)/), 'the card says the armor is used and offers Restore armor');
+  o = armorBtn(sm, 'cohort1', 'restore'); ok(armor(sm, 'cohort1') === '0' && has(o, /Armor restored\. The armor box is clear\./), 'Restore armor clears the box', o);
+  card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '0', 'opening the card again does not touch a permanent armor box');
+  E.attr(sm, 'cohort1_armor', '1'); card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '1', 'a used permanent armor box stays used when the card opens');
+  armorBtn(sm, 'cohort1', 'restore');
+  o = harm(sm, 'cohort1', 3, 'armor'); ok(getb(sm, 'cohort1') === '010' && armor(sm, 'cohort1') === '1' && has(o, /level 3 harm is reduced to level 2 \(Impaired\)/) && has(o, /Level 2 harm: Impaired/), 'armor against level 3 leaves level 2 harm', o);
+  armorBtn(sm, 'cohort1', 'restore'); setb(sm, 'cohort1', '000');
+  o = harm(sm, 'cohort1', 4, 'armor'); ok(getb(sm, 'cohort1') === '001' && has(o, /Level 3 harm: Broken/) && !has(o, /Destroyed/), 'armor against level 4 (dead) leaves level 3 (Broken)', o);
+  ok(has(armorBtn(sm, '-RowG', 'restore'), /Armor restored/), 'Restore armor works on the named boat cohort too');
+  const armorState0 = (c) => E.env.state.BitDCrewTAM.cohortArmor && E.env.state.BitDCrewTAM.cohortArmor[c + '|cohort1'];
+  ok(armorState0(sm) === 'perm', 'the script remembers the permanent armor it saw', armorState0(sm));
+  E.attr(sm, 'upgrade_carriage_check_2', '0'); card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '1' && armorState0(sm) === undefined, 'when the upgrade goes, the box is marked again: no armor');
+  // the Smugglers' own Vehicle row (two boxes) and the Boat upgrade also count; a Carriage on a crew with no vehicle cohort does not
+  E.attr(sm, 'upgrade_boat_check_1', '1'); E.attr(sm, 'upgrade_boat_check_2', '1'); card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '0', 'both Boat boxes also give a vehicle armor');
+  E.attr(sm, 'upgrade_boat_check_2', '0'); card(sm, 'cohort1');
+  E.attr(sm, 'repeating_upgrade_-V_name', 'Vehicle'); E.attr(sm, 'repeating_upgrade_-V_numboxes', '2'); E.attr(sm, 'repeating_upgrade_-V_check_1', '1'); E.attr(sm, 'repeating_upgrade_-V_check_2', '1'); card(sm, 'cohort1');
+  ok(armor(sm, 'cohort1') === '0' && /Armor: 1/.test(body(card(sm, 'cohort1'))), 'the Smugglers\' Vehicle row with both boxes marked gives armor');
+  E.attr(sm, 'repeating_upgrade_-V_check_2', '0'); card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '1' && armorState0(sm) === undefined, 'one box of the Vehicle row is not enough for armor');
+  E.attr(sm, 'repeating_upgrade_-V_check_2', '1'); card(sm, 'cohort1');
+  const pcv = E.char('Cutter3', pat); E.party(pcv); E.attr(pcv, 'repeating_ability_-L_name', 'Leader'); E.attr(pcv, 'repeating_ability_-L_check', '1');
+  o = armorBtn(sm, 'cohort1', 'grant'); ok(has(o, /has no armor to grant/) && armorState0(sm) === 'perm', 'a vehicle that already has armor is not granted more (the sheet has one armor box)', o);
+  E.attr(pcv, 'repeating_ability_-L_check', '0');
+  const vw = mk('Word crew', 2, 'Smugglers'); E.attr(vw, 'upgrade_carriage_check_1', '1'); E.attr(vw, 'upgrade_carriage_check_2', '1');
+  const words = ['vehicle', 'boat', 'carriage', 'barge', 'skiff', 'cart', 'wagon'];
+  words.forEach((w, i) => row(vw, '-W' + i, 'The ' + w + 's', 'expert', ''));
+  row(vw, '-N1', 'Cartel Thugs', 'gang', 'Thugs'); row(vw, '-N2', 'Boating Club', 'gang', 'Rooks');
+  E.run('!bitdcrew cohorts', pat, E.token(vw));
+  ok(words.every((w, i) => armor(vw, 'repeating_cohort_-W' + i) === '0') && armor(vw, 'repeating_cohort_-N1') === '1' && armor(vw, 'repeating_cohort_-N2') === '1', 'a vehicle is found by vehicle, boat, carriage, barge, skiff, cart or wagon in its name; Cartel and Boating are not', words.map((w, i) => armor(vw, 'repeating_cohort_-W' + i)));
+  const nv = mk('No vehicle', 2, 'Bravos'); first(nv, 'Thugs', 'gang', 'Thugs'); E.attr(nv, 'upgrade_carriage_check_1', '1'); E.attr(nv, 'upgrade_carriage_check_2', '1'); card(nv, 'cohort1');
+  ok(armor(nv, 'cohort1') === '1', 'a Carriage upgrade does not armor a gang that is not a vehicle');
+
+  // Leader (a Party PC's ability) and Reavers (a crew ability): armor for one fight, by a button
+  const ld = mk('Leader crew', 2, 'Bravos'); first(ld, 'Thugs', 'gang', 'Thugs'); card(ld, 'cohort1');
+  const pc = E.char('Cutter', pat); E.attr(pc, 'repeating_ability_-L_name', 'Leader'); E.attr(pc, 'repeating_ability_-L_check', '1');
+  ok(!/grants 1 armor/.test(card(ld, 'cohort1').join('')), 'a Leader who is not a Party member gives nothing');
+  E.party(pc); let lb2 = card(ld, 'cohort1'); b2 = body(lb2);
+  ok(/Armor: none right now\./.test(b2) && /Leader: Cutter is in the party\. When you Command a cohort in combat, they continue to fight when they would otherwise break/.test(b2) && has(lb2, /\[Leader grants 1 armor for this fight\]\(!bitdcrew cohortarmor --c [^ ]+ --row cohort1 --n grant\)/), 'a Party PC with Leader: the card names it and offers to grant 1 armor for the fight', b2);
+  E.attr(pc, 'repeating_ability_-L_check', '0'); ok(!/grants 1 armor/.test(card(ld, 'cohort1').join('')), 'an unticked Leader row gives nothing'); E.attr(pc, 'repeating_ability_-L_check', '1');
+  o = armorBtn(ld, 'cohort1', 'grant'); ok(armor(ld, 'cohort1') === '0' && has(o, /1 armor granted for this fight \(Leader\)\. The armor box is clear\./), 'Grant clears the armor box', o);
+  card(ld, 'cohort1'); ok(armor(ld, 'cohort1') === '0' && /Armor: 1 for this fight, available\./.test(body(card(ld, 'cohort1'))) && has(card(ld, 'cohort1'), /Armor ends/), 'a granted box stays clear when the card opens, and the card offers to end it');
+  E.run('!bitdcrew cohortsync', pat, E.token(ld)); ok(armor(ld, 'cohort1') === '0', 'cohortsync leaves a granted box alone');
+  o = harm(ld, 'cohort1', 2, 'armor'); ok(armor(ld, 'cohort1') === '1' && getb(ld, 'cohort1') === '100', 'Use armor on a granted box marks it and reduces the harm', [armor(ld, 'cohort1'), getb(ld, 'cohort1')]);
+  o = armorBtn(ld, 'cohort1', 'end'); ok(armor(ld, 'cohort1') === '1' && has(o, /The granted armor ends/) && /Armor: none right now\./.test(body(card(ld, 'cohort1'))), 'Armor ends: the box is marked and the grant is gone (offered again while Leader is in the party)', o);
+  armorBtn(ld, 'cohort1', 'grant'); armorBtn(ld, 'cohort1', 'end'); E.attr(pc, 'repeating_ability_-L_check', '0');
+  ok(has(armorBtn(ld, 'cohort1', 'grant'), /has no armor to grant/) && armor(ld, 'cohort1') === '1', 'Grant needs a source at the moment of the click'); E.attr(pc, 'repeating_ability_-L_check', '1');
+  ok(has(armorBtn(ld, 'cohort1', 'restore'), /no permanent armor to restore/) && has(armorBtn(ld, 'cohort1', 'nonsense'), /unknown armor action/), 'Restore needs permanent armor; an unknown action is refused');
+  ok(has(E.run('!bitdcrew cohortarmor --c ' + ld + ' --row cohort1 --n grant', quinn), /only use this on crews you control/), 'armor buttons need control of the crew');
+  E.attr(pc, 'repeating_ability_-L_name', 'playbook_ability_leader'); ok(/grants 1 armor/.test(card(ld, 'cohort1').join('')), 'the sheet\'s own key for the ability (playbook_ability_leader) also counts'); E.attr(pc, 'repeating_ability_-L_name', 'Leader');
+  ok(has(harm(ld, 'cohort1', 0), /harm levels run from 1 to 4/) && has(harm(ld, 'cohort1', 5), /harm levels run from 1 to 4/) && has(harm(ld, 'cohort1', -2), /harm levels run from 1 to 4/), 'a harm level outside 1 to 4 is refused');
+  E.attr(pc, 'repeating_ability_-L_check', '0');   // Cutter stays a Party member but loses the ability, so the checks below start clean
+  // Reavers: only a vehicle
+  const rv = mk('Reavers crew', 2, 'Smugglers'); first(rv, 'vehicle', 'expert', 'boat_carriage_other'); row(rv, '-RowT', 'Thugs', 'gang', 'Thugs');
+  E.attr(rv, 'repeating_crewability_-R_name', 'Reavers'); E.attr(rv, 'repeating_crewability_-R_check', '1');
+  b2 = body(card(rv, 'cohort1')); ok(/Reavers: When you go into conflict aboard a vehicle/.test(b2.replace(/^[\s\S]*\n(?=Reavers:)/, '')) && /Reavers grants 1 armor for this fight/.test(card(rv, 'cohort1').join('')), 'Reavers and a vehicle: grant offered', b2);
+  ok(!/grants 1 armor/.test(card(rv, '-RowT').join('')) && /Armor: none\./.test(body(card(rv, '-RowT'))), 'Reavers does not armor a gang that is not a vehicle');
+
+  // Broken: no roll, unless Leader or a Sturdy vehicle lets it fight
+  const br = mk('Broken crew', 2, 'Bravos'); first(br, 'Thugs', 'gang', 'Thugs'); setb(br, 'cohort1', '001');
+  let bc = card(br, 'cohort1');
+  ok(/Condition: Broken/.test(body(bc)) && /Broken\. The cohort can't do anything until they recover, so there is no roll button\./.test(body(bc)) && !has(bc, /cohortroll/) && has(bc, /cohortheal/), 'a Broken cohort has no roll button', body(bc));
+  o = roll(br, 'cohort1', 0); ok(has(o, /Broken and can't do anything until they recover/) && !has(o, /template:blades/), 'a Broken cohort does not roll', o);
+  o = roll(br, 'cohort1', 0, 'anyway'); ok(has(o, /Nothing lets it act/) && !has(o, /template:blades/), 'the anyway flag needs Leader or Sturdy', o);
+  const pc2 = E.char('Cutter2', pat); E.party(pc2); E.attr(pc2, 'repeating_ability_-L_name', 'Leader'); E.attr(pc2, 'repeating_ability_-L_check', '1');
+  bc = card(br, 'cohort1');
+  ok(/Broken, still fighting: Leader \(Cutter2\) lets this cohort act while Broken\./.test(body(bc)) && has(bc, /\[Roll anyway, Leader\]\(!bitdcrew cohortroll --c [^ ]+ --row cohort1 --n 0 anyway\)/) && !has(bc, /\[-3d\]/), 'a Party PC with Leader: Roll anyway button for a Broken cohort', body(bc));
+  o = roll(br, 'cohort1', 0, 'anyway'); ok(has(o, /template:blades/) && rolled(o) === 2, 'Leader lets the Broken cohort roll', o);
+  E.attr(pc2, 'repeating_ability_-L_check', '0');
+  first(br, 'vehicle', 'expert', '', 'Sturdy'); bc = card(br, 'cohort1');
+  ok(/Broken, still fighting: Sturdy lets this cohort act/.test(body(bc)) && has(bc, /\[Roll anyway, Sturdy\]/), 'a Sturdy vehicle can act while Broken', body(bc));
+
+  const sg = mk('Sturdy gang', 2, 'Bravos'); first(sg, 'Thugs', 'gang', 'Thugs', 'Sturdy', 'Costly'); setb(sg, 'cohort1', '001');
+  ok(!has(card(sg, 'cohort1'), /Roll anyway/) && !has(card(sg, 'cohort1'), /cohortroll/), 'Sturdy is a vehicle edge: a Broken gang that lists it still cannot roll');
+
+  // ---- heal every cohort one level, and the Simple vehicle
+  const rs = mk('Rest crew', 2, 'Smugglers'); first(rs, 'vehicle', 'expert', 'boat_carriage_other', 'Simple'); setb(rs, 'cohort1', '011');
+  row(rs, '-A', 'Thugs', 'gang', 'Thugs'); setb(rs, 'repeating_cohort_-A', '001'); row(rs, '-B', 'Rooks', 'gang', 'Rooks'); row(rs, '-C', 'Skulks', 'gang', 'Skulks'); setb(rs, 'repeating_cohort_-C', '111');
+  harm(rs, '-C', 1);   // already 111 and not destroyed: moves up to destroyed
+  o = E.run('!bitdcrew cohortrest --c ' + rs, pat);
+  ok(!/^\/w/.test(o[0]) && /\{\{title=Every cohort heals one level\}\}/.test(o[0]) && getb(rs, 'cohort1') === '000' && getb(rs, 'repeating_cohort_-A') === '010' && getb(rs, 'repeating_cohort_-C') === '111', 'heal every cohort: one level each, a Simple vehicle loses all harm, a destroyed cohort is left alone', [o[0], getb(rs, 'cohort1'), getb(rs, 'repeating_cohort_-A')]);
+  b2 = body(o);
+  ok(/Vehicle: Broken to Fit \(Simple edge: all harm removed in downtime\)\./.test(b2) && /Thugs: Broken to Impaired\./.test(b2) && /Rooks: no harm\./.test(b2) && /Skulks: destroyed\. Replace it for 4 Coin/.test(b2) && /Core book: All of your cohorts heal during downtime\./.test(b2) && !/Deep Cuts/.test(b2), 'the result lists each cohort with the core book rule', b2);
+  E.attr(rs, 'setting_dc_downtime', '1'); b2 = body(E.run('!bitdcrew cohortrest --c ' + rs, pat));
+  ok(/Deep Cuts, Downtime module, crew phase \(p80\): First, each cohort heals one level of Harm\./.test(b2) && !/Core book:/.test(b2), 'with the Downtime module the Deep Cuts crew-phase line replaces the core rule', b2);
+  ok(has(E.run('!bitdcrew cohortrest --c ' + rs, quinn), /only use this on crews you control/), 'heal-all needs control of the crew');
+  // the Simple vehicle: the heal menu offers "remove all harm"
+  setb(rs, 'cohort1', '011'); o = heal(rs, 'cohort1'); ok(/Remove all harm \(Simple vehicle\)|Remove all harm Simple vehicle/.test(o[0]) && cmds(o).some(c => /--n all\)$/.test(c)), 'a Simple vehicle can remove all its harm from its heal menu', o[0]);
+  heal(rs, 'cohort1', 'all'); ok(getb(rs, 'cohort1') === '000', 'remove all harm clears the boxes');
+
+  // ---- replace a destroyed cohort for Tier +2 Coin
+  const rp = mk('Replace crew', 3, 'Bravos'); first(rp, 'Thugs', 'gang', 'Thugs'); E.run('!bitdcrew cohortsync', pat, E.token(rp));
+  o = E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat); ok(has(o, /is not destroyed, so there is nothing to replace/), 'replace needs a destroyed cohort', o);
+  harm(rp, 'cohort1', 4); E.attr(rp, 'crewcoin', '4');
+  o = E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat);
+  ok(has(o, /costs 5 Coin \(Tier 3 \+2\) and the crew has 4\. Nothing was changed\./) && getb(rp, 'cohort1') === '111' && E.val(rp, 'crewcoin') === '4', 'not enough Coin: nothing changes', o);
+  E.attr(rp, 'crewcoin', '7'); o = E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat);
+  ok(E.val(rp, 'crewcoin') === '2' && getb(rp, 'cohort1') === '000' && has(o, /Replaced\. 5 Coin paid \(Tier 3 \+2\), 2 Coin left\. All harm is cleared\./) && has(o, /Still owed: two downtime activities/) && !/^\/w/.test(o[0]), 'Tier +2 Coin paid, harm cleared, the two downtime activities left to the table', o);
+  ok(has(card(rp, 'cohort1'), /Condition: Fit/), 'the replaced cohort is Fit');
+  harm(rp, 'cohort1', 4); E.attr(rp, 'crewcoin', '5'); E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat);
+  ok(E.val(rp, 'crewcoin') === '0' && getb(rp, 'cohort1') === '000', 'exactly Tier +2 Coin is enough');
+  ok(has(E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat), /not destroyed/), 'a second replace is refused');
+  harm(rp, 'cohort1', 4); E.attr(rp, 'setting_dc_downtime', '1'); E.attr(rp, 'crewcoin_dc', '9'); E.attr(rp, 'crewcoin', '99');
+  E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', pat); ok(E.val(rp, 'crewcoin_dc') === '4' && E.val(rp, 'crewcoin') === '99', 'a Downtime crew pays from its 24-box Coin track');
+  harm(rp, 'cohort1', 4); ok(has(E.run('!bitdcrew cohortreplace --c ' + rp + ' --row cohort1', quinn), /only use this on crews you control/) && getb(rp, 'cohort1') === '111', 'replace needs control of the crew');
+
+  // ---- the table summary
+  const ta = mk('All crew', 2, 'Bravos'); first(ta, 'Thugs', 'gang', 'Thugs and Rooks'); row(ta, '-A', 'Physicker', 'expert', 'Physicker'); setb(ta, 'repeating_cohort_-A', '010');
+  o = E.run('!bitdcrew cohortall --c ' + ta, pat); b2 = body(o);
+  ok(!/^\/w/.test(o[0]) && /Thugs \(gang, Thugs and Rooks\): Fit ○○○, rolls 2d, armor none\./.test(b2) && /Physicker \(expert, Physicker\): Impaired ○●○, rolls 2d, armor none\./.test(b2), 'the table summary: a line per cohort with condition, circles, dice and armor', b2);
+  ok(has(E.run('!bitdcrew cohortall --c ' + mk('Empty', 1, 'Bravos'), pat), /no cohorts on this sheet/), 'the summary of a crew with no cohorts says so');
+
+  // ---- only the cohort's boxes (and the Coin on a replace) are ever written
+  const wr = mk('Write crew', 3, 'Smugglers'); first(wr, 'vehicle', 'expert', 'boat_carriage_other', 'Simple', 'Costly', 'Notes here'); row(wr, '-A', 'Thugs', 'gang', 'Thugs', 'Loyal', 'Savage');
+  E.attr(wr, 'upgrade_carriage_check_1', '1'); E.attr(wr, 'upgrade_carriage_check_2', '1'); E.attr(wr, 'crewcoin', '9');
+  const snap = () => JSON.stringify(E.store.attrs.filter(a => a._characterid === wr).map(a => [a.name, a.current]).sort());
+  E.run('!bitdcrew cohortsync', pat, E.token(wr)); const before = snap();
+  card(wr, 'cohort1'); card(wr, '-A'); E.run('!bitdcrew cohorts', pat, E.token(wr)); E.run('!bitdcrew cohortall --c ' + wr, pat); roll(wr, 'cohort1', 2); roll(wr, '-A', -1);
+  ok(snap() === before, 'cards, the list, the summary and rolls write nothing once the armor boxes are set');
+  const stored = JSON.parse(before);
+  harm(wr, 'cohort1', 2, 'armor'); harm(wr, '-A', 3); harm(wr, '-A', 1); heal(wr, '-A', 2); heal(wr, 'cohort1', 1); armorBtn(wr, 'cohort1', 'restore'); harm(wr, '-A', 4); E.run('!bitdcrew cohortreplace --c ' + wr + ' --row -A', pat); E.run('!bitdcrew cohortrest --c ' + wr, pat);
+  const after = JSON.parse(snap()), was = {}; stored.forEach(p => { was[p[0]] = p[1]; });
+  const changed = after.filter(p => was[p[0]] !== p[1]).map(p => p[0]);
+  ok(changed.length > 0 && changed.every(n => /^(cohort1|repeating_cohort_-A)_(weak|impaired|broken|armor)$/.test(n) || n === 'crewcoin'), 'harm, healing, armor, rest and replace write only the harm boxes, the armor box and (replace) the Coin', changed);
+
+  // ---- hostile text in the sheet fields
+  const ho = mk('Hostile }} crew', 2, 'Bravos'); first(ho, 'Bad }} [roll](!evil) *bold* @{x} name', 'gang', '<b>Thugs</b> [x](!y)', 'Loyal, [[1d20]] ?{q|a}', '%{a|b} <script>alert(1)</script>', 'note [a](!b) {{c}} | d *e*');
+  o = card(ho, 'cohort1'); const hb = o.join('\n');
+  ok(!/\[\[|\?\{|@\{|%\{/.test(hb) && (hb.match(/\{\{/g) || []).length === 4 && (hb.match(/\}\}/g) || []).length === 4 && (hb.match(/\]\(![^)]*\)/g) || []).every(x => /^\]\(!bitdcrew /.test(x)) && !/\(!evil|\(!y\)|\(!b\)/.test(hb.replace(/\]\(![^)]*\)/g, '')) === false, 'hostile names, types, edges, flaws and notes cannot make a button, an inline roll, a query or a template field', hb);
+  E.run('!bitdcrew fmt card html', gm);
+  o = card(ho, 'cohort1');
+  ok(/^\/direct <div/.test(o[0]) && !/<script|<b>/.test(o[0]) && /&lt;b&gt;Thugs/.test(o[0]) && /&lt;script&gt;alert/.test(o[0]), 'the HTML card escapes what the sheet holds', o[0].slice(0, 200));
+
+  // ---- the styled HTML card
+  const hc = mk('Html crew', 2, 'Bravos'); first(hc, 'Thugs', 'gang', 'Thugs', 'Loyal', 'Savage'); setb(hc, 'cohort1', '010');
+  o = card(hc, 'cohort1');
+  ok(/^\/direct <div/.test(o[0]) && /CONDITION: IMPAIRED/.test(o[0]) && /background:#8a4a1a/.test(o[0]) && /<a href="!bitdcrew cohortroll --c [^"]* --row cohort1 --n -3"/.test(o[0]) && /<a href="!bitdcrew cohortharm --c [^"]*"/.test(o[0]) && /<a href="!bitdcrew cohortheal --c /.test(o[0]) && /COHORT<\/div>/.test(o[0]) && /THUGS<\/div>/.test(o[0]), 'the HTML card: a condition badge in the condition colour, pill buttons that run the commands', o[0].slice(0, 300));
+  ok((o[0].match(/<div>(<a [^>]*>[^<]*<\/a> ?)+<\/div>/g) || []).length >= 2, 'several buttons share one row in the HTML card');
+  ['Fit', 'Weakened', 'Impaired', 'Broken', 'Destroyed'].forEach((cn, i) => {
+    setb(hc, 'cohort1', ['000', '100', '010', '001', '111'][i]); if (cn === 'Destroyed') harm(hc, 'cohort1', 4);
+    ok(new RegExp('CONDITION: ' + cn.toUpperCase()).test(card(hc, 'cohort1')[0]), 'the HTML badge for ' + cn);
+    if (cn === 'Destroyed') E.attr(hc, 'crewcoin', '9');
+  });
+  o = harm(hc, 'cohort1'); ok(/^\/w "Pat" /.test(o[0]), 'the harm menu stays a whisper in HTML mode');
+  E.run('!bitdcrew cohortreplace --c ' + hc + ' --row cohort1', pat);
+  o = E.run('!bitdcrew cohortrest --c ' + hc, pat); ok(/^\/direct <div/.test(o[0]), 'the heal-all result is an HTML card in HTML mode');
+  E.run('!bitdcrew fmt card sheet', gm);
+
+  // ---- debug
+  E.run('!bitdcrew debug on', gm); E.logs.length = 0;
+  card(hc, 'cohort1'); harm(hc, 'cohort1', 1); heal(hc, 'cohort1', 1);
+  ok(E.logs.some(l => /BitDCrew debug: cohort Thugs/.test(l)) && E.logs.some(l => /cohort harm Thugs/.test(l)) && E.logs.some(l => /cohort heal Thugs/.test(l)), 'debug logging names the cohort steps', E.logs.slice(-6));
+  E.run('!bitdcrew debug off', gm);
+
+  // ---- the cohort script never touches the PC script's text and stays one IIFE (static checks are in T14)
+  ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error in any of the cohort checks');
 }
 
 console.log(pass + ' passed, ' + fail + ' failed' + (PC_SRC ? '' : '  (coexistence tests SKIPPED: pass the PC script as the third argument)'));
