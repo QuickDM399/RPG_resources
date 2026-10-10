@@ -1625,9 +1625,13 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
     return c;
   };
   const menu = (c, who) => E.run('!bitdcrew claims', who || pat, E.token(c));
-  const info = (c, arg, who) => E.run('!bitdcrew claiminfo --c ' + c + ' ' + arg, who || pat);
+  const infoRaw = (c, arg, who) => E.run('!bitdcrew claiminfo --c ' + c + ' ' + arg, who || pat);
   const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
   const btns = (o) => (o[0].match(/\[[^\]]*\]\(!bitdcrew claiminfo [^)]*\)/g) || []);
+  // the card as it was before the other text moved behind a button: the button is replaced by the text it posts
+  const ALT = /\[[^\]]*\]\((!bitdcrew claiminfo [^)]* alt)\)/;
+  const info = (c, arg, who) => { const o = infoRaw(c, arg, who), m = ALT.exec(o[0] || ''); return m ? [o[0].replace(m[0], body(E.run(m[1], who || pat)))].concat(o.slice(1)) : o; };
+  E.run('!bitdcrew fmt off', gm);   // these checks read the plain text; the formatting has its own block (T29)
 
   // the menu
   const asn = mkCrew('Assassins', 'Assassins', [[1, 'Training Rooms', true], [2, 'claim_vice_den', false], [3, 'Fixer', true, '+2 coin for\nlower-class targets'], [4, 'Informants', true], [7, 'Turf', true], [9, 'Turf', false], [10, 'Cover\nOperation', false]]);
@@ -1761,7 +1765,12 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const menu = (c, who) => E.run('!bitdcrew upgrades', who || pat, E.token(c));
   const list = (c, cat, who) => E.run('!bitdcrew upgradelist --c ' + c + ' --row ' + cat, who || pat);
   // ref is "category:upgrade"; the buttons send them as two arguments (a colon inside one argument is what v0.9.0 sent, and Roll20 ignored it)
-  const info = (c, ref, who) => { const i = ref.indexOf(':'); return E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + (i < 0 ? ref : ref.slice(0, i)) + (i < 0 ? '' : ' --n ' + ref.slice(i + 1)), who || pat); };
+  const infoRaw = (c, ref, who) => { const i = ref.indexOf(':'); return E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + (i < 0 ? ref : ref.slice(0, i)) + (i < 0 ? '' : ' --n ' + ref.slice(i + 1)), who || pat); };
+  // the card as it was before the other text moved behind a button: the button is replaced by the text it posts
+  const ALT = /\[[^\]]*\]\((!bitdcrew upgradeinfo [^)]* alt)\)/;
+  const info = (c, ref, who) => { const o = infoRaw(c, ref, who), m = ALT.exec(o[0] || ''); return m ? [o[0].replace(m[0], bodyOf(E.run(m[1], who || pat)))].concat(o.slice(1)) : o; };
+  const bodyOf = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  E.run('!bitdcrew fmt off', gm);   // these checks read the plain text; the formatting has its own block (T29)
   const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
   const labels = (o) => (o[0].match(/\[[^\]]*\]\(!bitdcrew upgradeinfo [^)]*\)/g) || []).map(x => x.replace(/\]\(.*$/, '').slice(1));
 
@@ -1904,6 +1913,106 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   const snap = (c) => JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]));
   const before = snap(br); menu(br); ['special', 'lair', 'training', 'quality'].forEach(k => list(br, k)); info(br, 'special:-U1'); info(br, 'lair:carriage'); info(br, 'training:mastery'); info(br, 'quality:gear');
   ok(snap(br) === before, 'the upgrade commands write nothing to the sheet');
+}
+
+// ---------------------------------------------------------------- T29 the other text behind a button, and the card formatting
+{
+  const { E, gm, pat, quinn } = table();
+  const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB), AST = String.fromCharCode(0x2217);
+  const mkCrew = (name, type, claims, dt) => {
+    const c = E.crew(name, pat); if (type !== undefined) E.attr(c, 'crew_type', type); if (dt) E.attr(c, 'setting_dc_downtime', '1');
+    claims.forEach(cl => { E.attr(c, 'claim_' + cl[0] + '_name', cl[1]); E.attr(c, 'claim_' + cl[0] + '_check', cl[2] === false ? '0' : '1'); if (cl[3] !== undefined) E.attr(c, 'claim_' + cl[0] + '_desc', cl[3]); });
+    return c;
+  };
+  const claim = (c, arg, who) => E.run('!bitdcrew claiminfo --c ' + c + ' ' + arg, who || pat);
+  const upg = (c, cat, ref, extra, who) => E.run('!bitdcrew upgradeinfo --c ' + c + ' --row ' + cat + ' --n ' + ref + (extra ? ' ' + extra : ''), who || pat);
+  const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  const buttons = (o, verb) => (o[0].match(new RegExp('\\[[^\\]]*\\]\\(!bitdcrew ' + verb + ' [^)]*\\)', 'g')) || []);
+  const label = (b) => b.replace(/\]\(.*$/, '').slice(1), cmd = (b) => /\((.*)\)$/.exec(b)[1];
+  const fmt = (arg, who) => E.run('!bitdcrew fmt ' + arg, who || gm);
+
+  // ---- the default: the markup is on until a GM turns it off
+  const dflt = mkCrew('Default', 'assassins', [[3, 'Fixer', true]]);
+  ok(body(claim(dflt, '--n 3')).split('\n')[0] === '**Held by this crew.**' && /\*\*Quality:\*\* 0 of 6 taken/.test(E.run('!bitdcrew upgrades', pat, E.token(dflt))[0]), 'the card formatting is on by default');
+
+  // ---- formatting off: the structure
+  fmt('off');
+  const wDt = mkCrew('Bravos DT', 'bravos', [[14, 'Warehouses', true]], true), wCore = mkCrew('Bravos core', 'bravos', [[14, 'Warehouses', true]]);
+  let o = claim(wDt, '--n 14'), b = buttons(o, 'claiminfo'), L = body(o).split('\n');
+  ok(L.length === 3 && L[0] === 'Held by this crew.' && L[1] === 'Rules in force (Deep Cuts, Downtime module): The crew gains an additional Acquire activity each Downtime. (Deep Cuts p88)' && b.length === 1 && L[2] === b[0], 'Downtime on: the Deep Cuts rule in full and one button, not the core text', L);
+  ok(!/You get \+1d to acquire asset rolls/.test(o[0]) && label(b[0]) === 'Show the core book text' && cmd(b[0]) === '!bitdcrew claiminfo --c ' + wDt + ' --n 14 alt', 'the core text is not in the card; the button names it');
+  let a = E.run(cmd(b[0]), pat);
+  ok(a.length === 1 && !/^\/w /.test(a[0]) && /\{\{type=Claim held\}\}/.test(a[0]) && a[0].indexOf('{{title=' + ON + ' Warehouses}}') > 0 && /^Core book text \(replaced while the module is on\): You get \+1d to acquire asset rolls\./.test(body(a)) && body(a).indexOf('\n') < 0, 'the button posts the core text alone, to the table, under the same title', body(a));
+  o = claim(wCore, '--n 14'); b = buttons(o, 'claiminfo'); L = body(o).split('\n');
+  ok(L.length === 3 && /^Rules in force \(core book\): You get \+1d to acquire asset rolls\./.test(L[1]) && !/additional Acquire activity/.test(o[0]) && label(b[0]) === 'Show the Deep Cuts text, module off', 'Downtime off: the core rule in full, the Deep Cuts text behind a button', L);
+  ok(/^Deep Cuts text \(Downtime module, off for this crew\): The crew gains an additional Acquire activity each Downtime\./.test(body(E.run(cmd(b[0]), pat))), 'and the button posts it');
+  const fx = mkCrew('Fixer crew', 'assassins', [[3, 'Fixer', true]]); o = claim(fx, '--n 3');
+  ok(buttons(o, 'claiminfo').length === 0 && /Rules \(core book\): You get \+2 coin/.test(o[0]), 'a claim with no other text has no button');
+  ok(has(claim(fx, '--n 3 alt'), /there is no other text for that claim/) && has(claim(fx, '--n 9 alt'), /no longer on the sheet/), 'an alt button with nothing behind it, or for a claim that is gone, says so');
+  const ch = mkCrew('CI Hawkers', 'Hawkers', [[15, 'Cover Identities', true]]); o = claim(ch, '--n 15'); b = buttons(o, 'claiminfo');
+  ok(b.length === 1 && label(b[0]) === 'Show the core book text' && !/Core book text/.test(o[0]) && /^Core book text \(not used for this crew\): .*deception and social plans/.test(body(E.run(cmd(b[0]), pat))), 'Hawkers Cover Identities: the sheet rule in full, the unused core text behind a button');
+  // Turf
+  const tf = mkCrew('Turf DT', 'Assassins', [[7, 'Turf', true], [9, 'Turf', false]], true), tc = mkCrew('Turf core', 'Assassins', [[7, 'Turf', true]]);
+  o = claim(tf, '--row turf'); b = buttons(o, 'claiminfo');
+  ok(/Rules in force \(Deep Cuts, Downtime module\): Your crew's hold/.test(o[0]) && !/As soon as you seize a claim/.test(o[0]) && label(b[0]) === 'Show the core book text' && cmd(b[0]) === '!bitdcrew claiminfo --c ' + tf + ' --row turf alt', 'Turf, Downtime on: the hold rule in full, the core text behind a button');
+  ok(/^Core book: As soon as you seize a claim/.test(body(E.run(cmd(b[0]), pat))) && /\{\{title=[^}]*Turf: 1 of 2 held\}\}/.test(E.run(cmd(b[0]), pat)[0]), 'and the button posts it under the Turf title');
+  o = claim(tc, '--row turf'); b = buttons(o, 'claiminfo');
+  ok(/Rules \(core book\): As soon as you seize a claim/.test(o[0]) && !/Your crew's hold on their Tier/.test(o[0]) && label(b[0]) === 'Show the Deep Cuts text, module off' && /^Deep Cuts text \(Downtime module, off for this crew\): Your crew's hold/.test(body(E.run(cmd(b[0]), pat))), 'Turf, Downtime off: the core rule in full, the Deep Cuts hold rule behind a button');
+  // upgrades
+  const SHEET_VAULT = E.env.BitDCrewTAM._upgradeSheetText.vault;
+  const vt = mkCrew('Vaulty', 'Hawkers', [], true); E.attr(vt, 'upgrade_vault_check_1', '1');
+  o = upg(vt, 'lair', 'vault'); b = buttons(o, 'upgradeinfo');
+  ok(/Rules in force \(Deep Cuts, Downtime module, p88\): Vaults are bigger/.test(o[0]) && o[0].indexOf('secure vault, increasing your storage capacity') < 0 && b.length === 1 && label(b[0]) === 'Show the sheet text it replaces' && cmd(b[0]) === '!bitdcrew upgradeinfo --c ' + vt + ' --row lair --n vault alt', 'Vault with Downtime on: the Deep Cuts rule in full, the sheet text it replaces behind a button');
+  a = E.run(cmd(b[0]), pat); ok(body(a) === 'Sheet text (copy kept in the script): ' + SHEET_VAULT && /\{\{type=Upgrade taken\}\}/.test(a[0]) && a[0].indexOf('{{title=' + ON + OFF + ' Vault}}') > 0, 'the button posts the sheet text under the same header and title', body(a));
+  E.attr(vt, 'upgrade_vault_description', 'You always have to say  Vaults are BIGGER: the first holds 8 Coin,   the second holds 12.'); E.attr(vt, 'upgrade_vault_description', 'Vaults are bigger: the first holds 8 Coin, the second holds 12.');
+  ok(buttons(upg(vt, 'lair', 'vault'), 'upgradeinfo').length === 0 && !/On the sheet|Sheet text/.test(upg(vt, 'lair', 'vault')[0]), 'when the sheet already carries the Deep Cuts wording there is no button and no second line');
+  const vc = mkCrew('VaultCore', 'Hawkers', []); E.attr(vc, 'upgrade_vault_check_1', '1'); o = upg(vc, 'lair', 'vault'); b = buttons(o, 'upgradeinfo');
+  ok(/Sheet text \(copy kept in the script\): Your lair has a secure vault/.test(o[0]) && !/Vaults are bigger/.test(o[0]) && label(b[0]) === 'Show the Deep Cuts text, module off' && /^Deep Cuts text \(Downtime module, off for this crew, p88\): Vaults are bigger/.test(body(E.run(cmd(b[0]), pat))), 'Vault with Downtime off: the sheet text in full, the Deep Cuts text behind a button');
+  o = upg(vt, 'lair', 'workshop'); ok(/Also in force \(Deep Cuts, Downtime module, p87\)/.test(o[0]) && /Sheet text/.test(o[0]) && buttons(o, 'upgradeinfo').length === 0, 'Workshop adds to the sheet text, so both stay in full and there is no button');
+  const hd = mkCrew('Hard', 'Assassins', [], true); E.attr(hd, 'repeating_upgrade_-H_name', 'Hardened (+1 trauma box)'); E.attr(hd, 'repeating_upgrade_-H_numboxes', '3'); E.attr(hd, 'repeating_upgrade_-H_check_1', '1');
+  ok(buttons(upg(hd, 'special', '-H'), 'upgradeinfo').length === 0, 'a crew special has no button');
+  ok(has(upg(hd, 'special', '-H', 'alt'), /there is no other text for that upgrade/) && has(upg(hd, 'special', '-Nope', 'alt'), /no longer on the sheet/), 'an alt click with nothing behind it, or for an upgrade that is gone, says so');
+  ok(has(claim(tf, '--n 7 alt', quinn), /only use this on crews you control/) && has(upg(vt, 'lair', 'vault', 'alt', quinn), /only use this on crews you control/), 'a player who does not control the crew cannot use the alt buttons');
+
+  // ---- formatting on (the default)
+  fmt('on');
+  const inf = mkCrew('Inf DT', 'assassins', [[12, 'Infirmary', true, '+1d to healing\nrolls']], true);
+  o = claim(inf, '--n 12'); L = body(o).split('\n');
+  ok(L[0] === '**Held by this crew.**' && L[1].indexOf('**Rules in force (Deep Cuts, Downtime module):** ') === 0 && /\*\*\+1 tick\*\* to healing clock in downtime, in place of \*\*\+1d\*\* to healing rolls\./.test(L[1]) && /^\[Show the core book text\]\(/.test(L[2]), 'a claim card: the state and the label bold, the numbers in the rule bold, the button plain', L);
+  ok(!/\*/.test(L[2]), 'a button carries no markup');
+  a = E.run(cmd(buttons(o, 'claiminfo')[0]), pat); ok(/^\*Core book text \(replaced while the module is on\):\* You get \*\*\+1d\*\* to healing treatment rolls\./.test(body(a)), 'the core text card: an italic label, bold numbers', body(a));
+  const sx = mkCrew('Sheet text', 'assassins', [[3, 'Fixer', true, '+2 coin for\nlower-class targets']]); L = body(claim(sx, '--n 3')).split('\n');
+  ok(L[1].indexOf('**Rules (core book):** ') === 0 && /\*\*\+2 coin\*\* in payoff/.test(L[1]) && L[2] === '*On the sheet:* **+2 coin** for lower-class targets', 'the sheet text line: an italic label, the number bold', L);
+  const ch2 = mkCrew('CO', 'hawkers', [[14, 'Cover Operation', true]]); ok(/You get \*\*-2 heat\*\* per score\./.test(body(claim(ch2, '--n 14'))), 'a Heat claim: -2 heat bold');
+  const ast = mkCrew('Stars', 'x', [[1, 'Fixer', true, 'a *star* and **two** here']]); L = body(claim(ast, '--n 1'));
+  ok(!/(^|[^*])\*(?!\*)[a-z]/.test(L.split('\n').pop().replace(/^\*On the sheet:\*/, '')) && L.indexOf('a ' + AST + 'star' + AST + ' and ' + AST + AST + 'two' + AST + AST + ' here') > 0, 'asterisks in sheet text become a harmless look-alike, so they cannot format the card', L);
+  // upgrades
+  o = upg(vt, 'lair', 'vault'); L = body(o).split('\n');
+  ok(L[0].indexOf('**Boxes on the sheet:** ' + ON + OFF + ' (1 of 2 marked).') === 0 && L[1] === '**Cost** (Deep Cuts, Development, p83): **10 coin** per box (20 coin for all 2 boxes).' && L[2].indexOf('**Rules in force (Deep Cuts, Downtime module, p88):** ') === 0, 'an upgrade card: bold labels, the cost in bold', L);
+  const spc = mkCrew('Spec', 'Assassins', [], true); E.attr(spc, 'repeating_upgrade_-S_name', 'Assassin rigging (2 free load of weapons or gear)'); E.attr(spc, 'repeating_upgrade_-S_numboxes', '1'); E.attr(spc, 'repeating_upgrade_-S_check_1', '1'); E.attr(spc, 'repeating_upgrade_-S_cost', '6');
+  L = body(upg(spc, 'special', '-S')).split('\n');
+  ok(L[1] === '*Sheet name:* Assassin rigging (2 free load of weapons or gear)' && L[2] === '**Cost** (Deep Cuts, Development, p83): **6 coin** per box.' && /^\*Core book:\* You get 2 free load worth/.test(L[3]), 'a crew special: the sheet name italic, the core book label italic', L);
+  // the menus
+  o = E.run('!bitdcrew upgrades', pat, E.token(vt)); ok(/\*\*Lair:\*\* 1 of 7 taken/.test(o[0]) && /\*\*Quality:\*\* 0 of 6 taken/.test(o[0]), 'the category menu: bold names for the counts');
+  o = E.run('!bitdcrew upgradelist --c ' + vt + ' --row lair', pat); ok(/\*One circle per box on the sheet: .*\*$/.test(o[0].replace(/\}\}$/, '')) && !/\[\*|\*\]\(/.test(o[0]), 'the list: an italic legend, no markup in any button');
+  o = E.run('!bitdcrew claims', pat, E.token(inf)); ok(/\*.* held by the crew, .* not held\.\*/.test(o[0]), 'the claims menu legend is italic');
+
+  // ---- the switches
+  let r = fmt('italic off'); ok(has(r, /bold is now on and italic is off/), 'fmt italic off', r);
+  L = body(claim(sx, '--n 3')).split('\n'); ok(L[1].indexOf('**Rules (core book):**') === 0 && L[2] === 'On the sheet: **+2 coin** for lower-class targets', 'with italic off the bold stays and the italic label is plain', L);
+  fmt('bold off'); fmt('italic on'); L = body(claim(sx, '--n 3')).split('\n'); ok(L[0] === 'Held by this crew.' && L[1] === 'Rules (core book): You get +2 coin in payoff for scores that involve lower-class clients. This well-respected agent will help arrange for a better payoff from poorer clients.' && L[2] === '*On the sheet:* +2 coin for lower-class targets', 'with bold off the italic stays and no bold appears', L);
+  fmt('off'); ok(!/\*/.test(claim(sx, '--n 3')[0].replace(/\{\{charimage=.*$/, '')) && !/\*/.test(body(E.run('!bitdcrew upgradelist --c ' + vt + ' --row lair', pat))), 'fmt off: no markup anywhere in the card');
+  ok(has(fmt('', gm), /bold is off, italic is off/) && has(fmt('sideways', gm), /Use !bitdcrew fmt probe/), 'fmt with nothing or nonsense reports the state');
+  fmt('on'); ok(has(fmt('', gm), /bold is on, italic is on/), 'fmt on');
+  ok(has(fmt('off', quinn), /only the GM/) && has(fmt('probe', quinn), /only the GM/) && /bold is on, italic is on/.test(fmt('', gm)[0]), 'only the GM can change or probe the formatting');
+  const pr = fmt('probe'); ok(pr.length === 1 && /^\/w "GM" /.test(pr[0]) && /Bold: \*\*bold text\*\*/.test(pr[0]) && /Italic: \*italic text\*/.test(pr[0]) && /Both: \*\*\*bold and italic\*\*\*/.test(pr[0]) && /Underline: __underlined text__/.test(pr[0]) && /Strikethrough: ~~struck text~~/.test(pr[0]) && /Code: `code text`/.test(pr[0]) && /HTML bold: <b>html bold<\/b>/.test(pr[0]), 'the probe card shows each kind of markup, to the GM only', pr[0].slice(0, 300));
+  // the setting survives in state
+  fmt('bold off'); ok(E.env.state.BitDCrewTAM.fmt.bold === false && E.env.state.BitDCrewTAM.fmt.italic !== false, 'the choice is kept in state');
+  fmt('on');
+
+  // nothing is written
+  const snap = (c) => JSON.stringify(E.store.attrs.filter(x => x._characterid === c).map(x => [x.name, x.current]));
+  const before = snap(vt); claim(inf, '--n 12'); claim(inf, '--n 12 alt'); upg(vt, 'lair', 'vault'); upg(vt, 'lair', 'vault', 'alt'); claim(tf, '--row turf alt'); ok(snap(vt) === before, 'the alt buttons write nothing to the sheet');
 }
 
 // ---------------------------------------------------------------- T13 the two scripts together

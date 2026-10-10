@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.9.3
+/* BitD Crew Token Action Maker  v0.10.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -37,7 +37,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.9.3';
+  var VERSION = '0.10.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -464,6 +464,18 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   }
   // verbose API-console logging for the newer flows; switched by !bitdcrew debug on|off
   function dbg(text) { if (botState().debug) { log('BitDCrew debug: ' + text); } }
+
+  // Card text uses Roll20 chat markup: **bold** for what applies now (the state, the rule in force, the numbers) and *italic* for where a text
+  // comes from. Whether the sheet's card template shows the markup is checked with !bitdcrew fmt probe; fmt off, fmt bold off and
+  // fmt italic off (GM) switch it off again, kept in state.
+  function fmtOn(kind) { var f = botState().fmt; return !f || f[kind] !== false; }
+  function bold(x) { return fmtOn('bold') && x ? '**' + x + '**' : x; }
+  function ital(x) { return fmtOn('italic') && x ? '*' + x + '*' : x; }
+  // the numbers and dice in rule text stand out: +1d, -2 heat, +2 coin, +1 tick
+  var RE_MECH = /[+-]\d+d?(?:\s(?:coin|heat|rep|tick|ticks|scale|stress|armor|quality|effect|edge)\b)?/gi;
+  function mech(x) { return fmtOn('bold') ? String(x).replace(RE_MECH, function (m) { return '**' + m + '**'; }) : String(x); }
+  // a labelled rule line: the label bold when the rule applies now, italic when it only says where a text comes from
+  function ruleLine(label, text, source) { return (source ? ital(label) : bold(label)) + ' ' + mech(text); }
 
   // ---------------------------------------------------------------- sheet readers
 
@@ -1137,10 +1149,13 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // ---------------------------------------------------------------- contacts
 
-  // text from a sheet note, made safe to post: no brackets (inline rolls and chat buttons), no macro openers, no template braces
+  // text from a sheet note, made safe to post: no brackets (inline rolls and chat buttons), no macro openers, no template braces,
+  // no asterisks (they would turn into bold or italic)
+  var ASTERISK_OP = String.fromCharCode(0x2217);
   function chatNotes(text, max) {
     var t = String(text === undefined || text === null ? '' : text).replace(/\r/g, '')
-      .replace(/\[/g, '(').replace(/\]/g, ')').replace(/([@%?&])\{/g, '$1 {').replace(/\{\{|\}\}/g, '').replace(/\|/g, '/');
+      .replace(/\[/g, '(').replace(/\]/g, ')').replace(/([@%?&])\{/g, '$1 {').replace(/\{\{|\}\}/g, '').replace(/\|/g, '/')
+      .replace(/\*/g, ASTERISK_OP);
     t = t.split('\n').map(function (l) { return l.replace(/\s+$/, ''); }).join(NL).replace(/\n{3,}/g, NL + NL).trim();
     if (t.length > max) { t = t.slice(0, max).replace(/\s+\S*$/, '') + ' ... (the notes were cut at ' + max + ' characters)'; }
     return t;
@@ -1255,47 +1270,64 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     whisper(msg, broadcast(t.c, {
       type: 'Claims',
       title: 'Show to the table',
-      content: slots.length ? lines.join(NL) + NL + G_ON + ' held by the crew, ' + G_OFF + ' not held.' : 'There are no claims on this sheet.'
+      content: slots.length ? lines.join(NL) + NL + ital(G_ON + ' held by the crew, ' + G_OFF + ' not held.') : 'There are no claims on this sheet.'
     }));
   }
 
-  // the rules text of one claim, shown to the table
+  // a button that posts the other text of a claim or upgrade (the one not in force) to the table, if wanted
+  function altButton(label, cmd) { return '[' + btn(label) + '](' + CMD + ' ' + cmd + ' alt)'; }
+
+  // the rule in force for one claim, and the other text kept behind a button: {main, altLabel, alt}
+  function claimRules(cid, s, type, dtOn) {
+    var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key], ruling = (CLAIM_TYPE_RULING[s.key] || {})[type];
+    if (ruling) {
+      return { main: ruleLine('Rules in force (Deep Cuts crew sheets v1.2b):', ruling), altLabel: 'Show the core book text',
+        alt: book ? ruleLine('Core book text (not used for this crew):', book, true) : '' };
+    }
+    if (dc) {
+      if (isOn(cid, dc.attr)) {
+        return { main: ruleLine('Rules in force (Deep Cuts, ' + dc.module + ' module):', dc.text), altLabel: 'Show the core book text',
+          alt: book ? ruleLine('Core book text (replaced while the module is on):', book, true) : '' };
+      }
+      var off = ruleLine('Deep Cuts text (' + dc.module + ' module, off for this crew):', dc.text, true);
+      return book ? { main: ruleLine('Rules in force (core book):', book), altLabel: 'Show the Deep Cuts text, module off', alt: off } : { main: off, altLabel: '', alt: '' };
+    }
+    if (book) { return { main: ruleLine('Rules (core book):', book), altLabel: '', alt: '' }; }
+    return { main: ital('No book text for this claim: the core book has no entry for it.'), altLabel: '', alt: '' };
+  }
+
+  // the rules text of one claim, shown to the table: the rule in force in full, the other text behind a button
   function doClaimInfo(msg, o) {
     var t = target(msg, o); if (!t) { return; }
-    var cid = t.ch.id, slots = claimSlots(cid), type = crewTypeKey(cid, slots), L = [], dtOn = isOn(cid, 'setting_dc_downtime');
+    var cid = t.ch.id, slots = claimSlots(cid), type = crewTypeKey(cid, slots), L = [], dtOn = isOn(cid, 'setting_dc_downtime'), alt = String(o.pos[0] || '') === 'alt';
     if (String(o.row || '') === 'turf') {
-      var turfs = slots.filter(function (s) { return s.key === 'turf'; }), held = turfs.filter(function (s) { return s.held; }).length;
+      var turfs = slots.filter(function (s) { return s.key === 'turf'; }), held = turfs.filter(function (s) { return s.held; }).length, ttl = 'Turf: ' + held + ' of ' + turfs.length + ' held';
       if (!turfs.length) { whisper(msg, 'BitDCrew: there are no turf claims on this sheet. Run 6b. Claims again.'); return; }
-      L.push('Turf claims held by this crew: ' + held + ' of ' + turfs.length + '.');
-      L.push(dtOn ? 'Rules in force (Deep Cuts, Downtime module): ' + TURF_DC : 'Rules (core book): ' + TURF_CORE);
-      L.push(dtOn ? 'Core book: ' + TURF_CORE : 'Deep Cuts text (Downtime module, off for this crew): ' + TURF_DC);
+      var tmain = dtOn ? ruleLine('Rules in force (Deep Cuts, Downtime module):', TURF_DC) : ruleLine('Rules (core book):', TURF_CORE);
+      var tlabel = dtOn ? 'Show the core book text' : 'Show the Deep Cuts text, module off';
+      var talt = dtOn ? ruleLine('Core book:', TURF_CORE, true) : ruleLine('Deep Cuts text (Downtime module, off for this crew):', TURF_DC, true);
+      if (alt) { postClaimCard(msg, t, held > 0, ttl, [talt]); return; }
+      L.push(bold('Turf claims held by this crew: ' + held + ' of ' + turfs.length + '.'));
+      L.push(tmain);
+      L.push(altButton(tlabel, 'claiminfo --c ' + cid + ' --row turf'));
       var hag = slots.filter(function (x) { return x.key === 'hagfish farm'; })[0];
-      if (dtOn && hag) { L.push('Hagfish Farm also counts as turf (Deep Cuts crew sheets v1.2b): ' + (hag.held ? 'held' : 'not held') + '.'); }
-      L.push('Turf boxes marked on the sheet: ' + getNum(cid, 'turf', 0) + '.');
-      postClaimCard(msg, t, held > 0, 'Turf: ' + held + ' of ' + turfs.length + ' held', L);
+      if (dtOn && hag) { L.push('Hagfish Farm also counts as turf (Deep Cuts crew sheets v1.2b): ' + bold(hag.held ? 'held' : 'not held') + '.'); }
+      L.push(ital('Turf boxes marked on the sheet:') + ' ' + getNum(cid, 'turf', 0) + '.');
+      postClaimCard(msg, t, held > 0, ttl, L);
       return;
     }
     var n = parseInt(o.n, 10), s = slots.filter(function (x) { return x.slot === n && x.key !== 'turf'; })[0];
     if (!s) { whisper(msg, 'BitDCrew: that claim is no longer on the sheet. Run 6b. Claims again.'); return; }
-    var book = claimBookText(s.key, type), dc = CLAIM_DC[s.key], ruling = (CLAIM_TYPE_RULING[s.key] || {})[type];
-    L.push(s.held ? 'Held by this crew.' : 'Not held by this crew.');
-    if (ruling) {
-      L.push('Rules in force (Deep Cuts crew sheets v1.2b): ' + ruling);
-      if (book) { L.push('Core book text (not used for this crew): ' + book); }
-    } else if (dc) {
-      if (isOn(cid, dc.attr)) {
-        L.push('Rules in force (Deep Cuts, ' + dc.module + ' module): ' + dc.text);
-        if (book) { L.push('Core book text (replaced while the module is on): ' + book); }
-      } else {
-        if (book) { L.push('Rules in force (core book): ' + book); }
-        L.push('Deep Cuts text (' + dc.module + ' module, off for this crew): ' + dc.text);
-      }
-    } else if (book) {
-      L.push('Rules (core book): ' + book);
-    } else {
-      L.push('No book text for this claim: the core book has no entry for it.');
+    var r = claimRules(cid, s, type, dtOn);
+    if (alt) {
+      if (!r.alt) { whisper(msg, 'BitDCrew: there is no other text for that claim.'); return; }
+      postClaimCard(msg, t, s.held, s.name, [r.alt]);
+      return;
     }
-    if (s.sheet) { L.push('On the sheet: ' + s.sheet); }
+    L.push(bold(s.held ? 'Held by this crew.' : 'Not held by this crew.'));
+    L.push(r.main);
+    if (r.alt) { L.push(altButton(r.altLabel, 'claiminfo --c ' + cid + ' --n ' + s.slot)); }
+    if (s.sheet) { L.push(ruleLine('On the sheet:', s.sheet, true)); }
     postClaimCard(msg, t, s.held, s.name, L);
   }
 
@@ -1388,7 +1420,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       var items = upgradeItems(cid, cat), label = upgradeCategoryLabel(cid, cat);
       var taken = items.filter(function (u) { return u.state === 'taken'; }).length, part = items.filter(function (u) { return u.state === 'partial'; }).length;
       btns.push('[' + btn(label) + '](' + CMD + ' upgradelist --c ' + cid + ' --row ' + cat + ')');
-      counts.push(clean(label) + ': ' + taken + ' of ' + items.length + ' taken' + (part ? ', ' + part + ' in progress' : ''));
+      counts.push(bold(clean(label) + ':') + ' ' + taken + ' of ' + items.length + ' taken' + (part ? ', ' + part + ' in progress' : ''));
       dbg('upgrades ' + cat + ': ' + items.length + ' found, ' + taken + ' taken, ' + part + ' in progress');
     });
     whisper(msg, broadcast(t.c, { type: 'Crew upgrades', title: 'Show to the table', content: btns.join(NL) + NL + counts.join(NL) }));
@@ -1407,8 +1439,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     if (!items.length) {
       content = cat === 'special' ? 'There are no crew-special upgrades on this sheet. Set the crew type on the sheet and they fill in.' : 'There are no upgrades in this category on this sheet.';
     } else {
-      content = lines.join(NL) + NL + 'One circle per box on the sheet: ' + G_ON + ' marked, ' + G_OFF + ' empty. Upgrades with several boxes count as taken only when every box is marked' +
-        (cat === 'lair' ? ', except Carriage, Boat, Secure and Vault, which count from the first box.' : '.');
+      content = lines.join(NL) + NL + ital('One circle per box on the sheet: ' + G_ON + ' marked, ' + G_OFF + ' empty. Upgrades with several boxes count as taken only when every box is marked' +
+        (cat === 'lair' ? ', except Carriage, Boat, Secure and Vault, which count from the first box.' : '.'));
     }
     dbg('upgradelist ' + cat + ': ' + items.map(function (u) { return u.short + ' ' + boxGlyphs(u.boxes); }).join(', '));
     whisper(msg, broadcast(t.c, { type: 'Crew upgrades', title: label, content: content }));
@@ -1423,30 +1455,48 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     dbg('upgradeinfo asked for category ' + JSON.stringify(cat) + ', upgrade ' + JSON.stringify(ref));
     var u = UPGRADE_CATEGORIES.indexOf(cat) < 0 ? null : upgradeItems(cid, cat).filter(function (x) { return x.ref === ref; })[0];
     if (!u) { whisper(msg, 'BitDCrew: that upgrade is no longer on the sheet. Run 6c. Crew Upgrades again.'); return; }
-    var dtOn = isOn(cid, 'setting_dc_downtime'), L = [], n = u.boxes.length, marked = u.boxes.filter(Boolean).length;
-    var book = (cat === 'special' || cat === 'lair') ? upgradeBookText(u.name) : '';
-    L.push(n === 1 ? 'Box on the sheet: ' + boxGlyphs(u.boxes) + (marked ? ' (marked).' : ' (not marked).') :
-      'Boxes on the sheet: ' + boxGlyphs(u.boxes) + ' (' + marked + ' of ' + n + ' marked). ' +
+    var dtOn = isOn(cid, 'setting_dc_downtime'), L = [], n = u.boxes.length, marked = u.boxes.filter(Boolean).length, alt = String(o.pos[0] || '') === 'alt';
+    var book = (cat === 'special' || cat === 'lair') ? upgradeBookText(u.name) : '', dc = u.key ? UPGRADE_DC[u.key] : null;
+    var sheetLine = u.text ? ruleLine(u.copy ? 'Sheet text (copy kept in the script):' : 'On the sheet:', u.text, true) : '';
+    // the rule in force goes in full; the text it replaces, or the Deep Cuts text while the module is off, waits behind a button
+    var mainDc = '', altLine = '', altLabel = '';
+    if (dc && dtOn && dc.replaces) {
+      mainDc = ruleLine('Rules in force (Deep Cuts, Downtime module, ' + dc.page + '):', dc.text);
+      if (u.text) {
+        // a sheet that already carries the Deep Cuts wording needs no second line
+        if (normName(u.text) === normName(dc.text)) { sheetLine = ''; }
+        else { altLine = sheetLine; altLabel = 'Show the sheet text it replaces'; sheetLine = ''; }
+      }
+    } else if (dc && dtOn) {
+      mainDc = ruleLine('Also in force (Deep Cuts, Downtime module, ' + dc.page + '):', dc.text);
+    } else if (dc) {
+      altLine = ruleLine('Deep Cuts text (Downtime module, off for this crew, ' + dc.page + '):', dc.text, true);
+      altLabel = 'Show the Deep Cuts text, module off';
+    }
+    var state = u.state === 'taken' ? 'Upgrade taken' : u.state === 'partial' ? 'Upgrade in progress' : 'Upgrade not taken';
+    function post(lines) {
+      sendChat('player|' + msg.playerid, broadcast(t.c, { type: state, title: boxGlyphs(u.boxes) + ' ' + u.short, content: lines.map(function (x) { return clean(x); }).join(NL) }));
+    }
+    if (alt) {
+      if (!altLine) { whisper(msg, 'BitDCrew: there is no other text for that upgrade.'); return; }
+      post([altLine]);
+      return;
+    }
+    L.push(n === 1 ? bold('Box on the sheet:') + ' ' + boxGlyphs(u.boxes) + (marked ? ' (marked).' : ' (not marked).') :
+      bold('Boxes on the sheet:') + ' ' + boxGlyphs(u.boxes) + ' (' + marked + ' of ' + n + ' marked). ' +
       (u.levels ? 'Counts as taken from any box; a second box improves it.' : 'Counts as taken only when all ' + n + ' boxes are marked.'));
-    if (u.short !== u.name) { L.push('Sheet name: ' + u.name); }
+    if (u.short !== u.name) { L.push(ital('Sheet name:') + ' ' + u.name); }
     if (dtOn && u.cost > 0) {
-      L.push('Cost (Deep Cuts, Development, p83): ' + u.cost + ' coin per box' + (n > 1 ? ' (' + (u.cost * n) + ' coin for all ' + n + ' boxes)' : '') + '.');
+      L.push(bold('Cost') + ' (Deep Cuts, Development, p83): ' + bold(u.cost + ' coin') + ' per box' + (n > 1 ? ' (' + (u.cost * n) + ' coin for all ' + n + ' boxes)' : '') + '.');
     }
-    var dc = u.key ? UPGRADE_DC[u.key] : null;
-    if (dc) {
-      if (dtOn) { L.push((dc.replaces ? 'Rules in force' : 'Also in force') + ' (Deep Cuts, Downtime module, ' + dc.page + '): ' + dc.text); }
-      else { L.push('Deep Cuts text (Downtime module, off for this crew, ' + dc.page + '): ' + dc.text); }
-    }
-    if (book) { L.push('Core book: ' + book); }
-    else if (cat === 'special') { L.push('No book text for this upgrade: the core book has no entry for it.'); }
-    if (u.text) { L.push((u.copy ? 'Sheet text (copy kept in the script): ' : 'On the sheet: ') + u.text); }
-    if (cat === 'quality') { L.push('Core book, Quality: ' + UPGRADE_QUALITY_RULE); }
-    dbg('upgradeinfo ' + cat + ':' + ref + ' state ' + u.state + ', text from ' + (u.copy ? 'script copy' : u.text ? 'sheet' : 'none') + ', book ' + (book ? 'yes' : 'no'));
-    sendChat('player|' + msg.playerid, broadcast(t.c, {
-      type: u.state === 'taken' ? 'Upgrade taken' : u.state === 'partial' ? 'Upgrade in progress' : 'Upgrade not taken',
-      title: boxGlyphs(u.boxes) + ' ' + u.short,
-      content: L.map(function (x) { return clean(x); }).join(NL)
-    }));
+    if (mainDc) { L.push(mainDc); }
+    if (altLine) { L.push(altButton(altLabel, 'upgradeinfo --c ' + cid + ' --row ' + cat + ' --n ' + ref)); }
+    if (book) { L.push(ruleLine('Core book:', book, true)); }
+    else if (cat === 'special') { L.push(ital('No book text for this upgrade: the core book has no entry for it.')); }
+    if (sheetLine) { L.push(sheetLine); }
+    if (cat === 'quality') { L.push(ruleLine('Core book, Quality:', UPGRADE_QUALITY_RULE, true)); }
+    dbg('upgradeinfo ' + cat + ':' + ref + ' state ' + u.state + ', text from ' + (u.copy ? 'script copy' : u.text ? 'sheet' : 'none') + ', book ' + (book ? 'yes' : 'no') + ', other text ' + (altLine ? 'behind a button' : 'none'));
+    post(L);
   }
 
   function clockSize(cid, base) {
@@ -2214,6 +2264,27 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     whisper(msg, 'BitDCrew: debug logging is now ' + (st.debug ? 'on' : 'off') + '. Messages go to the API console.');
   }
 
+  // card formatting: GM tools for the **bold** and *italic* markup (see fmtOn)
+  function doFmt(msg, o) {
+    if (!playerIsGM(msg.playerid)) { whisper(msg, 'BitDCrew: only the GM can change the card formatting.'); return; }
+    var a = String(o.pos[0] || '').toLowerCase(), b = String(o.pos[1] || '').toLowerCase(), st = botState(), f = st.fmt = st.fmt || {};
+    if (a === 'probe') {
+      var BACKTICK = String.fromCharCode(96);
+      var L = ['Each line shows one kind of markup. If it works the marks disappear and the word is styled; if a line still shows the marks, that kind does not work in these cards.',
+        'Bold: **bold text**', 'Italic: *italic text*', 'Both: ***bold and italic***', 'Underline: __underlined text__', 'Strikethrough: ~~struck text~~',
+        'Code: ' + BACKTICK + 'code text' + BACKTICK, 'Slashes: //slashed text//', 'HTML bold: <b>html bold</b>', 'Heading: # heading text'];
+      whisper(msg, broadcast({ name: 'Formatting test', image: '' }, { type: 'Formatting', title: 'What the cards show', content: L.join(NL) }));
+      return;
+    }
+    if (a === 'on' || a === 'off') { f.bold = f.italic = (a === 'on'); }
+    else if ((a === 'bold' || a === 'italic') && (b === 'on' || b === 'off')) { f[a] = (b === 'on'); }
+    else {
+      whisper(msg, 'BitDCrew: bold is ' + (fmtOn('bold') ? 'on' : 'off') + ', italic is ' + (fmtOn('italic') ? 'on' : 'off') + '. Use !bitdcrew fmt probe, fmt on, fmt off, fmt bold on|off or fmt italic on|off.');
+      return;
+    }
+    whisper(msg, 'BitDCrew: card bold is now ' + (fmtOn('bold') ? 'on' : 'off') + ' and italic is ' + (fmtOn('italic') ? 'on' : 'off') + '.');
+  }
+
   // ---------------------------------------------------------------- router
 
   function route(msg, o) {
@@ -2245,6 +2316,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'hhact': return doHhAct(msg, o);
       case 'party': return doParty(msg, o);
       case 'debug': return doDebug(msg, o);
+      case 'fmt': return doFmt(msg, o);
       case 'status': return doStatus(msg, o);
       default:
         whisper(msg, 'BitD Crew Token Action Maker v' + VERSION + ': select a crew token and run ' + MACRO_NAME +

@@ -1,6 +1,6 @@
 # Correcting the claim wording on the sheet to match the Deep Cuts crew sheets (proposal)
 
-**Status: proposal for approval. No code has been touched for this.** (The three rulings you just gave are built in the crew script v0.9.3; see `Deep Cuts Sheets v1.2b - Script Check.md`.) Source for every new wording below: `BitD_Deep_Cuts_Sheets_v1_2b.pdf`, crew pages.
+**Status: approved (2026-10-10). Decisions: extend the PC script's fixer, all 30 rows, Downtime switch for Hagfish Farm, Infirmary and Sacred Nexus, everything else always. `!bitd fixtext check` printed "Every text already matches the book", so the existing fixes work. The work is done by the PC script's own session from `PC Script Handoff - Claim Text Fixes.md` (PC script v0.3.2); nothing in the crew script changes.** The proposal as first written follows. (The three rulings you just gave are built in the crew script v0.9.3; see `Deep Cuts Sheets v1.2b - Script Check.md`.) Source for every new wording below: `BitD_Deep_Cuts_Sheets_v1_2b.pdf`, crew pages.
 
 ## 1. Bottom line
 

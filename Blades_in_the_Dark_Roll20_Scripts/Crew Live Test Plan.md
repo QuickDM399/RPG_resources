@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.9.3
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.10.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.9.3 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.10.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.9.3 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.10.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -266,8 +266,8 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - The action bar order is `6. Abilities`, `6a. Contacts`, `6b. Claims`, `6c. Crew Upgrades`, `7. Adjust`.
 - A whispered card lists every claim on the sheet in sheet order, a filled circle for held and a hollow one for not held, one Turf button with a count ("Turf: 2 of 5 held"), and a line explaining the circles.
 - A click posts a public card: header "Claim held" or "Claim not held", the circle before the name, "Held by this crew." or "Not held by this crew.", the rules text from the book (check it against the text page), and "On the sheet: ..." with the sheet's own short text.
-- The Turf card shows the count, the core rule text, the Deep Cuts hold rule (marked "in force" with Downtime on) and the turf boxes marked.
-- Warehouses shows the core text in force with Downtime off and the Deep Cuts text in force with it on, the other beside it. Informants does the same with the Action module.
+- The Turf card shows the count, the rule in force in full (the Deep Cuts hold rule with Downtime on, the core text with it off) and a button for the other one, and the turf boxes marked.
+- Warehouses shows the core text in force with Downtime off and the Deep Cuts text in force with it on. **The other text is not in the card: a button ("Show the core book text" or "Show the Deep Cuts text, module off") posts it to the table when clicked.** Informants does the same with the Action module.
 - Infirmary (Assassins, Bravos or Shadows) and Sacred Nexus (Cult): with Downtime on, "Rules in force (Deep Cuts, Downtime module): +1 tick to healing clock in downtime ..." and the core "+1d to healing treatment rolls" marked replaced; with Downtime off, the core text in force and the Deep Cuts text beside it. The Action module makes no difference.
 - Hagfish Farm (Assassins or Shadows): with Downtime on, "Rules in force (Deep Cuts, Downtime module): Body disposal + counts as turf." and the core Reduce Heat text marked replaced; with Downtime off, the core text in force. The Turf button's card then has a line "Hagfish Farm also counts as turf: held / not held". With a Turf claim and Hagfish Farm both ticked and two turf boxes marked, `9. Status` shows no turf note; with one box marked it says "2 Turf claims are ticked (counting Hagfish Farm)".
 - Cover Identities: on a Hawkers crew the card says "Rules in force (Deep Cuts crew sheets v1.2b): ... deception or transport plans"; on an Assassins crew the core text, deception and social. Run `2. Engagement` on a Hawkers crew with Cover Identities ticked: a transport plan gets +1d, a social plan does not.
@@ -289,9 +289,19 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - Nothing on the sheet changes.
 **Known fail states:** a missing or extra circle, circles in the wrong order, the Hardened upgrade shown as taken with two boxes, Mastery taken with three, a special upgrade with no core book text (send me the exact name on the sheet), the sheet text missing or repeated twice (the script copy is used only when the sheet attribute reads empty; the card says which), the card cut off, a button that does nothing after you change the sheet. If a card is wrong or a button does nothing, run `!bitdcrew debug on` and click again. The API console then lists every command the script receives (so you can tell a button Roll20 never sent from one the script refused), and for upgrades the category, rows, boxes and the text source.
 
-## L29 Clean up
+## L29 Card formatting (any crew; GM for the `fmt` commands)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Steps:** run `!bitdcrew fmt probe`. Read the card: each line names one kind of markup. Then click `6b. Claims`, a claim, an upgrade from `6c. Crew Upgrades`, and one more claim with a button. Try `!bitdcrew fmt italic off`, `!bitdcrew fmt bold off`, `!bitdcrew fmt off`, then `!bitdcrew fmt on`.
+**Pass:**
+- The probe card: tell me **which lines show styled text and which still show the marks** (for example `**bold text**`). This decides what the cards can use.
+- Claim card: "Held by this crew." in bold, the label of the rule in force in bold, numbers and dice in the rule (+1d, -2 heat, +2 coin, +1 tick) in bold, "On the sheet:" and the other source labels in italic. Upgrade card: "Boxes on the sheet:" and "Cost" bold, the cost figure bold. Menus: the category names in bold and the legends in italic. Buttons carry no markup.
+- If a kind of markup does not render, you see literal asterisks in the cards. Turn that kind off with `fmt bold off` or `fmt italic off` and tell me.
+- The `fmt` commands answer only the GM, and the setting stays after a sandbox restart.
+**Known fail states:** literal `**` or `*` in the cards, a button label with asterisks, bold text running on past the end of a line.
+
+## L30 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 
