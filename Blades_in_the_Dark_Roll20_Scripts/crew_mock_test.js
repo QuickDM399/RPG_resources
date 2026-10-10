@@ -1998,17 +1998,48 @@ const idxOf = (texts) => { const m = /--idx (\S+?)\)/.exec(texts.join(' ')); ret
   o = E.run('!bitdcrew claims', pat, E.token(inf)); ok(/\*.* held by the crew, .* not held\.\*/.test(o[0]), 'the claims menu legend is italic');
 
   // ---- the switches
-  let r = fmt('italic off'); ok(has(r, /bold is now on and italic is off/), 'fmt italic off', r);
+  let r = fmt('italic off'); ok(has(r, /Bold is on, italic is off/) && has(r, /Italic sample: italic sample\b/) && has(r, /Bold sample: \*\*bold sample\*\*/), 'fmt italic off', r);
   L = body(claim(sx, '--n 3')).split('\n'); ok(L[1].indexOf('**Rules (core book):**') === 0 && L[2] === 'On the sheet: **+2 coin** for lower-class targets', 'with italic off the bold stays and the italic label is plain', L);
   fmt('bold off'); fmt('italic on'); L = body(claim(sx, '--n 3')).split('\n'); ok(L[0] === 'Held by this crew.' && L[1] === 'Rules (core book): You get +2 coin in payoff for scores that involve lower-class clients. This well-respected agent will help arrange for a better payoff from poorer clients.' && L[2] === '*On the sheet:* +2 coin for lower-class targets', 'with bold off the italic stays and no bold appears', L);
   fmt('off'); ok(!/\*/.test(claim(sx, '--n 3')[0].replace(/\{\{charimage=.*$/, '')) && !/\*/.test(body(E.run('!bitdcrew upgradelist --c ' + vt + ' --row lair', pat))), 'fmt off: no markup anywhere in the card');
-  ok(has(fmt('', gm), /bold is off, italic is off/) && has(fmt('sideways', gm), /Use !bitdcrew fmt probe/), 'fmt with nothing or nonsense reports the state');
-  fmt('on'); ok(has(fmt('', gm), /bold is on, italic is on/), 'fmt on');
-  ok(has(fmt('off', quinn), /only the GM/) && has(fmt('probe', quinn), /only the GM/) && /bold is on, italic is on/.test(fmt('', gm)[0]), 'only the GM can change or probe the formatting');
+  ok(has(fmt('', gm), /Bold is off, italic is off/) && has(fmt('', gm), /Bold sample: bold sample/) && has(fmt('sideways', gm), /Use !bitdcrew fmt probe/), 'fmt with nothing or nonsense reports the state');
+  fmt('on'); ok(has(fmt('', gm), /Bold is on, italic is on/) && has(fmt('', gm), /Italic sample: \*italic sample\*/), 'fmt on');
+  ok(has(fmt('off', quinn), /only the GM/) && has(fmt('probe', quinn), /only the GM/) && /Bold is on, italic is on/.test(fmt('', gm)[0]), 'only the GM can change or probe the formatting');
   const pr = fmt('probe'); ok(pr.length === 1 && /^\/w "GM" /.test(pr[0]) && /Bold: \*\*bold text\*\*/.test(pr[0]) && /Italic: \*italic text\*/.test(pr[0]) && /Both: \*\*\*bold and italic\*\*\*/.test(pr[0]) && /Underline: __underlined text__/.test(pr[0]) && /Strikethrough: ~~struck text~~/.test(pr[0]) && /Code: `code text`/.test(pr[0]) && /HTML bold: <b>html bold<\/b>/.test(pr[0]), 'the probe card shows each kind of markup, to the GM only', pr[0].slice(0, 300));
   // the setting survives in state
   fmt('bold off'); ok(E.env.state.BitDCrewTAM.fmt.bold === false && E.env.state.BitDCrewTAM.fmt.italic !== false, 'the choice is kept in state');
   fmt('on');
+
+  // ---- the styled HTML card
+  const hmenu = () => E.run('!bitdcrew claims', pat, E.token(inf));
+  let r2 = fmt('card html'); ok(has(r2, /the claim and upgrade cards are styled HTML cards/), 'fmt card html', r2);
+  ok(has(fmt('card html', quinn), /only the GM/) && has(fmt('card sideways'), /Use !bitdcrew fmt probe/), 'only the GM switches the card style; nonsense is answered with the usage');
+  let h = claim(inf, '--n 12');
+  ok(h.length === 1 && E.out.length === 1 && E.out[0].who === 'BitDCrew' && /^\/direct <div style="/.test(h[0]) && !/\{\{|\n/.test(h[0]), 'the claim card is one /direct HTML message', h[0].slice(0, 120));
+  ok(/>INF DT<\/div>/.test(h[0]) && />CLAIM HELD<\/div>/.test(h[0]) && /font-size:21px[^>]*>● INFIRMARY<\/div>/.test(h[0]) && />HELD BY THIS CREW<\/span>/.test(h[0]), 'the header, type, title (upper case, with the circle) and the HELD badge', h[0].slice(0, 700));
+  ok(/<div style="[^"]*border-left:3px solid #ef4a1e[^"]*"><span style="[^"]*">RULES IN FORCE \(DEEP CUTS, DOWNTIME MODULE\):<\/span>/.test(h[0]) && /<b style="color:#f5c542">\+1 tick<\/b> to healing clock in downtime/.test(h[0]), 'the rule in force is a box with an orange label and gold numbers');
+  ok((h[0].match(/<a /g) || []).length === 1 && /<a href="!bitdcrew claiminfo --c [^"]* --n 12 alt" style="[^"]*">Show the core book text<\/a>/.test(h[0]), 'the button is one styled link that runs the same command');
+  ok(/<div style="[^"]*">\s*<i>On the sheet:<\/i> <b style="color:#ffffff">\+1d<\/b> to healing rolls<\/div>/.test(h[0]) && /shown by Pat<\/div>/.test(h[0]), 'the sheet text is a quiet source line, and the card says who showed it');
+  ok(h[0].length < 3500, 'the card is short enough for a chat message', h[0].length);
+  ok(/background:#2e5e3a[^"]*">HELD BY THIS CREW<\/span>/.test(h[0]), 'a held claim has the green badge');
+  const hh = claim(mkCrew('NotHeld HTML', 'assassins', [[3, 'Fixer', false]]), '--n 3'); ok(/>NOT HELD BY THIS CREW<\/span>/.test(hh[0]) && /background:#4a3a34[^"]*">NOT HELD BY THIS CREW<\/span>/.test(hh[0]) && />CLAIM NOT HELD<\/div>/.test(hh[0]), 'a claim not held shows the muted badge');
+  const ha = E.run(/\(!bitdcrew claiminfo[^)]* alt\)/.exec(claim(inf, '--n 12')[0].replace(/<a href="([^"]*)"/g, '[x]($1)').replace(/"/g, ''))[0].slice(1, -1), pat);
+  ok(ha.length === 1 && /^\/direct <div/.test(ha[0]) && /<i>Core book text \(replaced while the module is on\):<\/i>/.test(ha[0]) && (ha[0].match(/<a /g) || []).length === 0, 'the button posts the other text as the same kind of card', ha[0].slice(0, 200));
+  // anything from the sheet is escaped
+  const evil = mkCrew('Evil HTML', 'assassins', [[3, 'Fixer<script>x</script>', true, '<img src=x onerror=alert(1)> & "quoted" [btn](!bitdcrew adj heat+1)']]);
+  const he = claim(evil, '--n 3')[0];
+  ok(!/<script|<img/.test(he) && /&lt;img src=x onerror=alert\(1\)&gt; &amp; &quot;quoted&quot;/.test(he) && /FIXER&lt;SCRIPT&gt;X&lt;\/SCRIPT&gt;/.test(he) && (he.match(/<a /g) || []).length === 0, 'text from the sheet cannot add tags or buttons to the card', he.slice(-500));
+  // upgrades, Turf, and the other cards
+  const uh = upg(vt, 'lair', 'vault')[0];
+  ok(/^\/direct /.test(uh) && />UPGRADE TAKEN<\/div>/.test(uh) && /<b style="color:#f5c542">10 coin<\/b> per box/.test(uh) && /RULES IN FORCE \(DEEP CUTS, DOWNTIME MODULE, P88\):/.test(uh) && uh.length < 3500, 'an upgrade card in the same style', uh.slice(0, 300));
+  const th2 = claim(tf, '--row turf')[0]; ok(/^\/direct /.test(th2) && /TURF: 1 OF 2 HELD/.test(th2) && th2.length < 3500, 'the Turf card too, within the length', th2.length);
+  ok(/^\/w "Pat" &\{template:bitd-broadcast\}/.test(hmenu()[0]) && /\*\*Held/.test(claim(inf, '--n 12 alt')[0]) === false, 'the menus stay sheet cards');
+  fmt('off'); ok(/<b style="color:#f5c542">\+1 tick<\/b>/.test(claim(inf, '--n 12')[0]) && /<i>On the sheet:<\/i>/.test(claim(inf, '--n 12')[0]), 'the bold and italic switches do not touch the HTML card');
+  ok(!/\*/.test(E.run('!bitdcrew claims', pat, E.token(inf))[0]), 'a styled card does not leak into the next command: with the markup off the menu has none');
+  fmt('on');
+  const pr2 = fmt('probe2'); ok(pr2.length === 2 && /^\/w "GM" <div/.test(pr2[0]) && /^\/direct <div/.test(pr2[1]) && /HTML TEST \(public, sent with \/direct\)/.test(pr2[1]) && /<u>underline<\/u> <s>strike<\/s>/.test(pr2[0]) && /font-size:20px/.test(pr2[0]) && /letter-spacing:3px/.test(pr2[0]) && /<a href="!bitdcrew fmt"/.test(pr2[0]), 'probe2 sends the HTML test twice, whispered and public', pr2.map(x => x.slice(0, 60)));
+  ok(has(fmt('probe2', quinn), /only the GM/), 'probe2 is GM only');
+  fmt('card sheet'); ok(/^&\{template:bitd-broadcast\}/.test(claim(inf, '--n 12')[0]) && E.out.every(x => x.who !== 'BitDCrew' || !/^\/direct/.test(x.text)), 'fmt card sheet puts the sheet card back');
 
   // nothing is written
   const snap = (c) => JSON.stringify(E.store.attrs.filter(x => x._characterid === c).map(x => [x.name, x.current]));

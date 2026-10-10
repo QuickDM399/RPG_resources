@@ -1,10 +1,10 @@
-# Crew Live Test Plan - BitD Crew Token Action Maker v0.10.0
+# Crew Live Test Plan - BitD Crew Token Action Maker v0.11.0
 
 For the local session that deploys the script (roll20-api-script-editor skill) and runs the live checks. The script and its mock tests were built without access to the game, so **every Roll20 behaviour below is unverified until you run it.** Record each result as pass, fail or not run; do not mark anything passed on the mock tests alone.
 
 ## Deliverable under test
 
-`BitD Crew Token Action Maker.js` v0.10.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
+`BitD Crew Token Action Maker.js` v0.11.0 (character count and hash are in the hand-back message). Game 22049328, Roll20 Pro, Mod Sandbox v1.5, sheet "Blades in the Dark" v3.11. The PC script `BitD Token Action Maker.js` v0.2.0 stays installed and enabled throughout.
 
 ## Ground truth
 
@@ -33,7 +33,7 @@ Other crews (Hawkers, Cult, Smugglers, Vigilantes) get only L1. The Action modul
 ## L0 Deploy and coexistence
 
 **Steps:** upload the script to the Mods page. Open the API console.
-**Pass:** the log shows `BitD Crew Token Action Maker v0.10.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
+**Pass:** the log shows `BitD Crew Token Action Maker v0.11.0 ready` and no error. The Macros list now has `CREW_TAM` (visible to all) next to `BLADES_TAM`. Select a PC token and click one of its token actions (for example `7. Status`): it answers exactly as before.
 **Known fail states:** a syntax error in the console (the file was altered on upload: compare the character count and hash); `CREW_TAM` missing (no GM player id at start-up: restart the sandbox); a PC action now answering twice (two scripts handling one command: report it).
 
 ## L1 Setup and Rebuild (crews A, B, C, then the others)
@@ -296,12 +296,24 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - The probe card: tell me **which lines show styled text and which still show the marks** (for example `**bold text**`). This decides what the cards can use.
 - Claim card: "Held by this crew." in bold, the label of the rule in force in bold, numbers and dice in the rule (+1d, -2 heat, +2 coin, +1 tick) in bold, "On the sheet:" and the other source labels in italic. Upgrade card: "Boxes on the sheet:" and "Cost" bold, the cost figure bold. Menus: the category names in bold and the legends in italic. Buttons carry no markup.
 - If a kind of markup does not render, you see literal asterisks in the cards. Turn that kind off with `fmt bold off` or `fmt italic off` and tell me.
-- The `fmt` commands answer only the GM, and the setting stays after a sandbox restart.
+- The `fmt` commands answer only the GM, and the setting stays after a sandbox restart. Each `fmt` command answers with a card that states the setting and shows a bold sample and an italic sample drawn with what is switched on, so the card itself shows what changed.
+- **Probe result so far:** `**bold**`, `*italic*`, `***both***` and HTML `<b>` render; underline, strikethrough, backticks, `//` and `#` do not.
 **Known fail states:** literal `**` or `*` in the cards, a button label with asterisks, bold text running on past the end of a line.
 
-## L30 Clean up
+## L30 Styled HTML cards (GM; any Deep Cuts crew)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Steps:** run `!bitdcrew fmt probe2`. Then run `!bitdcrew fmt card html`, click `6b. Claims`, a held claim that has a button (Infirmary, Warehouses or Cover Identities on Hawkers), a claim not held, the button on the first card, the Turf button, and an upgrade from `6c. Crew Upgrades` (Vault, Hardened). Then `!bitdcrew fmt card sheet`.
+**Pass:**
+- Probe2 sends two cards, one whispered to you and one public. **Tell me which of these show:** orange text, big white text, small text, the green pill, spaced letters, underline, strike, italic, bold, superscript, code, the box with the orange left border, the styled button (clicking it prints the formatting status), the two table cells, the line. Anything missing is something the cards cannot use.
+- The styled claim card: crew name and card type in small orange capitals, a large white title with the circle, a green "HELD BY THIS CREW" or grey "NOT HELD BY THIS CREW" badge, the rule in force in a box with an orange left edge and gold numbers, a pill button for the other text, the sheet text in small grey italic, and "shown by <you>" at the bottom. The button posts the other text in the same style.
+- Upgrade and Turf cards in the same style. Menus are still sheet cards.
+- Text from the sheet appears as plain text (a claim note with `<b>` in it shows the tag, not bold).
+- `fmt card sheet` puts the sheet cards back.
+**Known fail states:** raw tags or `style="..."` text in the chat (the chat is not accepting HTML), a card with no colors (styles dropped; probe2 tells which), a button that does nothing, the card cut off (message too long).
+
+## L31 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

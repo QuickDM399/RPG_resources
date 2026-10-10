@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.10.0
+/* BitD Crew Token Action Maker  v0.11.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -37,7 +37,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.10.0';
+  var VERSION = '0.11.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -468,7 +468,11 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // Card text uses Roll20 chat markup: **bold** for what applies now (the state, the rule in force, the numbers) and *italic* for where a text
   // comes from. Whether the sheet's card template shows the markup is checked with !bitdcrew fmt probe; fmt off, fmt bold off and
   // fmt italic off (GM) switch it off again, kept in state.
-  function fmtOn(kind) { var f = botState().fmt; return !f || f[kind] !== false; }
+  // BUILD_HTML is set while a styled HTML card is being built: its markup is converted to HTML, so the sheet-card switches do not apply
+  var BUILD_HTML = false;
+  function fmtOn(kind) { var f = botState().fmt; return BUILD_HTML || !f || f[kind] !== false; }
+  // the rules cards (claims and upgrades) come as a sheet card (the default) or as a styled HTML card, chosen with !bitdcrew fmt card html|sheet
+  function cardMode() { var f = botState().fmt; return f && f.card === 'html' ? 'html' : 'sheet'; }
   function bold(x) { return fmtOn('bold') && x ? '**' + x + '**' : x; }
   function ital(x) { return fmtOn('italic') && x ? '*' + x + '*' : x; }
   // the numbers and dice in rule text stand out: +1d, -2 heat, +2 coin, +1 tick
@@ -1246,11 +1250,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   }
 
   function postClaimCard(msg, t, held, title, lines) {
-    sendChat('player|' + msg.playerid, broadcast(t.c, {
-      type: held ? 'Claim held' : 'Claim not held',
-      title: (held ? G_ON : G_OFF) + ' ' + title,
-      content: lines.map(function (x) { return clean(x); }).join(NL)
-    }));
+    postRulesCard(msg, t, held ? 'Claim held' : 'Claim not held', (held ? G_ON : G_OFF) + ' ' + title, lines);
   }
 
   function doClaims(msg, o) {
@@ -1299,6 +1299,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // the rules text of one claim, shown to the table: the rule in force in full, the other text behind a button
   function doClaimInfo(msg, o) {
     var t = target(msg, o); if (!t) { return; }
+    BUILD_HTML = cardMode() === 'html';
     var cid = t.ch.id, slots = claimSlots(cid), type = crewTypeKey(cid, slots), L = [], dtOn = isOn(cid, 'setting_dc_downtime'), alt = String(o.pos[0] || '') === 'alt';
     if (String(o.row || '') === 'turf') {
       var turfs = slots.filter(function (s) { return s.key === 'turf'; }), held = turfs.filter(function (s) { return s.held; }).length, ttl = 'Turf: ' + held + ' of ' + turfs.length + ' held';
@@ -1455,6 +1456,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     dbg('upgradeinfo asked for category ' + JSON.stringify(cat) + ', upgrade ' + JSON.stringify(ref));
     var u = UPGRADE_CATEGORIES.indexOf(cat) < 0 ? null : upgradeItems(cid, cat).filter(function (x) { return x.ref === ref; })[0];
     if (!u) { whisper(msg, 'BitDCrew: that upgrade is no longer on the sheet. Run 6c. Crew Upgrades again.'); return; }
+    BUILD_HTML = cardMode() === 'html';
     var dtOn = isOn(cid, 'setting_dc_downtime'), L = [], n = u.boxes.length, marked = u.boxes.filter(Boolean).length, alt = String(o.pos[0] || '') === 'alt';
     var book = (cat === 'special' || cat === 'lair') ? upgradeBookText(u.name) : '', dc = u.key ? UPGRADE_DC[u.key] : null;
     var sheetLine = u.text ? ruleLine(u.copy ? 'Sheet text (copy kept in the script):' : 'On the sheet:', u.text, true) : '';
@@ -1474,9 +1476,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       altLabel = 'Show the Deep Cuts text, module off';
     }
     var state = u.state === 'taken' ? 'Upgrade taken' : u.state === 'partial' ? 'Upgrade in progress' : 'Upgrade not taken';
-    function post(lines) {
-      sendChat('player|' + msg.playerid, broadcast(t.c, { type: state, title: boxGlyphs(u.boxes) + ' ' + u.short, content: lines.map(function (x) { return clean(x); }).join(NL) }));
-    }
+    function post(lines) { postRulesCard(msg, t, state, boxGlyphs(u.boxes) + ' ' + u.short, lines); }
     if (alt) {
       if (!altLine) { whisper(msg, 'BitDCrew: there is no other text for that upgrade.'); return; }
       post([altLine]);
@@ -2264,7 +2264,75 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     whisper(msg, 'BitDCrew: debug logging is now ' + (st.debug ? 'on' : 'off') + '. Messages go to the API console.');
   }
 
-  // card formatting: GM tools for the **bold** and *italic* markup (see fmtOn)
+  // ---------------------------------------------------------------- styled HTML cards
+  // A card that is not the sheet's own template: a dark box in the sheet's colours with a rule box, a held badge and pill buttons. It is sent
+  // with /direct, so everything from the sheet is escaped first. Card lines are the same marked-up strings the sheet cards use.
+  var HC = {
+    card: 'margin:4px 0;border:1px solid #4a3326;border-radius:6px;background:#1b120d;color:#d8d0c7;font-family:Georgia,serif;font-size:13px;line-height:1.35;',
+    head: 'padding:6px 10px 0;color:#ef4a1e;font-size:12px;font-weight:bold;letter-spacing:2px;',
+    title: 'padding:2px 10px 6px;color:#ffffff;font-size:21px;font-weight:bold;letter-spacing:1px;line-height:1.15;',
+    body: 'padding:2px 10px 8px;',
+    p: 'margin:4px 0;',
+    held: 'display:inline-block;margin:4px 0;padding:1px 10px;border-radius:10px;background:#2e5e3a;color:#eaffea;font-weight:bold;font-size:12px;',
+    notheld: 'display:inline-block;margin:4px 0;padding:1px 10px;border-radius:10px;background:#4a3a34;color:#e0d2ca;font-weight:bold;font-size:12px;',
+    rule: 'margin:6px 0;padding:5px 8px;border-left:3px solid #ef4a1e;background:#2a1a12;color:#f4efe9;',
+    label: 'display:block;color:#ef4a1e;font-size:11px;font-weight:bold;letter-spacing:1px;',
+    src: 'margin:4px 0;color:#9d9288;font-size:12px;',
+    btn: 'display:inline-block;margin:4px 4px 2px 0;padding:2px 10px;border:1px solid #ef4a1e;border-radius:12px;background:#1b120d;color:#ef4a1e;font-size:12px;font-weight:bold;text-decoration:none;',
+    foot: 'padding:0 10px 6px;color:#7d7268;font-size:10px;',
+    num: '#f5c542', bold: '#ffffff'
+  };
+  function htmlEsc(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  // **bold**, *italic* and [label](!command) in one line of card text, as inline HTML (the text is escaped first)
+  function htmlInline(line, boldColor) {
+    return htmlEsc(line)
+      .replace(/\[([^\]]+)\]\((![^)]*)\)/g, '<a href="$2" style="' + HC.btn + '">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b style="color:' + boldColor + '">$1</b>')
+      .replace(/\*([^*]+)\*/g, '<i>$1</i>');
+  }
+  // one card line as a block: the held badge, a rule box, a source line, a button row, or a plain line
+  function htmlLine(line) {
+    var m;
+    if (/^\[[^\]]+\]\(![^)]*\)$/.test(line)) { return '<div>' + htmlInline(line, HC.bold) + '</div>'; }
+    m = /^\*\*(Held by this crew\.|Not held by this crew\.)\*\*$/.exec(line);
+    if (m) { return '<div><span style="' + (m[1].charAt(0) === 'H' ? HC.held : HC.notheld) + '">' + htmlEsc(m[1].replace(/\.$/, '').toUpperCase()) + '</span></div>'; }
+    m = /^\*\*((?:Rules in force|Rules \(core book\)|Also in force)[^*]*)\*\* ?([\s\S]*)$/.exec(line);
+    if (m) { return '<div style="' + HC.rule + '"><span style="' + HC.label + '">' + htmlEsc(m[1].toUpperCase()) + '</span>' + htmlInline(m[2], HC.num) + '</div>'; }
+    if (/^\*[^*]/.test(line)) { return '<div style="' + HC.src + '">' + htmlInline(line, HC.bold) + '</div>'; }
+    return '<div style="' + HC.p + '">' + htmlInline(line, HC.num) + '</div>';
+  }
+  function htmlCard(c, type, title, lines, by) {
+    return '<div style="' + HC.card + '"><div style="' + HC.head + '">' + htmlEsc(String(c.name).toUpperCase()) + '</div><div style="' + HC.head + 'padding-top:0;">' +
+      htmlEsc(String(type).toUpperCase()) + '</div><div style="' + HC.title + '">' + htmlEsc(String(title).toUpperCase()) + '</div><div style="' + HC.body + '">' +
+      lines.map(htmlLine).join('') + '</div>' + (by ? '<div style="' + HC.foot + '">shown by ' + htmlEsc(by) + '</div>' : '') + '</div>';
+  }
+
+  // a rules card to the table: a sheet card as the player, or the styled HTML card (see cardMode)
+  function postRulesCard(msg, t, type, title, lines) {
+    if (cardMode() === 'html') {
+      var html = htmlCard(t.c, type, title, lines.map(function (x) { return String(x).replace(/[\r\n]+/g, ' '); }), who(msg));
+      dbg('html card, ' + html.length + ' characters');
+      sendChat(SENDER, '/direct ' + html);
+      return;
+    }
+    sendChat('player|' + msg.playerid, broadcast(t.c, { type: type, title: title, content: lines.map(function (x) { return clean(x); }).join(NL) }));
+  }
+
+  // the HTML features worth knowing about, to see what the chat accepts (GM test, !bitdcrew fmt probe2)
+  function htmlProbe() {
+    var box = 'padding:8px;border:1px solid #ef4a1e;border-radius:6px;background:#1b120d;color:#d8d0c7;font-family:Georgia,serif;font-size:13px;';
+    return '<div style="' + box + '">' +
+      '<div style="color:#ef4a1e;font-weight:bold;letter-spacing:2px;">HTML TEST</div>' +
+      '<div><span style="color:#ef4a1e;">orange text</span> | <span style="font-size:20px;color:#ffffff;">big white text</span> | <span style="font-size:10px;">small text</span></div>' +
+      '<div><span style="background:#2e5e3a;padding:1px 10px;border-radius:10px;">pill background</span> <span style="letter-spacing:3px;">SPACED LETTERS</span></div>' +
+      '<div><u>underline</u> <s>strike</s> <i>italic</i> <b>bold</b> x<sup>2</sup> <code>code</code></div>' +
+      '<div style="margin:4px 0;padding:4px 8px;border-left:3px solid #ef4a1e;background:#2a1a12;">a box with a left border</div>' +
+      '<div><a href="!bitdcrew fmt" style="' + HC.btn + '">styled button</a> (runs !bitdcrew fmt)</div>' +
+      '<table style="width:100%;"><tr><td>left cell</td><td style="text-align:right;">right cell</td></tr></table>' +
+      '<hr><div>line above is an hr</div></div>';
+  }
+
+  // card formatting: GM tools for the **bold** and *italic* markup (see fmtOn), the rules card style and the HTML test
   function doFmt(msg, o) {
     if (!playerIsGM(msg.playerid)) { whisper(msg, 'BitDCrew: only the GM can change the card formatting.'); return; }
     var a = String(o.pos[0] || '').toLowerCase(), b = String(o.pos[1] || '').toLowerCase(), st = botState(), f = st.fmt = st.fmt || {};
@@ -2276,18 +2344,31 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       whisper(msg, broadcast({ name: 'Formatting test', image: '' }, { type: 'Formatting', title: 'What the cards show', content: L.join(NL) }));
       return;
     }
-    if (a === 'on' || a === 'off') { f.bold = f.italic = (a === 'on'); }
-    else if ((a === 'bold' || a === 'italic') && (b === 'on' || b === 'off')) { f[a] = (b === 'on'); }
-    else {
-      whisper(msg, 'BitDCrew: bold is ' + (fmtOn('bold') ? 'on' : 'off') + ', italic is ' + (fmtOn('italic') ? 'on' : 'off') + '. Use !bitdcrew fmt probe, fmt on, fmt off, fmt bold on|off or fmt italic on|off.');
+    if (a === 'probe2') {
+      var html = htmlProbe();
+      whisper(msg, html);
+      sendChat(SENDER, '/direct ' + html.replace('HTML TEST', 'HTML TEST (public, sent with /direct)'));
       return;
     }
-    whisper(msg, 'BitDCrew: card bold is now ' + (fmtOn('bold') ? 'on' : 'off') + ' and italic is ' + (fmtOn('italic') ? 'on' : 'off') + '.');
+    var changed = true;
+    if (a === 'on' || a === 'off') { f.bold = f.italic = (a === 'on'); }
+    else if ((a === 'bold' || a === 'italic') && (b === 'on' || b === 'off')) { f[a] = (b === 'on'); }
+    else if (a === 'card' && (b === 'html' || b === 'sheet')) { f.card = b; }
+    else { changed = false; }
+    var status = 'Bold is ' + (fmtOn('bold') ? 'on' : 'off') + ', italic is ' + (fmtOn('italic') ? 'on' : 'off') + ', the claim and upgrade cards are ' +
+      (cardMode() === 'html' ? 'styled HTML cards' : 'sheet cards') + '.';
+    // the sample is drawn with the markup that is switched on, so the card itself shows what the switches do
+    whisper(msg, broadcast({ name: 'Formatting', image: '' }, {
+      type: 'Formatting', title: changed ? 'Changed' : 'Card formatting',
+      content: status + NL + 'Bold sample: ' + bold('bold sample') + NL + 'Italic sample: ' + ital('italic sample') +
+        (changed ? '' : NL + 'Use !bitdcrew fmt probe, fmt probe2, fmt on, fmt off, fmt bold on|off, fmt italic on|off, fmt card html|sheet.')
+    }));
   }
 
   // ---------------------------------------------------------------- router
 
   function route(msg, o) {
+    BUILD_HTML = false;
     switch (o.verb) {
       case 'setup': case 'rebuild': return doSetup(msg, o);
       case 'roll': return doRoll(msg, o);
