@@ -341,7 +341,7 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 **Steps:**
 1. Open a cohort card (`6d. Cohorts`, then the cohort) and click **Edit type, edges and flaws**.
 2. Click an edge you do not have (Loyal), then one you do (Fearsome). Click **Remove Greedy**. Click a flaw. Look at the sheet after each click.
-3. Add a gang type, then a second one (read the cost line), then a third (read the warning). Remove them.
+3. Add a gang type, then a second one (read the cost line), then a third (read the warning). Remove them. Then click **Write in a type** and type `Thugs and Rooks` (the prompt should open), then `Spy` on the same cohort, then do the same on an expert (`Physicker`, then click the Thugs toggle). Click Remove on the written-in name. Click **Write in a type** and leave the prompt empty.
 4. Click Elite, then Expert, then Gang. After each, click one roll button on the cohort card and compare the dice with the sheet's own roll button. With the Downtime module on, Elite shows the 10 Coin line.
 5. On a Smugglers vehicle open the editor (vehicle edges and flaws only) and add Nimble and Finicky. On an expert look for the Specialty line and no gang type buttons.
 6. As a player who controls the crew, repeat one click. As a player who does not control it, paste a `cohortedit` command from the card.
@@ -354,7 +354,8 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - A vehicle is offered Nimble, Simple, Sturdy and Costly, Distinct, Finicky only, and its `boat_carriage_other` type box is left alone until a gang type is chosen.
 - Hooked: with the ability ticked, adding Savage, Unreliable or Wild to a gang shows the Hooked line and the extra die.
 - A player who does not control the crew is refused. Nothing else on the sheet changes (check harm, armor and notes).
-**Known fail states:** a click that does nothing (send me the console line), a made-up name that disappears without Remove, text from the old box lost without the change line showing it, the Type setting on the sheet not changing, a roll card that still says "roll their" for an expert, a card cut off.
+- **Write in a type:** a prompt opens and what you type is added to the Type box on the sheet (`Thugs, Rooks` in book spelling; a word like `Spy` as typed), after what was there, with the old and new text on the card. An empty prompt changes nothing. An expert has the five core type toggles as well as the write-in. If no prompt opens, or the card says "Roll20 did not open the prompt for that button", tell me what you saw and type the command the card gives instead (`!bitdcrew cohortedit --c ... --row ... --n wt Thugs, Rooks`); that is the one thing I could not check offline.
+**Known fail states:** a click that does nothing (send me the console line), a Write in a type button that shows `?{Type to write in}` instead of a prompt, a made-up name that disappears without Remove, text from the old box lost without the change line showing it, the Type setting on the sheet not changing, a roll card that still says "roll their" for an expert, a card cut off.
 
 ## L33 Clean up
 

@@ -2610,9 +2610,10 @@ if (PC_SRC) {
   const ex3 = fresh('Over 4', 'gang', 'Thugs', 'Fearsome, Loyal', 'Savage'); edit(ex3, 'etenacious'); ok(val(ex3, 'edges') === 'Fearsome, Loyal, Tenacious', 'a third edge is written');
   b = body(edit(fresh('Types 3', 'gang', 'Thugs, Rooks, Skulks', 'Fearsome', 'Savage'))); ok(/3 types: a cohort can have up to two types \(core book\)\./.test(b), 'more than two gang types: a warning', b);
   b = body(edit(fresh('Types 0', 'gang', '', 'Fearsome', 'Savage'))); ok(/No gang type chosen: the core book has you choose a gang type from the list\./.test(b), 'no gang type: a note', b);
-  b = body(edit(fresh('Types e', 'expert', 'Physicker', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert has no gang type warnings', b);
-  b = body(edit(fresh('Types e0', 'expert', '', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert with no specialty typed has no gang type note', b);
-  b = body(edit(fresh('Types e3', 'expert', 'Spy, Doctor, Thief', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert with three words in the specialty is not warned about types', b);
+  b = body(edit(fresh('Types e', 'expert', 'Physicker', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:|No type written/.test(b), 'an expert with a specialty has no type warning', b);
+  b = body(edit(fresh('Types e0', 'expert', '', 'Fearsome', 'Savage'))); ok(/No type written in: the core book has you record the expert's type, their specific area of expertise\./.test(b) && !/gang type chosen/.test(b), 'an expert with no type written in: a note in the expert wording', b);
+  b = body(edit(fresh('Types e3', 'expert', 'Spy, Doctor, Thief', 'Fearsome', 'Savage'))); ok(/3 types: a cohort can have up to two types \(core book\)\./.test(b), 'an expert with three types is warned too (the book allows up to two for a gang or an expert)', b);
+  b = body(edit(fresh('Types e2', 'expert', 'Physicker, Thugs', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:|No type written/.test(b), 'an expert with a specialty and one gang type has no warning', b);
 
   // ---- a second gang type: the book prices it in upgrades the script cannot spend
   const T2 = /Core book: You can add an additional type to a gang or expert by spending two crew upgrades\. .* The script spends nothing: pay the two crew upgrades at the table\./;
@@ -2632,7 +2633,7 @@ if (PC_SRC) {
   ok(/The script spends nothing: take the Elite crew upgrade at the table\./.test(b) && !/Deep Cuts/.test(b), 'Elite without the Downtime module: the script spends nothing', b);
   ok(b.indexOf('Some crew upgrades will add the "Elite" feature to a gang, which gives them +1d when they roll for a given Type.') > 0, 'the book text of Elite');
   o = edit(c, 'kexpert'); b = body(o);
-  ok(val(c, 'type') === 'expert' && val(c, 'verb') === '^{rolls_their}' && rolled(c) === 3 && /Type: Elite to Expert\./.test(b) && /Specialty: Thugs/.test(b) && !/--n t[a-z]+\)/.test(b) && b.indexOf('An expert has quality equal to your current crew Tier +1. Their scale is always zero (1 person).') > 0, 'Expert: the type and the verb ("rolls their") are written, gang type buttons give way to the specialty', [val(c, 'type'), val(c, 'verb'), b.slice(0, 160)]);
+  ok(val(c, 'type') === 'expert' && val(c, 'verb') === '^{rolls_their}' && rolled(c) === 3 && /Type: Elite to Expert\./.test(b) && /Types and specialty \(up to two\):/.test(b) && /--n tthugs\)/.test(b) && /--n wt \?\{Type to write in\}\)/.test(b) && b.indexOf('Core book: Record the expert\'s type (their specific area of expertise). They might be a Doctor, an Investigator, an Occultist, an Assassin, a Spy, etc.') > 0 && b.indexOf('An expert has quality equal to your current crew Tier +1. Their scale is always zero (1 person).') > 0, 'Expert: the type and the verb ("rolls their") are written; the type box keeps its toggles and the write-in, with the book line about an expert\'s type', [val(c, 'type'), val(c, 'verb'), b.slice(0, 160)]);
   o = edit(c, 'kgang'); ok(val(c, 'type') === 'gang' && val(c, 'verb') === '^{roll_their}' && rolled(c) === 2 && !/Elite crew upgrade/.test(body(o)), 'back to Gang: Tier dice, no Elite line', body(o).slice(0, 120));
   o = edit(c, 'kgang'); ok(has(o, /The cohort is already Gang\./) && val(c, 'type') === 'gang', 'choosing the type the cohort has changes nothing');
   o = edit(c, 'kwizard'); ok(has(o, /That is not a cohort type\./) && val(c, 'type') === 'gang', 'an unknown type is refused');
@@ -2648,13 +2649,14 @@ if (PC_SRC) {
   const sm = mk('Smugglers', 2, 'Smugglers'); first(sm, 'vehicle', 'expert', 'boat_carriage_other', '', '');
   o = edit(sm); b = body(o);
   ok(CT.vehicleEdges.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && CT.vehicleFlaws.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && !/Fearsome|Savage/.test(b) && /--n enimble\)/.test(b) && /--n fcostly\)/.test(b), 'a vehicle is offered the vehicle edges and flaws, not the gang ones', b);
-  ok(/Specialty: none/.test(b) && /Cohort type:/.test(b), 'the sheet placeholder in the type box is not shown as a specialty');
+  ok(!/boat.carriage.other/i.test(b) && /Types and specialty \(up to two\):/.test(b) && !/Also on the sheet/.test(b), 'the sheet placeholder in the type box is not shown as a type');
   edit(sm, 'enimble'); edit(sm, 'esturdy'); edit(sm, 'ffinicky');
   ok(val(sm, 'edges') === 'Nimble, Sturdy' && val(sm, 'flaws') === 'Finicky' && val(sm, 'subtype') === 'boat_carriage_other', 'vehicle edges and flaws are written; the placeholder is left alone', [val(sm, 'edges'), val(sm, 'flaws'), val(sm, 'subtype')]);
   ok(has(edit(sm, 'eloyal'), /not in the book list for this cohort/) && val(sm, 'edges') === 'Nimble, Sturdy', 'a gang edge is refused for a vehicle');
   ok(has(edit(c, 'enimble'), /not in the book list for this cohort/), 'a vehicle edge is refused for a gang');
-  ok(has(edit(sm, 'tthugs'), /specialty is typed on the sheet/) && val(sm, 'subtype') === 'boat_carriage_other', 'an expert has no gang types to toggle');
-  edit(sm, 'kgang'); edit(sm, 'tthugs'); ok(val(sm, 'subtype') === 'Thugs', 'the placeholder gives way to a chosen gang type', val(sm, 'subtype'));
+  o = edit(sm, 'trovers'); ok(val(sm, 'subtype') === 'Rovers' && !T2.test(body(o)), 'an expert can take a core type too: it replaces the sheet placeholder, and the first type has no cost line', val(sm, 'subtype'));
+  edit(sm, 'trovers'); ok(val(sm, 'subtype') === '', 'and it is removed again');
+  edit(sm, 'kgang'); edit(sm, 'tthugs'); ok(val(sm, 'subtype') === 'Thugs', 'a chosen gang type on a vehicle set to Gang', val(sm, 'subtype'));
   ok(has(edit(sm, 'enimble'), /Removed Nimble/) && val(sm, 'edges') === 'Sturdy', 'a vehicle edge is removed again');
 
   // ---- Hooked and the dice
@@ -2676,8 +2678,43 @@ if (PC_SRC) {
   // ---- hostile text in the boxes
   c = fresh('Hostile', 'gang', 'Thugs', 'Fearsome, [[1d20]] {{x}} @{y} ?{q|a} *b* <b>z</b>', 'Savage, %{a|b} [c](!evil)');
   o = edit(c); b = o.join('\n');
-  ok(!/\[\[|\?\{|@\{|%\{/.test(b) && (b.match(/\{\{/g) || []).length === 4 && (b.match(/\}\}/g) || []).length === 4 && (b.match(/\]\(![^)]*\)/g) || []).every(x => /^\]\(!bitdcrew /.test(x)), 'hostile text in the boxes cannot make a button, an inline roll, a query or a template field in the editor', b);
-  o = edit(c, 'eloyal'); ok(!/\[\[|\?\{|@\{|%\{/.test(o.join('\n')) && /Added Loyal/.test(body(o)), 'and the change line is safe too');
+  ok(!/\[\[|@\{|%\{/.test(b) && (b.match(/\?\{/g) || []).length === 1 && /--n wt \?\{Type to write in\}\)/.test(b) && (b.match(/\{\{/g) || []).length === 4 && (b.match(/\}\}/g) || []).length === 4 && (b.match(/\]\(![^)]*\)/g) || []).every(x => /^\]\(!bitdcrew /.test(x)), 'hostile text in the boxes cannot make a button, an inline roll, a query or a template field in the editor', b);
+  o = edit(c, 'eloyal'); ok(!/\[\[|@\{|%\{/.test(o.join('\n')) && (o.join('\n').match(/\?\{/g) || []).length === 1 && /Added Loyal/.test(body(o)), 'and the change line is safe too (the one query is the write-in button\'s)');
+
+  // ---- writing in a type (the type box takes any wording; the button asks for it with a Roll20 query)
+  const wt = (c, text, who, ref) => E.run('!bitdcrew cohortedit --c ' + c + ' --row ' + (ref || 'cohort1') + ' --n wt' + (text === undefined ? '' : ' ' + text), who || pat);
+  ['gang', 'elite', 'expert'].forEach(kd => {
+    const k = fresh('Write ' + kd, kd, 'Thugs', 'Fearsome', 'Savage'); const bb = body(edit(k));
+    ok((bb.match(/\[Write in a type\]\(!bitdcrew cohortedit --c [^ ]+ --row cohort1 --n wt \?\{Type to write in\}\)/g) || []).length === 1 && !/\[Write in an? (edge|flaw)/.test(bb), 'the editor of a ' + kd + ' has one Write in a type button with a prompt, and none for edges or flaws', bb.slice(0, 80));
+  });
+  c = fresh('Write 1', 'gang', 'Thugs', 'Fearsome', 'Savage'); o = wt(c, 'Rooks'); b = body(o);
+  ok(val(c, 'subtype') === 'Thugs, Rooks' && /Wrote in Rooks\. Types was "Thugs", now "Thugs, Rooks"\./.test(b) && T2.test(b), 'writing in a core type adds it in book spelling, shows the old and new text and the second-type cost line', [val(c, 'subtype'), b.slice(0, 220)]);
+  c = fresh('Write 2', 'gang', '', 'Fearsome', 'Savage'); o = wt(c, 'thugs and ROOKS'); b = body(o);
+  ok(val(c, 'subtype') === 'Thugs, Rooks' && /Wrote in Thugs, Rooks\./.test(b) && T2.test(b), 'two types written at once: book spelling, "and" and any case read, the cost line for the second', [val(c, 'subtype'), b.slice(0, 200)]);
+  c = fresh('Write 3', 'gang', 'Thugs', 'Fearsome', 'Savage'); o = wt(c, 'thug'); ok(val(c, 'subtype') === 'Thugs' && has(o, /Thugs is already there, so nothing changed\./), 'a type that is already there is not added again', body(o).slice(0, 160));
+  c = fresh('Write 4', 'gang', 'Thugs', 'Fearsome', 'Savage'); o = wt(c, 'Spy, thug, Rooks'); b = body(o);
+  ok(val(c, 'subtype') === 'Thugs, Spy, Rooks' && /Wrote in Spy, Rooks\./.test(b) && /Already there: Thugs\./.test(b), 'new names are added after the old ones; the ones already there are listed', [val(c, 'subtype'), b.slice(0, 200)]);
+  c = fresh('Write 5', 'expert', '', 'Fearsome', 'Savage'); o = wt(c, 'Physicker'); b = body(o);
+  ok(val(c, 'subtype') === 'Physicker' && /Wrote in Physicker\./.test(b) && !T2.test(b) && /Also on the sheet, not from the book: Physicker/.test(b) && /\[Remove Physicker\]/.test(b), 'an expert\'s specialty is written in as typed, listed as not from the book, with a Remove button', [val(c, 'subtype'), b.slice(0, 200)]);
+  o = wt(c, 'Thugs'); ok(val(c, 'subtype') === 'Physicker, Thugs' && T2.test(body(o)), 'an expert can add a core type to its specialty (the second type has the cost line)', val(c, 'subtype'));
+  b = body(card0(c)); ok(/Specialty, Physicker: as typed on the sheet\./.test(b) && /Gang type, Thugs: Killers, brawlers, and roustabouts\./.test(b), 'the cohort card shows an expert\'s specialty as typed and its core type with the book text', b);
+  function card0(k) { return E.run('!bitdcrew cohort --c ' + k + ' --row cohort1', pat); }
+  o = edit(c, 'xt0_physicker'); ok(val(c, 'subtype') === 'Thugs' && /Removed Physicker\./.test(body(o)), 'the written-in name is removed again with its button', val(c, 'subtype'));
+  c = fresh('Write 6', 'gang', 'Thugs', 'Fearsome', 'Savage'); const keep = val(c, 'subtype');
+  o = wt(c); ok(has(o, /Nothing was typed, so nothing changed\./) && val(c, 'subtype') === keep, 'no text (the prompt left empty): nothing changes');
+  o = wt(c, '?{Type'); ok(has(o, /Roll20 did not open the prompt for that button, so the text did not arrive\. Type it instead: !bitdcrew cohortedit --c [^ ]+ --row cohort1 --n wt/) && val(c, 'subtype') === keep, 'if the query text arrives unanswered the script says so and gives the command to type', o);
+  o = wt(c, 'a|b'); ok(has(o, /did not open the prompt/) && val(c, 'subtype') === keep, 'a bar in the text is refused the same way');
+  o = wt(c, 'x'.repeat(300)); ok(val(c, 'subtype').length <= keep.length + 2 + 120, 'one write-in takes at most 120 characters', val(c, 'subtype').length);
+  c = fresh('Write 7', 'gang', 'Adepts, Rooks', 'Fearsome', 'Savage'); o = wt(c, 'a, b, c, d, e');
+  ok(val(c, 'subtype') === 'Adepts, Rooks, a, b, c, d' && /A box holds six names at most, so these were left out: e\./.test(body(o)) && !T2.test(body(o)), 'a box holds six names at most; the rest are said to be left out; no cost line when the box already had two types', [val(c, 'subtype'), body(o).slice(0, 200)]);
+  o = E.run('!bitdcrew cohortedit --c ' + c + ' --row cohort1 --n we Loyal', pat); ok(has(o, /Only the type box takes written-in text\./), 'write-in is for the type box only');
+  c = fresh('Write 8', 'gang', 'Thugs', 'Fearsome', 'Savage'); o = wt(c, 'Rooks', quinn); ok(has(o, /only use this on crews you control/) && val(c, 'subtype') === 'Thugs', 'a player who does not control the crew cannot write in');
+  o = wt(c, 'Rooks', gm); ok(val(c, 'subtype') === 'Thugs, Rooks', 'the GM can');
+  c = fresh('Write 9', 'gang', 'Thugs', 'Fearsome', 'Savage'); const before9 = JSON.stringify(E.store.attrs.filter(a => a._characterid === c).map(a => [a.name, a.current]).sort());
+  wt(c, 'Rooks'); const after9 = E.store.attrs.filter(a => a._characterid === c).filter(a => before9.indexOf(JSON.stringify([a.name, a.current])) < 0).map(a => a.name);
+  ok(after9.length === 1 && after9[0] === 'cohort1_subtype', 'a write-in changes only the type box', after9);
+  c = fresh('Write 10', 'gang', '', 'Fearsome', 'Savage'); wt(c, '[[1d20]] <b>x</b>'); b = o = E.run('!bitdcrew cohortedit --c ' + c + ' --row cohort1', pat).join('\n');
+  ok(!/\[\[|@\{|%\{/.test(b) && (b.match(/\?\{/g) || []).length === 1 && (b.match(/\{\{/g) || []).length === 4, 'hostile written-in text cannot make an inline roll, a query or a template field in the editor', b.slice(0, 300));
 
   // ---- only the cohort's type, verb, gang type, edge and flaw boxes are written
   c = fresh('Writes', 'gang', 'Thugs', 'Fearsome', 'Savage'); E.run('!bitdcrew cohortsync', pat, E.token(c));
