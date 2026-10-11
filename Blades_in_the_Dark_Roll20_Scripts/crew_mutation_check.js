@@ -380,12 +380,7 @@ const M = [
   ["cohort: a cohort with no armor is left unmarked", "if (st !== 'granted' && !box) { want = '1'; }", "if (st !== 'granted' && !box) { want = null; }"],
   ["cohort: the lost upgrade keeps its armor state", "if (st === 'perm') { delete mem[key]; st = ''; }", "if (st === 'perm') { st = ''; }"],
   ["cohort: sync counts nothing", "if (cohortSyncOne(cid, c)) { n++; }", "cohortSyncOne(cid, c);"],
-  ["cohort: harm does not move up", "while (landed <= 3 && b[landed - 1]) { landed++; moved = true; }", "while (landed < 3 && b[landed - 1]) { landed++; moved = true; }"],
-  ["cohort: past Broken is not Dead", "if (landed >= 4) {\n      setBoxes", "if (landed >= 5) {\n      setBoxes"],
   ["cohort: Dead is not remembered", "cohortMem('cohortDead')[cohortKey(cid, c)] = true;", ""],
-  ["cohort: Dead marks only two boxes", "setBoxes(cid, c, [true, true, true]);", "setBoxes(cid, c, [false, true, true]);"],
-  ["cohort: healing shifts the wrong way", "b = [b[1], b[2], false];", "b = [false, b[0], b[1]];"],
-  ["cohort: healing leaves the Weakened box", "b = [b[1], b[2], false];", "b = [b[0], b[1], false];"],
   ["cohort: remove-all heals one level", "var levels = n === 'all' ? 3 :", "var levels = n === 'all' ? 1 :"],
   ["cohort: two levels heal one", "clamp(parseInt(n, 10) || 1, 1, 3)", "clamp(parseInt(n, 10) || 1, 1, 1)"],
   ["cohort: remove-all for any cohort", "if (n === 'all' && !simple) {", "if (false) {"],
@@ -464,6 +459,15 @@ const M = [
   ["cohort: harm level 0 is accepted", "if (n < 1 || n > 4) { whisper(msg, 'BitDCrew: harm levels run from 1 to 4.", "if (n > 4) { whisper(msg, 'BitDCrew: harm levels run from 1 to 4."],
   ["cohort: harm level 5 is accepted", "if (n < 1 || n > 4) { whisper(msg, 'BitDCrew: harm levels run from 1 to 4.", "if (n < 1) { whisper(msg, 'BitDCrew: harm levels run from 1 to 4."],
   ["cohort: the sheet key for Leader is ignored", "(ab.leader === true || ab.playbook_ability_leader === true)", "(ab.leader === true)"],
+  ["cohort: harm does not add up", "var before = cohortLevel(cid, c), total = before + harm;", "var before = cohortLevel(cid, c), total = harm;"],
+  ["cohort: harm adds one too many", "var before = cohortLevel(cid, c), total = before + harm;", "var before = cohortLevel(cid, c), total = before + harm + 1;"],
+  ["cohort: past Broken is not Dead", "if (total >= 4) {\n      setBoxes", "if (total >= 5) {\n      setBoxes"],
+  ["cohort: Dead marks only two boxes", "setBoxes(cid, c, levelBoxes(3));\n      cohortMem", "setBoxes(cid, c, levelBoxes(2));\n      cohortMem"],
+  ["cohort: the boxes do not fill up to the level", "return [level >= 1, level >= 2, level >= 3];", "return [level === 1, level === 2, level === 3];"],
+  ["cohort: the sum line is missing", "    if (res.before > 0) {\n      R.unshift('Level '", "    if (false) {\n      R.unshift('Level '"],
+  ["cohort: healing takes one level too many", "Math.max(0, cohortLevel(cid, c) - levels)", "Math.max(0, cohortLevel(cid, c) - levels - 1)"],
+  ["cohort: healing adds a level", "Math.max(0, cohortLevel(cid, c) - levels)", "Math.max(0, cohortLevel(cid, c) + levels)"],
+  ["cohort: the harm menu does not say harm adds up", "L.push(ital('Harm adds up: level 1 harm and then level 2 harm is level 3.", "L.push(ital('Harm: level 1 harm and then level 2 harm is level 3."],
   ['non-ASCII character in the source', "var NL = '\\n';", "var NL = '\\n'; var X = 'é';"]
 ];
 

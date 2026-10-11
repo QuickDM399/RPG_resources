@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.12.0
+/* BitD Crew Token Action Maker  v0.12.1
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -40,7 +40,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.12.0';
+  var VERSION = '0.12.1';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -1689,24 +1689,23 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
 
   // ---- harm and healing
 
-  // harm at a level whose box is already marked moves up to the next level; past Broken the cohort is destroyed (all three boxes)
-  function cohortApplyHarm(cid, c, level) {
-    var b = cohortBoxes(cid, c), landed = level, moved = false;
-    while (landed <= 3 && b[landed - 1]) { landed++; moved = true; }
-    if (landed >= 4) {
-      setBoxes(cid, c, [true, true, true]);
+  // The boxes show the level: level 1 marks Weakened, level 2 marks Weakened and Impaired, level 3 marks all three (Broken).
+  function levelBoxes(level) { return [level >= 1, level >= 2, level >= 3]; }
+  // Harm adds up (user ruling): the level the cohort has plus the level of the new harm, so level 1 then level 2 is level 3, and level 1 then
+  // level 3 is level 4. Level 4 or more destroys the cohort: all three boxes and the Destroyed flag.
+  function cohortApplyHarm(cid, c, harm) {
+    var before = cohortLevel(cid, c), total = before + harm;
+    if (total >= 4) {
+      setBoxes(cid, c, levelBoxes(3));
       cohortMem('cohortDead')[cohortKey(cid, c)] = true;
-      return { landed: 4, moved: moved };
+      return { before: before, total: total, landed: 4 };
     }
-    b[landed - 1] = true;
-    setBoxes(cid, c, b);
-    return { landed: landed, moved: moved };
+    setBoxes(cid, c, levelBoxes(total));
+    return { before: before, total: total, landed: total };
   }
-  // each harm moves down one level for every level healed: weak is gone, impaired becomes weak, broken becomes impaired
+  // healing takes levels off the level the cohort has (not below Fit)
   function cohortHeal(cid, c, levels) {
-    var b = cohortBoxes(cid, c), i;
-    for (i = 0; i < levels; i++) { b = [b[1], b[2], false]; }
-    setBoxes(cid, c, b);
+    setBoxes(cid, c, levelBoxes(Math.max(0, cohortLevel(cid, c) - levels)));
   }
   // what lets a Broken cohort still act: the Leader ability of a Party PC, or the Sturdy vehicle edge: text or ''
   function cohortBrokenOk(cid, c) {
@@ -1879,7 +1878,8 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       } else {
         L.push(ital('No armor to use: ' + (armorState(cid, c) ? 'the armor box is marked (used).' : 'this cohort has no armor.')));
       }
-      L.push(ital('Harm at a level that is already marked moves up one level. Past Broken the cohort is destroyed.'));
+      L.push(ital('Harm adds up: level 1 harm and then level 2 harm is level 3. Level 4 or more destroys the cohort. ' +
+        (lvl ? cohortLabel(c) + ' is at level ' + lvl + ' (' + condText(lvl).toLowerCase() + ') now.' : cohortLabel(c) + ' has no harm now.')));
       whisper(msg, broadcast(t.c, { type: 'Harm to ' + cohortLabel(c), title: 'Pick the harm level', content: L.join(NL) }));
       return;
     }
@@ -1901,7 +1901,10 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       postCohortCard(msg, t, c, 'Cohort harm', cohortLabel(c), R.concat([bold('Condition: ' + condText(cohortLevel(cid, c)))]));
       return;
     }
-    if (res.moved) { R.unshift('Level ' + level + ' was already marked, so the harm moves up to level ' + res.landed + '.'); }
+    if (res.before > 0) {
+      R.unshift('Level ' + level + ' harm added to the level ' + res.before + ' harm (' + COHORT_LEVELS[res.before][0] + ') the cohort had: ' + res.before + ' + ' + level + ' = ' + res.total +
+        (res.landed === 4 ? ', which is level 4 or more.' : '.'));
+    }
     if (res.landed === 4) { cohortDestroyedCard(msg, t, c, cid, R); return; }
     R.unshift(bold('Level ' + res.landed + ' harm: ' + COHORT_LEVELS[res.landed][0] + '.') + ' ' + mech(COHORT_LEVELS[res.landed][1]));
     R.push(bold('Condition: ' + condText(cohortLevel(cid, c))));

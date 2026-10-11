@@ -5,7 +5,8 @@
 ### Built, and where it differs from the plan below
 
 - Verbs: `cohorts`, `cohort`, `cohortroll`, `cohortharm`, `cohortheal`, `cohortarmor` (grant, end, restore), `cohortall`, `cohortrest`, `cohortreplace`, `cohortsync`. Buttons carry the cohort as `--row cohort1` or the sheet row id (no colon).
-- Destroyed is all three boxes plus a flag in state, because three marked boxes alone can be three separate harms (levels 1, 2 and 3 taken in turn read as Broken).
+- Destroyed is all three boxes plus a flag in state, because Broken (level 3) also marks all three boxes.
+- **Harm rule changed in v0.12.1 (user correction, 2026-10-11):** harm is additive, not "a marked level moves up". The cohort's level plus the new harm: 1 + 2 = 3 (Broken), 1 + 3 = 4 (Destroyed). The boxes fill up to the level (level 2 marks Weakened and Impaired). Healing subtracts levels. Decision 2 below is superseded.
 - Armor: the three sources of section 0a; a state of permanent or granted is kept per cohort in state. The harm menu shows the armor row only when the box is clear.
 - Added beyond the plan (small, from the vehicle edges in the book): a **Sturdy** vehicle gets a Roll anyway button when Broken, like Leader; a **Simple** vehicle loses all its harm in "Heal every cohort one level" and has a "Remove all harm" button; an Elite upgrade reminder on the card; a condition badge and rows of buttons in the HTML card.
 - Hooked changes the dice of `1. Roll` too (inference, in the Spec R29).

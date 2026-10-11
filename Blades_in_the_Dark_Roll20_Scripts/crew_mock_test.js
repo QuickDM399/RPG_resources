@@ -2300,13 +2300,28 @@ if (PC_SRC) {
   const hm = mk('Harm crew', 2, 'Bravos'); first(hm, 'Thugs', 'gang', 'Thugs'); row(hm, '-RowA', 'Rooks', 'gang', 'Rooks'); E.run('!bitdcrew cohortsync', pat, E.token(hm));
   o = harm(hm, 'cohort1');
   ok(/^\/w "Pat" /.test(o[0]) && /\{\{type=Harm to Thugs\}\}/.test(o[0]) && cmds(o).filter(c => /cohortharm .* --n [1-4]\)$/.test(c)).length === 4 && !/armor\)/.test(o.join('')) && /this cohort has no armor/.test(o[0]), 'the harm menu is a whisper with levels 1 to 4 and no armor row when the cohort has no armor', o[0]);
+  ok(/Harm adds up: level 1 harm and then level 2 harm is level 3\. Level 4 or more destroys the cohort\. Thugs has no harm now\./.test(o[0]), 'the harm menu says harm adds up and that the cohort has no harm', o[0]);
   o = harm(hm, 'cohort1', 1);
   ok(getb(hm, 'cohort1') === '100' && has(o, /Level 1 harm: Weakened\. The cohort has reduced effect\./) && has(o, /Condition: Weakened/) && !/^\/w/.test(o[0]), 'level 1 marks the Weakened box; the result goes to the table', o);
-  o = harm(hm, 'cohort1', 2); ok(getb(hm, 'cohort1') === '110' && has(o, /Level 2 harm: Impaired/), 'level 2 marks the Impaired box', o);
-  o = harm(hm, 'cohort1', 2);
-  ok(getb(hm, 'cohort1') === '111' && has(o, /Level 2 was already marked, so the harm moves up to level 3\./) && has(o, /Level 3 harm: Broken/) && has(o, /Condition: Broken/), 'harm at a marked level moves up: a second level 2 is level 3', o);
   o = harm(hm, 'cohort1', 1);
-  ok(getb(hm, 'cohort1') === '111' && has(o, /Destroyed/) && has(o, /moves up to level 4/), 'harm that moves past Broken destroys the cohort', o);
+  ok(getb(hm, 'cohort1') === '110' && has(o, /Level 2 harm: Impaired/) && has(o, /Level 1 harm added to the level 1 harm \(Weakened\) the cohort had: 1 \+ 1 = 2\./), 'harm adds up: level 1 then level 1 is level 2, and both boxes are marked', o);
+  o = harm(hm, 'cohort1', 1);
+  ok(getb(hm, 'cohort1') === '111' && has(o, /Level 3 harm: Broken/) && has(o, /Condition: Broken/) && has(o, /2 \+ 1 = 3\./), 'level 2 then level 1 is level 3 (Broken)', o);
+  o = harm(hm, 'cohort1', 1);
+  ok(getb(hm, 'cohort1') === '111' && has(o, /Destroyed/) && has(o, /3 \+ 1 = 4, which is level 4 or more\./), 'harm on a Broken cohort destroys it (3 + 1 = 4)', o);
+  // the user's three examples, and the table of sums (start level, harm taken, level reached; 4 is Destroyed)
+  const lvlBoxes = ['000', '100', '110', '111'], names5 = ['Fit', 'Weakened', 'Impaired', 'Broken', 'Destroyed'];
+  const fresh = (name, start) => { const c = mk(name, 2, 'Bravos'); first(c, 'Thugs', 'gang', 'Thugs'); E.run('!bitdcrew cohortsync', pat, E.token(c)); setb(c, 'cohort1', lvlBoxes[start]); return c; };
+  let ex = fresh('Ex 1', 0); harm(ex, 'cohort1', 2);
+  ok(getb(ex, 'cohort1') === '110' && has(card(ex, 'cohort1'), /Condition: Impaired/), 'level 2 harm on a Fit cohort ticks the Weakened and the Impaired box (both)', getb(ex, 'cohort1'));
+  ex = fresh('Ex 2', 0); harm(ex, 'cohort1', 1); o = harm(ex, 'cohort1', 2);
+  ok(getb(ex, 'cohort1') === '111' && has(card(ex, 'cohort1'), /Condition: Broken/) && has(o, /1 \+ 2 = 3\./), 'level 1 harm and then level 2 harm is Broken', o);
+  ex = fresh('Ex 3', 1); ok(/Thugs is at level 1 \(weakened\) now\./.test(harm(ex, 'cohort1')[0]), 'the harm menu names the level the cohort is at'); o = harm(ex, 'cohort1', 3);
+  ok(has(card(ex, 'cohort1'), /Condition: Destroyed/) && has(o, /1 \+ 3 = 4/) && has(o, /Replace for 4 Coin/), 'level 3 harm on a Weakened cohort (1 + 3 = 4) destroys it', o);
+  [[0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [1, 1, 2], [1, 2, 3], [1, 3, 4], [1, 4, 4], [2, 1, 3], [2, 2, 4], [2, 3, 4], [3, 1, 4], [3, 3, 4]].forEach(p => {
+    const c = fresh('Sum ' + p.join('-'), p[0]); const oo = harm(c, 'cohort1', p[1]), want = Math.min(p[2], 4);
+    ok(getb(c, 'cohort1') === lvlBoxes[Math.min(want, 3)] && new RegExp('Condition: ' + names5[want]).test(body(card(c, 'cohort1'))), 'level ' + p[0] + ' plus level ' + p[1] + ' harm is ' + names5[want], [getb(c, 'cohort1'), oo.join('').slice(0, 120)]);
+  });
   const dead = body(o);
   ok(/Condition: Destroyed/.test(dead) && /Level 4 harm: Dead\. The cohort is destroyed\./.test(dead) && /To replace it: 4 Coin \(Tier 2 \+2\) plus two downtime activities\. The crew has 0 Coin\./.test(dead) && /\[Replace for 4 Coin\]\(!bitdcrew cohortreplace --c /.test(dead) &&
      /If a cohort is destroyed, it may be replaced\. Spend coin equal to your Tier \+2 to restore it, plus two downtime activities to recruit new gang members, or hire a new expert\./.test(dead), 'the Destroyed card: the book text, the cost (Tier +2) and a replace button', dead);
@@ -2315,18 +2330,18 @@ if (PC_SRC) {
   setb(hm, 'cohort1', '000'); ok(has(card(hm, 'cohort1'), /Condition: Fit/), 'boxes cleared by hand make a Destroyed cohort Fit again'); setb(hm, 'cohort1', '111'); ok(has(card(hm, 'cohort1'), /Condition: Broken/), 'three marked boxes after that read as Broken: the Destroyed flag went with the boxes');
   harm(hm, 'cohort1', 4);
   ok(has(harm(hm, 'cohort1', 1), /already destroyed/) && has(harm(hm, 'cohort1'), /already destroyed/) && has(roll(hm, 'cohort1', 0), /destroyed and cannot roll/) && has(heal(hm, 'cohort1', 1), /destroyed\. Healing does not apply/), 'a destroyed cohort takes no harm, rolls nothing and is not healed');
-  o = harm(hm, '-RowA', 4); ok(getb(hm, 'repeating_cohort_-RowA') === '111' && has(o, /Level 4 harm: Dead/) && !has(o, /moves up/), 'level 4 harm destroys at once', o);
+  o = harm(hm, '-RowA', 4); ok(getb(hm, 'repeating_cohort_-RowA') === '111' && has(o, /Level 4 harm: Dead/) && !has(o, /harm added to/), 'level 4 harm destroys at once', o);
   row(hm, '-RowB', 'Skulks', 'gang', 'Skulks'); E.run('!bitdcrew cohortsync', pat, E.token(hm));
-  harm(hm, '-RowB', 3); o = harm(hm, '-RowB', 1); ok(getb(hm, 'repeating_cohort_-RowB') === '101', 'level 1 on a Broken cohort marks the free Weakened box (no stacking needed)', getb(hm, 'repeating_cohort_-RowB'));
-  o = harm(hm, '-RowB', 3); ok(has(o, /Destroyed/), 'level 3 on a Broken cohort destroys it', o);
+  harm(hm, '-RowB', 3); ok(getb(hm, 'repeating_cohort_-RowB') === '111' && !has(card(hm, '-RowB'), /Destroyed/), 'level 3 harm on a Fit cohort is Broken, not Destroyed', getb(hm, 'repeating_cohort_-RowB'));
+  o = harm(hm, '-RowB', 3); ok(has(o, /Destroyed/) && has(o, /3 \+ 3 = 6, which is level 4 or more\./), 'level 3 on a Broken cohort destroys it (3 + 3)', o);
   o = harm(hm, '-RowB', 'x'); ok(has(o, /already destroyed/) || has(o, /Pick the harm level/), 'a non-number harm level is not applied');
   ok(has(harm(hm, 'cohort1', 1, null, quinn), /only use this on crews you control/) && getb(hm, 'cohort1') === '111', 'a player who does not control the crew cannot apply harm');
 
-  // ---- healing: every harm moves down one level for each level healed
+  // ---- healing: a level off the level the cohort has for each level healed (Broken to Impaired to Weakened to Fit)
   const hl = mk('Heal crew', 2, 'Bravos'); first(hl, 'Thugs', 'gang', 'Thugs'); E.run('!bitdcrew cohortsync', pat, E.token(hl));
   o = heal(hl, 'cohort1'); ok(/^\/w "Pat" /.test(o[0]) && cmds(o).filter(c => /cohortheal .* --n [12]\)$/.test(c)).length === 2 && o[0].indexOf('All of your cohorts heal during downtime. If circumstances are amenable for recovery, each cohort removes one level of harm (or two levels of harm instead, if a PC spends a downtime activity helping them recuperate).') > 0 && !/--n all/.test(o[0]), 'the heal menu: one level, two levels, the book text', o[0]);
   ok(has(heal(hl, 'cohort1', 1), /has no harm to heal/), 'a cohort with no harm has nothing to heal');
-  [['001', '010', 'Broken to Impaired'], ['010', '100', 'Impaired to Weakened'], ['100', '000', 'Weakened to Fit'], ['110', '100', 'Impaired to Weakened'], ['101', '010', 'Broken to Impaired'], ['111', '110', 'Broken to Impaired'], ['011', '110', 'Broken to Impaired']].forEach(p => {
+  [['001', '110', 'Broken to Impaired'], ['010', '100', 'Impaired to Weakened'], ['100', '000', 'Weakened to Fit'], ['110', '100', 'Impaired to Weakened'], ['101', '110', 'Broken to Impaired'], ['111', '110', 'Broken to Impaired'], ['011', '110', 'Broken to Impaired']].forEach(p => {
     setb(hl, 'cohort1', p[0]); o = heal(hl, 'cohort1', 1);
     ok(getb(hl, 'cohort1') === p[1] && has(o, new RegExp('Healed 1 level: ' + p[2] + '\\.')) && !/^\/w/.test(o[0]), 'heal one level from ' + p[0] + ' gives ' + p[1] + ' (' + p[2] + ')', [getb(hl, 'cohort1'), o]);
   });
@@ -2366,9 +2381,12 @@ if (PC_SRC) {
   card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '0', 'opening the card again does not touch a permanent armor box');
   E.attr(sm, 'cohort1_armor', '1'); card(sm, 'cohort1'); ok(armor(sm, 'cohort1') === '1', 'a used permanent armor box stays used when the card opens');
   armorBtn(sm, 'cohort1', 'restore');
-  o = harm(sm, 'cohort1', 3, 'armor'); ok(getb(sm, 'cohort1') === '010' && armor(sm, 'cohort1') === '1' && has(o, /level 3 harm is reduced to level 2 \(Impaired\)/) && has(o, /Level 2 harm: Impaired/), 'armor against level 3 leaves level 2 harm', o);
+  o = harm(sm, 'cohort1', 3, 'armor'); ok(getb(sm, 'cohort1') === '110' && armor(sm, 'cohort1') === '1' && has(o, /level 3 harm is reduced to level 2 \(Impaired\)/) && has(o, /Level 2 harm: Impaired/), 'armor against level 3 leaves level 2 harm', o);
   armorBtn(sm, 'cohort1', 'restore'); setb(sm, 'cohort1', '000');
-  o = harm(sm, 'cohort1', 4, 'armor'); ok(getb(sm, 'cohort1') === '001' && has(o, /Level 3 harm: Broken/) && !has(o, /Destroyed/), 'armor against level 4 (dead) leaves level 3 (Broken)', o);
+  o = harm(sm, 'cohort1', 4, 'armor'); ok(getb(sm, 'cohort1') === '111' && has(o, /Level 3 harm: Broken/) && !has(o, /Destroyed/), 'armor against level 4 (dead) leaves level 3 (Broken)', o);
+  setb(sm, 'cohort1', '100'); armorBtn(sm, 'cohort1', 'restore'); o = harm(sm, 'cohort1', 4, 'armor');
+  ok(has(o, /1 \+ 3 = 4/) && has(o, /Destroyed/), 'armor against level 4 on a Weakened cohort: level 3 added to level 1 is still Destroyed', o);
+  setb(sm, 'cohort1', '000'); E.attr(sm, 'cohort1_armor', '1');
   ok(has(armorBtn(sm, '-RowG', 'restore'), /Armor restored/), 'Restore armor works on the named boat cohort too');
   const armorState0 = (c) => E.env.state.BitDCrewTAM.cohortArmor && E.env.state.BitDCrewTAM.cohortArmor[c + '|cohort1'];
   ok(armorState0(sm) === 'perm', 'the script remembers the permanent armor it saw', armorState0(sm));
@@ -2439,7 +2457,7 @@ if (PC_SRC) {
   row(rs, '-A', 'Thugs', 'gang', 'Thugs'); setb(rs, 'repeating_cohort_-A', '001'); row(rs, '-B', 'Rooks', 'gang', 'Rooks'); row(rs, '-C', 'Skulks', 'gang', 'Skulks'); setb(rs, 'repeating_cohort_-C', '111');
   harm(rs, '-C', 1);   // already 111 and not destroyed: moves up to destroyed
   o = E.run('!bitdcrew cohortrest --c ' + rs, pat);
-  ok(!/^\/w/.test(o[0]) && /\{\{title=Every cohort heals one level\}\}/.test(o[0]) && getb(rs, 'cohort1') === '000' && getb(rs, 'repeating_cohort_-A') === '010' && getb(rs, 'repeating_cohort_-C') === '111', 'heal every cohort: one level each, a Simple vehicle loses all harm, a destroyed cohort is left alone', [o[0], getb(rs, 'cohort1'), getb(rs, 'repeating_cohort_-A')]);
+  ok(!/^\/w/.test(o[0]) && /\{\{title=Every cohort heals one level\}\}/.test(o[0]) && getb(rs, 'cohort1') === '000' && getb(rs, 'repeating_cohort_-A') === '110' && getb(rs, 'repeating_cohort_-C') === '111', 'heal every cohort: one level each, a Simple vehicle loses all harm, a destroyed cohort is left alone', [o[0], getb(rs, 'cohort1'), getb(rs, 'repeating_cohort_-A')]);
   b2 = body(o);
   ok(/Vehicle: Broken to Fit \(Simple edge: all harm removed in downtime\)\./.test(b2) && /Thugs: Broken to Impaired\./.test(b2) && /Rooks: no harm\./.test(b2) && /Skulks: destroyed\. Replace it for 4 Coin/.test(b2) && /Core book: All of your cohorts heal during downtime\./.test(b2) && !/Deep Cuts/.test(b2), 'the result lists each cohort with the core book rule', b2);
   E.attr(rs, 'setting_dc_downtime', '1'); b2 = body(E.run('!bitdcrew cohortrest --c ' + rs, pat));
