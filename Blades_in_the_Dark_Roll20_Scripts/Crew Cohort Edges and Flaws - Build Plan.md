@@ -1,6 +1,6 @@
 # Crew Script: editing a cohort's edges and flaws from buttons (proposal for v0.13.0)
 
-**Status: proposal for approval. No code has been touched.** Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two or the Roll20 sheet (v3.11). Where I am inferring, it says so.
+**Status: APPROVED and BUILT as v0.13.0 (2026-10-11). Decisions 2 to 7 as recommended (6: the GM and players who control the crew). Decision 1 became option C: the editor also sets the cohort type (Gang, Elite, Expert) and the gang types, with the costs shown and never spent. The proposal as first written follows.** Rules are quoted from your core book (`bladesinthedark_v8_2`), Deep Cuts Part Two or the Roll20 sheet (v3.11). Where I am inferring, it says so.
 
 ## 1. Bottom line
 

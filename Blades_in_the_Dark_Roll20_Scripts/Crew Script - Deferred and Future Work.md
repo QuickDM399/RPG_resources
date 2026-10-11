@@ -57,7 +57,7 @@ You asked me to hold anything River, and said you could not find the rules. What
 
 Built in v0.12.0: the status card, rolling, harm with armor, healing, replacing a destroyed cohort, armor from the Vehicle upgrade, Leader and Reavers, Hooked. Not built, each needing your approval first (`Crew Cohorts Button - Build Plan.md`, section 0b):
 
-1. **Edit a cohort's type, gang types, edges and flaws from buttons.** The largest piece: "one or two edges and an equal number of flaws", "up to two types". You can type the names on the sheet today and the parser reads them.
+1. ~~Edit a cohort's type, gang types, edges and flaws from buttons.~~ Built in v0.13.0 (`Crew Cohort Edges and Flaws - Build Plan.md`).
 2. **Recruit or modify a cohort.** The core book says "spend two upgrades" (modifying: add a type for two crew upgrades), Deep Cuts spends two advancement clocks. The script cannot spend either, and it would create new sheet rows.
 3. **Cohort downtime activities** (All Hands, Roots). The script tracks no downtime activities for anyone, so a once-per-Downtime record would be empty.
 4. **The two downtime activities of a replacement** are only a reminder on the replaced card.

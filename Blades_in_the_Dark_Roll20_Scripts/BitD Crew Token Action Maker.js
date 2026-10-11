@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.12.1
+/* BitD Crew Token Action Maker  v0.13.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -33,14 +33,16 @@
  *     Deep Cuts where it changes the rule) to the table. Read-only.
  *   - Cohorts (button 6d): a card with a button for each cohort; a click shows the cohort status to the table (condition, types, quality and
  *     scale, armor, edges and flaws with the book text) with buttons to roll it (-3d to +3d), take harm (with or without armor), heal it,
- *     grant or restore armor, and replace it for Tier +2 Coin when destroyed. Writes only the cohort's harm and armor boxes, on a click.
+ *     grant or restore armor, and replace it for Tier +2 Coin when destroyed. An editor (a whisper) sets the cohort's type (Gang, Elite,
+ *     Expert), its gang types, edges and flaws with one click each. Writes only the cohort's harm, armor, type, gang type, edge and flaw
+ *     boxes, on a click.
  *   - Action module: after the engagement roll a Begin score card gives each Party PC 1 Edge (Bound in Darkness); the Fallout card can clear the
  *     party's Edge (Edge is lost when Downtime starts). These write only edge_amount on PC sheets and set token bar 2.
  */
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.12.1';
+  var VERSION = '0.13.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -1588,7 +1590,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       table.forEach(function (e) { if (normName(e[1]).replace(/s$/, '') === key) { hit = e; } });
       if (seen[key]) { return; }
       seen[key] = true;
-      out.push(hit ? { key: hit[0], name: hit[1], text: hit[2] } : { key: '', name: chatNotes(s, 40).replace(/\s*\n\s*/g, ' '), text: '' });
+      out.push(hit ? { key: hit[0], name: hit[1], text: hit[2], raw: hit[1] } : { key: '', name: chatNotes(s, 40).replace(/\s*\n\s*/g, ' '), text: '', raw: s });
     });
     return out;
   }
@@ -1836,6 +1838,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       act.push(cmdBtn('Take harm', 'cohortharm', cid, c));
       if (lvl > 0) { act.push(cmdBtn('Heal', 'cohortheal', cid, c)); }
     }
+    act.push(cmdBtn('Edit type, edges and flaws', 'cohortedit', cid, c));
     L.push(act.concat(B).join(' '));
     dbg('cohort ' + c.name + ' (' + cohortRef(c) + '): level ' + lvl + ', pool ' + q.pool + ', types ' + types.length + ', edges ' + edges.length + ', flaws ' + flaws.length + ', armor ' + (armorState(cid, c) || 'none'));
     postCohortCard(msg, t, c, 'Cohort', cohortLabel(c), L.filter(function (s) { return s; }));
@@ -2041,6 +2044,148 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     var t = target(msg, o); if (!t) { return; }
     var cid = t.ch.id, n = cohortSync(cid), count = cohortList(cid).length;
     note(msg, t.c, 'Cohorts', 'Armor boxes', count + ' cohort' + (count === 1 ? '' : 's') + ' checked, ' + n + ' armor box' + (n === 1 ? '' : 'es') + ' set. A marked box means no armor available.');
+  }
+
+  // ---------------------------------------------------------------- editing a cohort (v0.13.0)
+  // The editor changes the cohort's setting (Gang, Elite or Expert), its gang types and its edges and flaws. Every change is one click and
+  // writes one sheet box: type (and the verb the sheet derives from it), subtype, edges or flaws. The books put no cost on changing edges
+  // or flaws, and price a second type (two crew upgrades) and Elite (Deep Cuts p83, 10 Coin) in things the script cannot spend, so the script
+  // spends nothing, shows the book lines and warns when a cohort is off "one or two edges and an equal number of flaws".
+
+  var COHORT_KINDS = [
+    ['gang', 'Gang', 'A gang has scale and quality equal to your current crew Tier.'],
+    ['elite', 'Elite', 'Some crew upgrades will add the "Elite" feature to a gang, which gives them +1d when they roll for a given Type.'],
+    ['expert', 'Expert', 'An expert has quality equal to your current crew Tier +1. Their scale is always zero (1 person).']
+  ];
+  var COHORT_EDIT_RULE = 'When you create a cohort, give them one or two edges and an equal number of flaws.';
+  var COHORT_TYPE_RULE = 'You can add an additional type to a gang or expert by spending two crew upgrades. When a cohort performs actions for which its types apply, it uses its full quality rating. Otherwise, its quality is zero. A given cohort can have up to two types.';
+  var COHORT_ELITE_DC = 'Upgrade a Cohort to Elite quality. It costs 10 Coin.';
+  var EDIT_BOXES = { e: '_edges', f: '_flaws', t: '_subtype' };
+  var EDIT_LABELS = { e: 'Edges', f: 'Flaws', t: 'Gang types' };
+
+  // the book table a box offers as buttons (a vehicle gets the vehicle edges and flaws), and the table its text is read against
+  function editTable(cid, c, box) {
+    if (box === 'e') { return cohortIsVehicle(cid, c) ? VEHICLE_EDGES : COHORT_EDGES; }
+    if (box === 'f') { return cohortIsVehicle(cid, c) ? VEHICLE_FLAWS : COHORT_FLAWS; }
+    return COHORT_TYPES;
+  }
+  function editReadTable(box) {
+    if (box === 'e') { return COHORT_EDGES.concat(VEHICLE_EDGES); }
+    if (box === 'f') { return COHORT_FLAWS.concat(VEHICLE_FLAWS); }
+    return COHORT_TYPES;
+  }
+  function editRaw(cid, c, box) {
+    var raw = String(getAttr(cid, c.prefix + EDIT_BOXES[box], ''));
+    return (box === 't' && normName(raw) === COHORT_PLACEHOLDER) ? '' : raw;
+  }
+  function editList(cid, c, box) { return cohortNames(editRaw(cid, c, box), editReadTable(box)); }
+  // the box rewritten from its names: book spelling for a book name, the typed spelling for any other
+  function editText(list) { return list.map(function (x) { return x.key ? x.name : x.raw; }).join(', '); }
+  // a short form of a name, to be sure a Remove button still means the entry it was made for
+  function nameSlug(s) { return normName(s).replace(/[^a-z0-9]/g, '').slice(0, 10); }
+  function shown(text) { return '"' + (chatNotes(text, 160).replace(/\s*\n\s*/g, ' ') || '(empty)') + '"'; }
+
+  // the sheet's type setting; the sheet worker derives the verb ("rolls their" for an expert) from it, and the script writes the verb as well
+  // so the roll card is right even where the worker does not run (a new attribute)
+  function setCohortKind(cid, c, kind) {
+    var name = c.prefix + '_type', a = findObjs({ _type: 'attribute', _characterid: cid, name: name })[0], verb = kind === 'expert' ? '^{rolls_their}' : '^{roll_their}';
+    if (!a) { a = createObj('attribute', { _characterid: cid, name: name, current: 'gang' }); }   // the sheet default, so the change below is a change
+    a.setWithWorker({ current: kind });
+    if (String(getAttr(cid, c.prefix + '_verb', '')) !== verb) { setAttr(cid, c.prefix + '_verb', verb); }
+  }
+
+  // one click: n is k<kind>, <e|f|t><key> (toggle a book name) or x<e|f|t><index>_<slug> (remove a name the book table lacks).
+  // Returns {lines} to show above the editor, or {err}.
+  function applyCohortEdit(cid, c, n) {
+    var k = n.charAt(0), rest = n.slice(1), type = cohortType(cid, c.prefix), box, list, i, hit, was, now, lines = [], m;
+    if (k === 'k') {
+      var kind = COHORT_KINDS.filter(function (x) { return x[0] === rest; })[0];
+      if (!kind) { return { err: 'That is not a cohort type.' }; }
+      if (kind[0] === type) { return { lines: [ital('The cohort is already ' + kind[1] + '.')] }; }
+      setCohortKind(cid, c, kind[0]);
+      lines.push(bold('Type: ' + cap(type) + ' to ' + kind[1] + '.') + ' The cohort rolls ' + cohortPool(cid, c.prefix) + 'd now.');
+      if (kind[0] === 'elite') {
+        lines.push(ital(mods(cid).downtime ? 'Deep Cuts, Downtime module, p83: ' + COHORT_ELITE_DC + ' The script spends nothing: pay it at the table.' : 'The script spends nothing: take the Elite crew upgrade at the table.'));
+      }
+      dbg('cohort edit ' + c.name + ': type ' + type + ' to ' + kind[0]);
+      return { lines: lines };
+    }
+    if (k === 'x') {
+      m = /^([eft])(\d+)_(.*)$/.exec(rest);
+      if (!m) { return { err: 'That is not a cohort entry.' }; }
+      box = m[1]; list = editList(cid, c, box); hit = list[parseInt(m[2], 10)];
+      if (!hit || hit.key || nameSlug(hit.name) !== m[3]) { return { err: 'That entry changed on the sheet.' }; }
+      was = editRaw(cid, c, box); list.splice(parseInt(m[2], 10), 1); now = editText(list);
+      setAttr(cid, c.prefix + EDIT_BOXES[box], now);
+      dbg('cohort edit ' + c.name + ': ' + EDIT_LABELS[box] + ' removed ' + hit.name + ', ' + shown(was) + ' to ' + shown(now));
+      return { lines: [bold('Removed ' + hit.name + '.') + ' ' + ital(EDIT_LABELS[box] + ' was ' + shown(was) + ', now ' + shown(now) + '.')] };
+    }
+    box = k;
+    if (!EDIT_BOXES[box]) { return { err: 'That is not a cohort entry.' }; }
+    if (box === 't' && type === 'expert') { return { err: 'An expert\'s specialty is typed on the sheet.' }; }
+    hit = editTable(cid, c, box).filter(function (e) { return e[0] === rest; })[0];
+    if (!hit) { return { err: 'That is not in the book list for this cohort.' }; }
+    list = editList(cid, c, box); was = editRaw(cid, c, box);
+    var at = -1;
+    list.forEach(function (x, j) { if (x.key === hit[0]) { at = j; } });
+    if (at >= 0) { list.splice(at, 1); } else { list.push({ key: hit[0], name: hit[1], raw: hit[1], text: hit[2] }); }
+    now = editText(list);
+    setAttr(cid, c.prefix + EDIT_BOXES[box], now);
+    lines.push(bold((at >= 0 ? 'Removed ' : 'Added ') + hit[1] + '.') + ' ' + ital(EDIT_LABELS[box] + ' was ' + shown(was) + ', now ' + shown(now) + '.'));
+    if (box === 't' && at < 0 && list.length === 2) { lines.push(ital('Core book: ' + COHORT_TYPE_RULE + ' The script spends nothing: pay the two crew upgrades at the table.')); }
+    dbg('cohort edit ' + c.name + ': ' + EDIT_LABELS[box] + ' ' + (at >= 0 ? 'removed ' : 'added ') + hit[1] + ', ' + shown(was) + ' to ' + shown(now));
+    return { lines: lines };
+  }
+
+  // one row of toggle buttons for a box, the book text of each name, and a Remove button for each name the table lacks
+  function editBoxLines(cid, c, box, label) {
+    var L = [], list = editList(cid, c, box), table = editTable(cid, c, box), held = {}, unknown = [];
+    list.forEach(function (x, j) { if (x.key) { held[x.key] = true; } else { unknown.push({ at: j, name: x.name }); } });
+    L.push(bold(label + ':') + ' ' + table.map(function (e) { return cmdBtn((held[e[0]] ? G_ON : G_OFF) + ' ' + e[1], 'cohortedit', cid, c, box + e[0]); }).join(' '));
+    table.forEach(function (e) { L.push(ital(e[1] + ': ' + e[2])); });
+    if (unknown.length) {
+      L.push(bold('Also on the sheet, not from the book:') + ' ' + unknown.map(function (u) { return u.name; }).join(', '));
+      L.push(unknown.map(function (u) { return cmdBtn('Remove ' + u.name, 'cohortedit', cid, c, 'x' + box + u.at + '_' + nameSlug(u.name)); }).join(' '));
+    }
+    return L;
+  }
+
+  function cohortEditorLines(cid, c, change) {
+    var L = (change || []).slice(), p = c.prefix, type = cohortType(cid, p);
+    L.push(bold('Cohort type:') + ' ' + COHORT_KINDS.map(function (k) { return cmdBtn((k[0] === type ? G_ON : G_OFF) + ' ' + k[1], 'cohortedit', cid, c, 'k' + k[0]); }).join(' '));
+    L.push(ital(COHORT_KINDS.filter(function (k) { return k[0] === type; })[0][2]));
+    if (type === 'expert') {
+      L.push(bold('Specialty:') + ' ' + (chatNotes(editRaw(cid, c, 't'), 80).replace(/\s*\n\s*/g, ' ') || 'none') + ' ' + ital('(an expert\'s specialty is typed on the sheet)'));
+    } else {
+      L = L.concat(editBoxLines(cid, c, 't', 'Gang types (up to two)'));
+    }
+    L = L.concat(editBoxLines(cid, c, 'e', 'Edges'));
+    L = L.concat(editBoxLines(cid, c, 'f', 'Flaws'));
+    var types = editList(cid, c, 't'), edges = editList(cid, c, 'e'), flaws = editList(cid, c, 'f');
+    if (edges.length < 1 || edges.length > 2 || edges.length !== flaws.length) {
+      L.push(ital(edges.length + (edges.length === 1 ? ' edge' : ' edges') + ' and ' + flaws.length + (flaws.length === 1 ? ' flaw' : ' flaws') + ': the core book gives one or two edges and an equal number of flaws.'));
+    }
+    if (type !== 'expert') {
+      if (types.length > 2) { L.push(ital(types.length + ' types: a cohort can have up to two types (core book).')); }
+      else if (!types.length) { L.push(ital('No gang type chosen: the core book has you choose a gang type from the list.')); }
+    }
+    var q = cohortQuality(cid, p);
+    if (q.hooked) { L.push(bold('Hooked:') + ' +1 quality from the ' + q.hooked + ' flaw, so this cohort rolls ' + q.pool + 'd.'); }
+    L.push(ital('Core book: ' + COHORT_EDIT_RULE));
+    L.push('[' + btn('Show the cohort card to the table') + '](' + CMD + ' cohort --c ' + cid + ' --row ' + cohortRef(c) + ')');
+    return L;
+  }
+
+  // whisper: the editor; with --n, one change first
+  function doCohortEdit(msg, o) {
+    var x = cohortTarget(msg, o); if (!x) { return; }
+    var cid = x.cid, c = x.c, n = String(o.n === null || o.n === undefined ? '' : o.n), change = null;
+    if (n) {
+      change = applyCohortEdit(cid, c, n);
+      if (change.err) { whisper(msg, 'BitDCrew: ' + change.err + ' Open the editor again from the cohort card.'); return; }
+    }
+    dbg('cohort editor ' + c.name + (n ? ' after ' + n : ''));
+    whisper(msg, broadcast(x.t.c, { type: 'Edit ' + cohortLabel(c), title: 'Type, edges and flaws', content: cohortEditorLines(cid, c, change && change.lines).join(NL) }));
   }
 
   function clockSize(cid, base) {
@@ -2948,6 +3093,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'cohortrest': return doCohortRest(msg, o);
       case 'cohortreplace': return doCohortReplace(msg, o);
       case 'cohortsync': return doCohortSync(msg, o);
+      case 'cohortedit': return doCohortEdit(msg, o);
       case 'clocks': return doClocks(msg, o);
       case 'clock': return doClockTick(msg, o);
       case 'adj': return doAdjust(msg, o);

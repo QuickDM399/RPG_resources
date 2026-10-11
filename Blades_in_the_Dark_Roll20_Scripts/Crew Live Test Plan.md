@@ -335,9 +335,30 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - Nothing on the sheet changes except the harm boxes, the armor box and (on a replace) the Coin.
 **Known fail states:** a button that does nothing (tell me its text and the console line), a cohort missing or in the wrong order, a wrong dice count, an armor box that flips back after you set it, the Leader grant offered with no Party PC marked as Leader, a Destroyed cohort that heals, circles that do not match the boxes, a card cut off.
 
-## L32 Clean up
+## L32 Editing a cohort: type, gang types, edges and flaws (any crew with a gang, an expert, and on a Smugglers crew the vehicle)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts, and put back the harm and armor boxes you noted for L31. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** note the Type setting, Type, Edges and Flaws boxes of two cohorts. Run `~ Rebuild`. Give one gang the edge "Fearsome (the best), Greedy" and the flaw "Savage".
+**Steps:**
+1. Open a cohort card (`6d. Cohorts`, then the cohort) and click **Edit type, edges and flaws**.
+2. Click an edge you do not have (Loyal), then one you do (Fearsome). Click **Remove Greedy**. Click a flaw. Look at the sheet after each click.
+3. Add a gang type, then a second one (read the cost line), then a third (read the warning). Remove them.
+4. Click Elite, then Expert, then Gang. After each, click one roll button on the cohort card and compare the dice with the sheet's own roll button. With the Downtime module on, Elite shows the 10 Coin line.
+5. On a Smugglers vehicle open the editor (vehicle edges and flaws only) and add Nimble and Finicky. On an expert look for the Specialty line and no gang type buttons.
+6. As a player who controls the crew, repeat one click. As a player who does not control it, paste a `cohortedit` command from the card.
+7. `!bitdcrew debug on`, make one change and read the API console.
+**Pass:**
+- The editor is a whisper with one row of buttons each for the cohort type, gang types, edges and flaws, a line of book text for every name, filled circles on the ones the cohort has, and a "Show the cohort card to the table" button.
+- Each click writes the sheet at once: the Edges box reads `Fearsome, Loyal` after adding Loyal (book spelling, comma and space). The made-up "Greedy" stays until you click Remove. The bracket text "(the best)" is gone and the change line shows the old and new text.
+- Warnings, never blocks: "2 edges and 1 flaw: the core book gives one or two edges and an equal number of flaws.", and "3 types: a cohort can have up to two types". A second gang type shows the core two-crew-upgrades line and says the script spends nothing.
+- Elite, Expert and Gang change the Type setting on the sheet, the roll card's wording ("rolls their" for an expert) and the dice (Tier, Tier +1d for Elite, Tier +1 for an expert). The script never spends an upgrade or Coin.
+- A vehicle is offered Nimble, Simple, Sturdy and Costly, Distinct, Finicky only, and its `boat_carriage_other` type box is left alone until a gang type is chosen.
+- Hooked: with the ability ticked, adding Savage, Unreliable or Wild to a gang shows the Hooked line and the extra die.
+- A player who does not control the crew is refused. Nothing else on the sheet changes (check harm, armor and notes).
+**Known fail states:** a click that does nothing (send me the console line), a made-up name that disappears without Remove, text from the old box lost without the change line showing it, the Type setting on the sheet not changing, a roll card that still says "roll their" for an expert, a card cut off.
+
+## L33 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts, and put back the harm and armor boxes you noted for L31 and the type, gang type, edge and flaw boxes you noted for L32. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

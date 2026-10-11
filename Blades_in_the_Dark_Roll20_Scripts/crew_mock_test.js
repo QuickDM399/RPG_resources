@@ -2535,5 +2535,168 @@ if (PC_SRC) {
   ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error in any of the cohort checks');
 }
 
+// ---------------------------------------------------------------- T31 editing a cohort: type, gang types, edges and flaws
+{
+  const { E, gm, pat, quinn } = table();
+  const CT = E.env.BitDCrewTAM._cohortText;
+  E.run('!bitdcrew fmt off', gm);
+  const mk = (name, tier, type) => { const c = E.crew(name, pat); E.attr(c, 'crew_tier', String(tier)); if (type) E.attr(c, 'crew_type', type); return c; };
+  const first = (c, name, type, sub, edges, flaws) => {
+    E.attr(c, 'cohort1_name', name); if (type) E.attr(c, 'cohort1_type', type); if (sub !== undefined) E.attr(c, 'cohort1_subtype', sub);
+    if (edges !== undefined) E.attr(c, 'cohort1_edges', edges); if (flaws !== undefined) E.attr(c, 'cohort1_flaws', flaws);
+  };
+  const edit = (c, n, who, ref) => E.run('!bitdcrew cohortedit --c ' + c + ' --row ' + (ref || 'cohort1') + (n === undefined ? '' : ' --n ' + n), who || pat);
+  const body = (o) => (/\{\{content=([\s\S]*)\}\}$/.exec(o[0]) || [])[1] || '';
+  const cmds = (o) => (o.join('\n').match(/\(!bitdcrew [^)]*\)/g) || []);
+  const val = (c, n) => E.val(c, 'cohort1_' + n);
+  const rolled = (c) => { const o = E.run('!bitdcrew cohortroll --c ' + c + ' --row cohort1 --n 0', pat); return /zerodice/.test(o[0]) ? 0 : dice(o[0]); };
+  const ON = String.fromCharCode(0x25CF), OFF = String.fromCharCode(0x25CB);
+  const fresh = (name, type, sub, edges, flaws) => { const c = mk(name, 2, 'Bravos'); first(c, 'Thugs', type || 'gang', sub, edges, flaws); return c; };
+
+  // ---- the card button and the editor
+  let c = fresh('Edit crew', 'gang', 'Thugs', 'Fearsome', 'Savage');
+  let o = E.run('!bitdcrew cohort --c ' + c + ' --row cohort1', pat);
+  ok(has(o, /\[Edit type, edges and flaws\]\(!bitdcrew cohortedit --c [^ ]+ --row cohort1\)/), 'the cohort card has an Edit type, edges and flaws button');
+  E.attr(c, 'cohort1_weak', '1'); E.attr(c, 'cohort1_impaired', '1'); E.attr(c, 'cohort1_broken', '1');
+  E.run('!bitdcrew cohortharm --c ' + c + ' --row cohort1 --n 4', pat);
+  ok(has(E.run('!bitdcrew cohort --c ' + c + ' --row cohort1', pat), /Edit type, edges and flaws/), 'the Edit button is there on a destroyed cohort too');
+  c = fresh('Edit crew 2', 'gang', 'Thugs', 'Fearsome', 'Savage');
+  o = edit(c); let b = body(o);
+  ok(/^\/w "Pat" /.test(o[0]) && /\{\{type=Edit Thugs\}\}/.test(o[0]) && /\{\{title=Type, edges and flaws\}\}/.test(o[0]), 'the editor is a whisper to the clicker', o[0].slice(0, 140));
+  ok(b.indexOf('[' + ON + ' Gang](') > 0 && b.indexOf('[' + OFF + ' Elite](') > 0 && b.indexOf('[' + OFF + ' Expert](') > 0 && /--n kgang\)/.test(b) && /--n kelite\)/.test(b) && /--n kexpert\)/.test(b), 'the type row: Gang marked, Elite and Expert not', b);
+  ok(b.indexOf('A gang has scale and quality equal to your current crew Tier.') > 0, 'the book text of the current type');
+  ok(CT.types.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && CT.edges.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && CT.flaws.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0), 'every book gang type, edge and flaw is listed with its book text', b);
+  ok(b.indexOf('[' + ON + ' Thugs](') > 0 && b.indexOf('[' + OFF + ' Adepts](') > 0 && b.indexOf('[' + ON + ' Fearsome](') > 0 && b.indexOf('[' + OFF + ' Loyal](') > 0 && b.indexOf('[' + ON + ' Savage](') > 0 && b.indexOf('[' + OFF + ' Wild](') > 0, 'held names are marked, the others are not', b);
+  ok(cmds(o).every(x => x.indexOf(':') < 0) && !/Nimble|Costly/.test(b) && /--n tadepts\)/.test(b) && /--n eloyal\)/.test(b) && /--n fwild\)/.test(b), 'no colon in a button command; a gang is offered the core edges and flaws, not the vehicle ones', cmds(o).filter(x => x.indexOf(':') >= 0));
+  ok(!/Also on the sheet/.test(b) && !/the core book gives one or two/.test(b.replace(/Core book: When you create[^\n]*/, '')), 'no made-up names and no warning when the cohort has one edge and one flaw', b);
+  ok(b.indexOf('Core book: When you create a cohort, give them one or two edges and an equal number of flaws.') > 0 && /\[Show the cohort card to the table\]\(!bitdcrew cohort --c [^ ]+ --row cohort1\)$/.test(b), 'the book rule and the button that shows the cohort card');
+
+  // ---- toggling every book name in an empty box
+  let bad = [];
+  [['e', 'edges', CT.edges], ['f', 'flaws', CT.flaws], ['t', 'subtype', CT.types]].forEach(p => p[2].forEach(t => {
+    const k = fresh('Tog ' + t[0], 'gang', '', '', ''); edit(k, p[0] + t[0]);
+    const added = val(k, p[1]); edit(k, p[0] + t[0]); const removed = val(k, p[1]);
+    if (added !== t[1] || removed !== '') { bad.push([t[0], added, removed]); }
+  }));
+  ok(bad.length === 0, 'every edge, flaw and gang type can be added to an empty box and removed again', bad);
+  // ---- order, unknown names, bracket text, the old text shown
+  c = fresh('Order', 'gang', 'Thugs', 'Fearsome (the best), Greedy', 'Savage');
+  o = edit(c, 'eloyal'); b = body(o);
+  ok(val(c, 'edges') === 'Fearsome, Greedy, Loyal' && /Added Loyal\. Edges was "Fearsome \(the best\), Greedy", now "Fearsome, Greedy, Loyal"\./.test(b), 'a new name goes on the end; a name the book lacks stays as typed; bracket text goes; the old text is shown', [val(c, 'edges'), b.slice(0, 160)]);
+  ok(/Also on the sheet, not from the book: Greedy/.test(b) && /\[Remove Greedy\]\(!bitdcrew cohortedit --c [^ ]+ --row cohort1 --n xe1_greedy\)/.test(b), 'the made-up name is listed with a Remove button', b);
+  o = edit(c, 'xe1_greedy'); b = body(o);
+  ok(val(c, 'edges') === 'Fearsome, Loyal' && /Removed Greedy\. Edges was "Fearsome, Greedy, Loyal", now "Fearsome, Loyal"\./.test(b) && !/Also on the sheet/.test(b), 'Remove takes the made-up name out', [val(c, 'edges'), b.slice(0, 120)]);
+  o = edit(c, 'xe1_greedy'); ok(has(o, /That entry changed on the sheet/) && val(c, 'edges') === 'Fearsome, Loyal', 'a Remove button for a name that is gone is refused');
+  E.attr(c, 'cohort1_edges', 'Fearsome, Greedy'); o = edit(c, 'xe1_gloomy'); ok(has(o, /That entry changed on the sheet/) && val(c, 'edges') === 'Fearsome, Greedy', 'a Remove button made for another name is refused', o);
+  o = edit(c, 'xe0_fearsome'); ok(has(o, /That entry changed on the sheet/), 'Remove never takes out a book name');
+  E.attr(c, 'cohort1_edges', 'fearsome and LOYAL; tenacious'); edit(c, 'eindependent');
+  ok(val(c, 'edges') === 'Fearsome, Loyal, Tenacious, Independent', 'the box is read in any spelling (and, semicolons, case) and written in book spelling', val(c, 'edges'));
+  E.attr(c, 'cohort1_flaws', 'a, b, c, d, e, f, g, h'); o = edit(c, 'fwild');
+  ok(val(c, 'flaws') === 'a, b, c, d, e, f, Wild' && /Flaws was "a, b, c, d, e, f, g, h"/.test(body(o)), 'a box of more than six names keeps six and the change line shows the old text', [val(c, 'flaws'), body(o).slice(0, 140)]);
+  E.attr(c, 'cohort1_edges', 'Fearsome, *odd* [x] name'); edit(c, 'eloyal');
+  ok(val(c, 'edges') === 'Fearsome, *odd* name, Loyal', 'a made-up name is kept as typed, asterisks included (the editor shows it safely, the sheet keeps it); only bracket text goes', val(c, 'edges'));
+
+  // ---- the book rule: a warning, never a block
+  const W = /the core book gives one or two edges and an equal number of flaws/;
+  [['', '', true], ['Fearsome', 'Savage', false], ['Fearsome, Loyal', 'Savage, Wild', false], ['Fearsome, Loyal', 'Savage', true], ['Fearsome', 'Savage, Wild', true], ['Fearsome, Loyal, Tenacious', 'Savage, Wild, Unreliable', true], ['Fearsome', '', true]].forEach(p => {
+    const k = fresh('Warn', 'gang', 'Thugs', p[0], p[1]); const bb = body(edit(k));
+    ok(W.test(bb.replace('Core book: When you create a cohort, give them one or two edges and an equal number of flaws.', '')) === p[2], 'edges "' + p[0] + '" and flaws "' + p[1] + '": ' + (p[2] ? 'a warning' : 'no warning'), bb.split('\n').slice(-4));
+  });
+  c = fresh('Warn count', 'gang', 'Thugs', '', ''); b = body(edit(c));
+  ok(/0 edges and 0 flaws: the core book gives one or two edges and an equal number of flaws\./.test(b), 'the warning counts the edges and flaws', b);
+  c = fresh('Warn count 2', 'gang', 'Thugs', 'Fearsome, Loyal', 'Savage'); b = body(edit(c));
+  ok(/2 edges and 1 flaw: the core book/.test(b), 'singular and plural in the warning', b);
+  ok(has(edit(fresh('Over', 'gang', 'Thugs', 'Fearsome', 'Savage'), 'eloyal'), /2 edges and 1 flaw/) && has(edit(fresh('Over 2', 'gang', 'Thugs', 'Fearsome, Loyal', 'Savage'), 'etenacious'), /3 edges and 1 flaw/) && val(fresh('Over 3', 'gang', 'Thugs', 'Fearsome, Loyal', 'Savage'), 'edges') === 'Fearsome, Loyal', 'nothing is blocked: a third edge is added with a warning');
+  const ex3 = fresh('Over 4', 'gang', 'Thugs', 'Fearsome, Loyal', 'Savage'); edit(ex3, 'etenacious'); ok(val(ex3, 'edges') === 'Fearsome, Loyal, Tenacious', 'a third edge is written');
+  b = body(edit(fresh('Types 3', 'gang', 'Thugs, Rooks, Skulks', 'Fearsome', 'Savage'))); ok(/3 types: a cohort can have up to two types \(core book\)\./.test(b), 'more than two gang types: a warning', b);
+  b = body(edit(fresh('Types 0', 'gang', '', 'Fearsome', 'Savage'))); ok(/No gang type chosen: the core book has you choose a gang type from the list\./.test(b), 'no gang type: a note', b);
+  b = body(edit(fresh('Types e', 'expert', 'Physicker', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert has no gang type warnings', b);
+  b = body(edit(fresh('Types e0', 'expert', '', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert with no specialty typed has no gang type note', b);
+  b = body(edit(fresh('Types e3', 'expert', 'Spy, Doctor, Thief', 'Fearsome', 'Savage'))); ok(!/gang type chosen|types:/.test(b), 'an expert with three words in the specialty is not warned about types', b);
+
+  // ---- a second gang type: the book prices it in upgrades the script cannot spend
+  const T2 = /Core book: You can add an additional type to a gang or expert by spending two crew upgrades\. .* The script spends nothing: pay the two crew upgrades at the table\./;
+  c = fresh('Types add', 'gang', '', 'Fearsome', 'Savage');
+  o = edit(c, 'tthugs'); ok(!T2.test(body(o)) && val(c, 'subtype') === 'Thugs', 'the first gang type has no cost line', body(o).slice(0, 200));
+  o = edit(c, 'trooks'); ok(T2.test(body(o)) && val(c, 'subtype') === 'Thugs, Rooks', 'adding the second type shows the book cost and says the script spends nothing', body(o).slice(0, 300));
+  o = edit(c, 'trooks'); ok(!T2.test(body(o)) && val(c, 'subtype') === 'Thugs', 'removing a type has no cost line');
+  const t3 = fresh('Types rm', 'gang', 'Thugs, Rooks, Skulks', 'Fearsome', 'Savage'); o = edit(t3, 'tskulks');
+  ok(val(t3, 'subtype') === 'Thugs, Rooks' && !T2.test(body(o)), 'taking a third type off, which leaves two, shows no cost line', body(o).slice(0, 200));
+  o = edit(c, 'tadepts'); edit(c, 'tskulks'); ok(val(c, 'subtype') === 'Thugs, Adepts, Skulks' && /3 types/.test(body(edit(c))), 'a third type is written with a warning', val(c, 'subtype'));
+
+  // ---- the cohort type setting: Gang, Elite, Expert
+  c = fresh('Kind', 'gang', 'Thugs', 'Fearsome', 'Savage'); E.attr(c, 'crew_tier', '2');
+  ok(rolled(c) === 2, 'a gang at Tier 2 rolls 2d');
+  o = edit(c, 'kelite'); b = body(o);
+  ok(val(c, 'type') === 'elite' && val(c, 'verb') === '^{roll_their}' && rolled(c) === 3 && /Type: Gang to Elite\. The cohort rolls 3d now\./.test(b) && b.indexOf('[' + ON + ' Elite](') > 0, 'Elite: the type is written, the roll goes to 3d, the editor marks Elite', [val(c, 'type'), val(c, 'verb'), b.slice(0, 120)]);
+  ok(/The script spends nothing: take the Elite crew upgrade at the table\./.test(b) && !/Deep Cuts/.test(b), 'Elite without the Downtime module: the script spends nothing', b);
+  ok(b.indexOf('Some crew upgrades will add the "Elite" feature to a gang, which gives them +1d when they roll for a given Type.') > 0, 'the book text of Elite');
+  o = edit(c, 'kexpert'); b = body(o);
+  ok(val(c, 'type') === 'expert' && val(c, 'verb') === '^{rolls_their}' && rolled(c) === 3 && /Type: Elite to Expert\./.test(b) && /Specialty: Thugs/.test(b) && !/--n t[a-z]+\)/.test(b) && b.indexOf('An expert has quality equal to your current crew Tier +1. Their scale is always zero (1 person).') > 0, 'Expert: the type and the verb ("rolls their") are written, gang type buttons give way to the specialty', [val(c, 'type'), val(c, 'verb'), b.slice(0, 160)]);
+  o = edit(c, 'kgang'); ok(val(c, 'type') === 'gang' && val(c, 'verb') === '^{roll_their}' && rolled(c) === 2 && !/Elite crew upgrade/.test(body(o)), 'back to Gang: Tier dice, no Elite line', body(o).slice(0, 120));
+  o = edit(c, 'kgang'); ok(has(o, /The cohort is already Gang\./) && val(c, 'type') === 'gang', 'choosing the type the cohort has changes nothing');
+  o = edit(c, 'kwizard'); ok(has(o, /That is not a cohort type\./) && val(c, 'type') === 'gang', 'an unknown type is refused');
+  E.attr(c, 'setting_dc_downtime', '1'); o = edit(c, 'kelite');
+  ok(/Deep Cuts, Downtime module, p83: Upgrade a Cohort to Elite quality\. It costs 10 Coin\. The script spends nothing: pay it at the table\./.test(body(o)), 'Elite with the Downtime module: the Deep Cuts line and the 10 Coin', body(o).slice(0, 260));
+  // the sheet attribute does not exist yet (the default Gang): created, then changed, with the verb
+  const nt = mk('No type attr', 2, 'Bravos'); E.attr(nt, 'cohort1_name', 'Hounds'); ok(E.val(nt, 'cohort1_type') === undefined, 'a cohort whose type was never set has no type attribute');
+  edit(nt, 'kexpert'); ok(E.val(nt, 'cohort1_type') === 'expert' && E.val(nt, 'cohort1_verb') === '^{rolls_their}' && rolled(nt) === 3, 'the type attribute is created and the verb written', [E.val(nt, 'cohort1_type'), E.val(nt, 'cohort1_verb')]);
+  // the roll card follows the verb
+  o = E.run('!bitdcrew cohortroll --c ' + nt + ' --row cohort1 --n 0', pat); ok(/\{\{subtitle=\^\{rolls_their\}\}\}/.test(o[0]) && /\^\{expert\}/.test(o[0]), 'the roll card says "rolls their" for an expert', o[0]);
+
+  // ---- vehicle cohorts use the vehicle edges and flaws
+  const sm = mk('Smugglers', 2, 'Smugglers'); first(sm, 'vehicle', 'expert', 'boat_carriage_other', '', '');
+  o = edit(sm); b = body(o);
+  ok(CT.vehicleEdges.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && CT.vehicleFlaws.every(t => b.indexOf(t[1] + ': ' + t[2]) > 0) && !/Fearsome|Savage/.test(b) && /--n enimble\)/.test(b) && /--n fcostly\)/.test(b), 'a vehicle is offered the vehicle edges and flaws, not the gang ones', b);
+  ok(/Specialty: none/.test(b) && /Cohort type:/.test(b), 'the sheet placeholder in the type box is not shown as a specialty');
+  edit(sm, 'enimble'); edit(sm, 'esturdy'); edit(sm, 'ffinicky');
+  ok(val(sm, 'edges') === 'Nimble, Sturdy' && val(sm, 'flaws') === 'Finicky' && val(sm, 'subtype') === 'boat_carriage_other', 'vehicle edges and flaws are written; the placeholder is left alone', [val(sm, 'edges'), val(sm, 'flaws'), val(sm, 'subtype')]);
+  ok(has(edit(sm, 'eloyal'), /not in the book list for this cohort/) && val(sm, 'edges') === 'Nimble, Sturdy', 'a gang edge is refused for a vehicle');
+  ok(has(edit(c, 'enimble'), /not in the book list for this cohort/), 'a vehicle edge is refused for a gang');
+  ok(has(edit(sm, 'tthugs'), /specialty is typed on the sheet/) && val(sm, 'subtype') === 'boat_carriage_other', 'an expert has no gang types to toggle');
+  edit(sm, 'kgang'); edit(sm, 'tthugs'); ok(val(sm, 'subtype') === 'Thugs', 'the placeholder gives way to a chosen gang type', val(sm, 'subtype'));
+  ok(has(edit(sm, 'enimble'), /Removed Nimble/) && val(sm, 'edges') === 'Sturdy', 'a vehicle edge is removed again');
+
+  // ---- Hooked and the dice
+  const hk = mk('Hawkers', 2, 'Hawkers'); first(hk, 'Peddlers', 'gang', 'Rooks', 'Loyal', ''); E.attr(hk, 'repeating_crewability_-H_name', 'Hooked'); E.attr(hk, 'repeating_crewability_-H_check', '1');
+  ok(rolled(hk) === 2 && !/Hooked:/.test(body(edit(hk))), 'Hooked with no flaw: no bonus, no line');
+  o = edit(hk, 'fsavage'); ok(rolled(hk) === 3 && /Hooked: \+1 quality from the Savage flaw, so this cohort rolls 3d\./.test(body(o)), 'adding Savage gives the Hooked bonus and the editor says so', body(o).slice(-420));
+  edit(hk, 'fsavage'); ok(rolled(hk) === 2 && !/Hooked:/.test(body(edit(hk))), 'removing it takes the bonus away');
+
+  // ---- permissions, a removed cohort, nothing written on a refusal
+  c = fresh('Perm', 'gang', 'Thugs', 'Fearsome', 'Savage');
+  o = edit(c, 'eloyal', quinn); ok(has(o, /only use this on crews you control/) && val(c, 'edges') === 'Fearsome', 'a player who does not control the crew cannot edit');
+  o = edit(c, 'eloyal', gm); ok(val(c, 'edges') === 'Fearsome, Loyal', 'the GM can');
+  o = edit(c, 'etenacious', pat); ok(val(c, 'edges') === 'Fearsome, Loyal, Tenacious', 'a player who controls the crew can');
+  o = edit(c, 'eloyal', pat, '-Gone'); ok(has(o, /that cohort is no longer on the sheet/), 'a removed cohort is reported');
+  o = edit(c, 'e'); ok(has(o, /not in the book list|not a cohort entry/) && val(c, 'edges') === 'Fearsome, Loyal, Tenacious', 'a malformed change is refused and nothing is written', o);
+  o = edit(c, 'zloyal'); ok(has(o, /That is not a cohort entry/), 'an unknown box is refused');
+  o = edit(c, 'xe_x'); ok(has(o, /That is not a cohort entry/), 'a malformed Remove is refused');
+
+  // ---- hostile text in the boxes
+  c = fresh('Hostile', 'gang', 'Thugs', 'Fearsome, [[1d20]] {{x}} @{y} ?{q|a} *b* <b>z</b>', 'Savage, %{a|b} [c](!evil)');
+  o = edit(c); b = o.join('\n');
+  ok(!/\[\[|\?\{|@\{|%\{/.test(b) && (b.match(/\{\{/g) || []).length === 4 && (b.match(/\}\}/g) || []).length === 4 && (b.match(/\]\(![^)]*\)/g) || []).every(x => /^\]\(!bitdcrew /.test(x)), 'hostile text in the boxes cannot make a button, an inline roll, a query or a template field in the editor', b);
+  o = edit(c, 'eloyal'); ok(!/\[\[|\?\{|@\{|%\{/.test(o.join('\n')) && /Added Loyal/.test(body(o)), 'and the change line is safe too');
+
+  // ---- only the cohort's type, verb, gang type, edge and flaw boxes are written
+  c = fresh('Writes', 'gang', 'Thugs', 'Fearsome', 'Savage'); E.run('!bitdcrew cohortsync', pat, E.token(c));
+  const snap = () => { const m = {}; E.store.attrs.filter(a => a._characterid === c).forEach(a => { m[a.name] = a.current; }); return m; };
+  const before = snap();
+  edit(c); edit(c, 'eloyal'); edit(c, 'fwild'); edit(c, 'trooks'); edit(c, 'kelite'); edit(c, 'kexpert'); edit(c, 'kgang'); edit(c, 'eloyal'); edit(c, 'fwild');
+  const after = snap(), changed = Object.keys(after).filter(k => before[k] !== after[k]).concat(Object.keys(before).filter(k => !(k in after)));
+  ok(changed.length > 0 && changed.every(k => /^cohort1_(type|verb|subtype|edges|flaws)$/.test(k)), 'editing writes only the type, verb, gang type, edge and flaw boxes', changed);
+  edit(c); ok(JSON.stringify(snap()) === JSON.stringify(after), 'opening the editor writes nothing');
+
+  // ---- debug and the status card of an edited cohort
+  E.run('!bitdcrew debug on', gm); E.logs.length = 0;
+  edit(c, 'etenacious'); edit(c, 'kelite');
+  ok(E.logs.some(l => /BitDCrew debug: cohort edit Thugs: Edges added Tenacious/.test(l)) && E.logs.some(l => /cohort edit Thugs: type gang to elite/.test(l)) && E.logs.some(l => /cohort editor Thugs after etenacious/.test(l)), 'debug logging names each change', E.logs.slice(-5));
+  E.run('!bitdcrew debug off', gm);
+  b = (E.run('!bitdcrew cohort --c ' + c + ' --row cohort1', pat)[0].match(/\{\{content=([\s\S]*)\}\}$/) || [])[1] || '';
+  ok(/Type: Elite gang\./.test(b) && /Edge, Tenacious:/.test(b), 'the cohort card shows what the editor set', b.slice(0, 200));
+  ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error in any of the editor checks');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed' + (PC_SRC ? '' : '  (coexistence tests SKIPPED: pass the PC script as the third argument)'));
 process.exit(fail ? 1 : 0);
