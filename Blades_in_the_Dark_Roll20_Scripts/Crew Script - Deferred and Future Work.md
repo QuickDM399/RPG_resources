@@ -10,7 +10,7 @@ A record of what is deliberately not built, and of the parts planned for later. 
 - **p84, assess hold:** "Your crew's hold on their Tier is measured by your number of turf claims. To have strong hold on your Tier, you must have a number of turf claims equal to or greater than your Tier. While your number of turf claims is lower than your Tier, your hold is weak."
 - **p88, system changes:** "A mechanic which gives +1d to reduce Heat rolls instead lowers Heat by 1 during the Heat & Hold phase (page 84). +1d to healing rolls instead counts as 1 tick on the healing clock."
 
-**Built today:** spending 1 Coin or 1 Rep for Heat -1, Just Passing Through, Assess hold, End Downtime.
+**Built today (v0.14.0):** spending 1 Coin or 1 Rep for Heat -1, Just Passing Through, Assess hold, End Downtime, the **Status** reduction read from the faction sheet, the **GM ruling** buttons and the **cohort heal** step (`Crew Heat and Hold - Build Plan.md`, Spec R31). Items 1 and 2 below are done; what remains of this section is the Tier readiness line (p83), Fallout Status changes (p80) and Increase faction status (p83), which write to the faction sheet.
 
 **Not built, for the future part:**
 

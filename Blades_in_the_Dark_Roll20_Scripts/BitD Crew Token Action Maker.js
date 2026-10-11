@@ -1,4 +1,4 @@
-/* BitD Crew Token Action Maker  v0.13.1
+/* BitD Crew Token Action Maker  v0.14.0
  * Roll20 API script for the Evil Hat "Blades in the Dark" sheet (v3.11), CREW sheets only.
  * Companion to "BitD Token Action Maker.js" (player characters, command !bitd). The two scripts share nothing:
  *   command !bitdcrew | variable BitDCrewTAM | state key BitDCrewTAM | ability marker bitd-crew-tam | macro CREW_TAM
@@ -23,7 +23,9 @@
  *   - Claims (Deep Cuts crews unless noted): "-2 heat per score" claims lower the Fallout Heat (core Score too), Victim Trophies
  *     adds Rep, Publicity and Doskvol's Most Wanted (Rep) and the +2 Coin claims are buttons on the Fallout card, and the
  *     income claims roll Tier dice from the Heat and Hold card (Coin added by a button).
- *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open.
+ *   - Downtime (button 5, Deep Cuts Downtime crews only): opens the Heat and Hold card, starting a Downtime if none is open. The card
+ *     also heals every cohort one level (once), takes the Heat reduction from faction Status (read from the faction sheet) and offers
+ *     GM-ruled Heat reductions; all buttons, logged in the Downtime summary.
  *   - Claims (button 6b): a card with a button for each claim on the sheet, marked held or not held; a click shows the claim rules
  *     text (core book, Deep Cuts where it replaces it, and the sheet text) to the table.
  *   - Contacts (button 6a): a card with a button for each contact; a click shows the contact notes to the table. Favorites (the
@@ -42,7 +44,7 @@
 var BitDCrewTAM = BitDCrewTAM || (function () {
   'use strict';
 
-  var VERSION = '0.13.1';
+  var VERSION = '0.14.0';
   var CMD = '!bitdcrew';
   var MARK = 'bitd-crew-tam';
   var SENDER = 'BitDCrew';
@@ -2022,9 +2024,13 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
   // public: every cohort heals one level (Deep Cuts crew phase with the Downtime module, the core downtime rule otherwise)
   function doCohortRest(msg, o) {
     var t = target(msg, o); if (!t) { return; }
+    cohortRestCore(msg, t);
+  }
+  // heals every cohort one level and posts the result; false when the crew has no cohorts
+  function cohortRestCore(msg, t) {
     BUILD_HTML = cardMode() === 'html';
     var cid = t.ch.id, list = cohortList(cid), L = [], dt = mods(cid).downtime, tier = getNum(cid, 'crew_tier', 0);
-    if (!list.length) { whisper(msg, 'BitDCrew: there are no cohorts on this sheet.'); return; }
+    if (!list.length) { whisper(msg, 'BitDCrew: there are no cohorts on this sheet.'); return false; }
     list.forEach(function (c) {
       var lvl = cohortLevel(cid, c), name = bold(cohortLabel(c));
       if (lvl === 4) { L.push(name + ': destroyed. Replace it for ' + (tier + 2) + ' Coin (healing does not apply).'); return; }
@@ -2037,6 +2043,7 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     L.push(ital('A PC who spends a downtime activity on a cohort heals it one more level: use Heal on its card.'));
     dbg('cohort rest: ' + list.length + ' cohorts');
     postRulesCard(msg, t, 'Cohorts heal', 'Every cohort heals one level', L);
+    return true;
   }
 
   // GM or player: set the armor boxes now (the same sync that runs when 6d. Cohorts or a cohort card opens)
@@ -2427,13 +2434,80 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
     return d;
   }
 
+  // ---- faction Status (Deep Cuts p84). The faction sheet is a character sheet with sheet_type "faction": rows in repeating_factions1 to 8 with
+  // name (a translation key or typed text), tier (text: 0, I to VI), hold and status (a number, blank until typed). It is only read.
+  var ROMAN_TIERS = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+  var FACTION_GROUPS = 8, STATUS_MIN_TIER = 3, STATUS_MIN = 2;
+  function factionTier(raw) {
+    var t = String(raw === undefined || raw === null ? '' : raw).toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^TIER/, '');
+    if (/^\d+$/.test(t)) { return parseInt(t, 10); }
+    return ROMAN_TIERS[t] === undefined ? NaN : ROMAN_TIERS[t];
+  }
+  function factionSheets() {
+    return findObjs({ _type: 'character' }).filter(function (ch) { return getAttr(ch.id, 'sheet_type', 'character') === 'faction'; });
+  }
+  // every named faction row on a faction sheet: {name, tierText, tier, status}; a blank Status is 0
+  function factionRows(fid) {
+    var out = [], g;
+    for (g = 1; g <= FACTION_GROUPS; g++) {
+      listRows(fid, 'factions' + g, 'name').forEach(function (r) {
+        var name = chatNotes(claimDisplay(r.value, /^faction /i), 100000).replace(/\s*\n\s*/g, ' ').slice(0, 60).trim();
+        if (!name) { return; }
+        var base = 'repeating_factions' + g + '_' + r.row, st = parseInt(getAttr(fid, base + '_status', ''), 10), tt = getAttr(fid, base + '_tier', '');
+        out.push({ name: name, tierText: chatNotes(tt, 100000).replace(/\s*\n\s*/g, ' ').slice(0, 8).trim() || '?', tier: factionTier(tt), status: isNaN(st) ? 0 : st });
+      });
+    }
+    return out;
+  }
+  // which faction sheet a crew reads: the one picked for it, else the only one; {mode: 'sheet'|'pick'|'none', ...}
+  function factionStatus(cid) {
+    var sheets = factionSheets(), picks = botState().factionSheet || {}, chosen = sheets.filter(function (ch) { return ch.id === picks[cid]; })[0] || null;
+    if (!sheets.length) { return { mode: 'none', sheets: sheets }; }
+    if (!chosen && sheets.length === 1) { chosen = sheets[0]; }
+    if (!chosen) { return { mode: 'pick', sheets: sheets }; }
+    var rows = factionRows(chosen.id), q = rows.filter(function (x) { return x.tier >= STATUS_MIN_TIER && x.status >= STATUS_MIN; });
+    return {
+      mode: 'sheet', sheets: sheets, sheetId: chosen.id, sheetName: chatNotes(chosen.get('name'), 60).replace(/\s*\n\s*/g, ' ').trim(), rows: rows, qualifying: q, count: q.length,
+      unreadable: rows.filter(function (x) { return isNaN(x.tier) && x.status >= STATUS_MIN; })
+    };
+  }
+  function signed(n) { return (n > 0 ? '+' : '') + n; }
+
+  // the Status lines of the Heat and Hold card (only while Heat is above 0)
+  function statusLines(cid, d, b) {
+    var fs = factionStatus(cid), L = [], head = 'Status (Deep Cuts p84): for each +2 Status (or more) with a Tier 3+ faction, reduce Heat by 1. ';
+    if (fs.mode === 'sheet') {
+      if (fs.count > 0) {
+        L.push(head + fs.qualifying.map(function (x) { return x.name + ' ' + signed(x.status) + ' (Tier ' + x.tierText + ')'; }).join(', ') + '. ' + (d.used.status ? 'Taken this Downtime.' : b('status', 'Take Status Heat -' + fs.count)));
+      } else {
+        L.push(head + 'No Tier III or higher faction on the faction sheet (' + fs.sheetName + ') is at Status +2 or more, so there is nothing to take.');
+      }
+      if (fs.unreadable.length) { L.push('The Tier could not be read for ' + fs.unreadable.map(function (x) { return x.name + ' (' + x.tierText + ')'; }).join(', ') + ', so they are not counted. Write the Tier as 0, I, II, III, IV, V or VI.'); }
+      if (fs.sheets.length > 1) { L.push('Faction sheet: ' + fs.sheetName + '. ' + b('fsclear', 'Pick another faction sheet')); }
+    } else if (fs.mode === 'pick') {
+      L.push(head + 'There is more than one faction sheet. Pick the one for this crew: ' + fs.sheets.map(function (ch) {
+        return '[' + btn(ch.get('name')) + '](' + CMD + ' hhact fs --c ' + cid + ' --idx ' + d.id + ' --n ' + ch.id + ')';
+      }).join(' '));
+    } else {
+      L.push(head + 'No faction sheet was found, so set it by hand: ' + (d.used.status ? 'Taken this Downtime.' : b('st1', 'Status Heat -1') + ' ' + b('st2', 'Status Heat -2') + ' ' + b('st3', 'Status Heat -3')));
+    }
+    return L;
+  }
+
   function heatHoldText(t, d) {
     var cid = t.ch.id, ab = abilitiesOn(cid), L = [], heat = getNum(cid, 'heat', 0), w = wantedInfo(cid);
     var turf = getNum(cid, 'turf', 0), tier = getNum(cid, 'crew_tier', 0), hold = String(getAttr(cid, 'hold', 'strong')).toLowerCase();
     var b = function (code, label) { return '[' + label + '](' + CMD + ' hhact ' + code + ' --c ' + cid + ' --idx ' + d.id + ')'; };
     L.push('Heat ' + bar(heat, HEAT_MAX) + ' ' + heat + '/' + HEAT_MAX + '. ' + w.label + ' ' + getNum(cid, w.attr, 0) + '/' + w.max + '.');
+    if (cohortList(cid).length) {
+      L.push(d.used.heal ? 'Cohorts: every cohort healed one level this Downtime.' :
+        'The crew phase starts with healing (Deep Cuts p80): each cohort heals one level of Harm. ' + b('heal', 'Heal every cohort one level'));
+    }
     if (heat > 0) {
       L.push('Reduce Heat by 1 for each Coin or Rep you spend (Deep Cuts, Heat and Hold): ' + b('rh-coin', 'Spend 1 Coin: Heat -1') + ' ' + b('rh-rep', 'Spend 1 Rep: Heat -1'));
+      statusLines(cid, d, b).forEach(function (x) { L.push(x); });
+      L.push('Ask the GM if there is anything else you can do to reduce Heat (like silencing a witness), what the cost or potential consequence is, and how much Heat it will remove: ' +
+        b('gm1', 'GM ruling: Heat -1') + ' ' + b('gm2', 'GM ruling: Heat -2') + ' ' + b('gm3', 'GM ruling: Heat -3'));
     } else {
       L.push('Heat is 0, so there is nothing to reduce.');
     }
@@ -2514,10 +2588,66 @@ var BitDCrewTAM = BitDCrewTAM || (function () {
       case 'hold':
         d.assessed = assessHold(msg, t);
         break;
+      case 'status': case 'st1': case 'st2': case 'st3':
+        if (!hhStatus(msg, t, d, code)) { return; }
+        break;
+      case 'gm1': case 'gm2': case 'gm3':
+        if (!hhGmRuling(msg, t, d, parseInt(code.slice(2), 10))) { return; }
+        break;
+      case 'heal':
+        if (d.used.heal) { note(msg, t.c, 'Downtime', 'Already done', 'The cohorts already healed one level this Downtime.'); return; }
+        if (!cohortList(cid).length) { whisper(msg, 'BitDCrew: there are no cohorts on this sheet.'); return; }
+        d.used.heal = true;
+        cohortRestCore(msg, t);
+        d.log.push('Every cohort healed one level.');
+        break;
+      case 'fs':
+        var fid = String(o.n === null || o.n === undefined ? '' : o.n);
+        if (!factionSheets().some(function (ch) { return ch.id === fid; })) { whisper(msg, 'BitDCrew: that is not a faction sheet.'); return; }
+        botState().factionSheet = botState().factionSheet || {};
+        botState().factionSheet[cid] = fid;
+        dbg('faction sheet for ' + cid + ': ' + fid);
+        break;
+      case 'fsclear':
+        if (botState().factionSheet) { delete botState().factionSheet[cid]; }
+        break;
       case 'end': endDowntime(msg, t, d); return;
       default: whisper(msg, 'BitDCrew: unknown Heat and Hold choice.'); return;
     }
     whisper(msg, heatHoldText(t, d));
+  }
+
+  // Heat reduced by faction Status (once per Downtime): n factions at Tier III or higher with Status +2 or more, read from the faction sheet,
+  // or a number set by hand when there is no faction sheet. Heat never goes below 0.
+  function hhStatus(msg, t, d, code) {
+    var cid = t.ch.id, heat = getNum(cid, 'heat', 0), n, label, res, take, fs;
+    if (d.used.status) { note(msg, t.c, 'Downtime', 'Already used', 'The Status Heat reduction was already taken this Downtime.'); return false; }
+    if (code === 'status') {
+      fs = factionStatus(cid);
+      if (fs.mode !== 'sheet' || !fs.count) { whisper(msg, 'BitDCrew: no Tier III or higher faction is at Status +2 or more, so there is no Status reduction to take.'); return false; }
+      n = fs.count; label = fs.qualifying.map(function (x) { return x.name; }).join(', ');
+    } else {
+      n = parseInt(code.slice(2), 10); label = 'set by hand';
+    }
+    if (heat < 1) { note(msg, t.c, 'Heat', 'Heat 0', 'There is no Heat to reduce.'); return false; }
+    take = Math.min(n, heat);
+    d.used.status = true;
+    res = addHeat(cid, -take);
+    d.log.push('Status: Heat -' + take + ' (' + label + '). Heat now ' + res.after + '.');
+    dbg('hh status ' + cid + ': ' + n + ' available, ' + take + ' taken, ' + label);
+    note(msg, t.c, 'Heat', 'Heat ' + res.after + ' / ' + HEAT_MAX, 'Status reduced Heat by ' + take + ' (Deep Cuts p84).');
+    return true;
+  }
+  // a Heat reduction the GM ruled on (silencing a witness and the like, Deep Cuts p84); any number of times
+  function hhGmRuling(msg, t, d, n) {
+    var cid = t.ch.id, heat = getNum(cid, 'heat', 0), take, res;
+    if (heat < 1) { note(msg, t.c, 'Heat', 'Heat 0', 'There is no Heat to reduce.'); return false; }
+    take = Math.min(n, heat);
+    res = addHeat(cid, -take);
+    d.log.push('GM ruling: Heat -' + take + ' (Heat now ' + res.after + ').');
+    dbg('hh gm ruling ' + cid + ': ' + take);
+    note(msg, t.c, 'Heat', 'Heat ' + res.after + ' / ' + HEAT_MAX, 'The GM ruled Heat -' + take + ' (Deep Cuts p84).');
+    return true;
   }
 
   // End Downtime: No Traces' "When you end downtime with zero Heat, take +1 Rep" (Deep Cuts p88), then a public summary

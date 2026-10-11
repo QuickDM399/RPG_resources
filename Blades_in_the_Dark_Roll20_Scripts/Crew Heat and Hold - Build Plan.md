@@ -1,6 +1,6 @@
 # Crew Script: completing the Heat and Hold step (proposal for v0.14.0)
 
-**Status: proposal for approval. No code has been touched.** Rules are quoted from your Deep Cuts Part Two PDF (page numbers are the book's). The sheet facts come from the Evil Hat sheet source (`blades.html` v3.11). Where I am inferring, it says so.
+**Status: APPROVED and BUILT as v0.14.0 (2026-10-11): 4a, 4b and 4d as recommended; 4c (the readiness line) later; the faction sheet found automatically, picked per crew when there are several, hand-set buttons when there is none; GM ruling buttons -1, -2, -3. One small change: the hand-set Status buttons are -1, -2 and -3 (the plan said -1 and -2). The proposal as first written follows.** Rules are quoted from your Deep Cuts Part Two PDF (page numbers are the book's). The sheet facts come from the Evil Hat sheet source (`blades.html` v3.11). Where I am inferring, it says so.
 
 ## 1. Bottom line
 

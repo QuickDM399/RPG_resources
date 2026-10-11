@@ -357,9 +357,29 @@ The menu has 22 entries on A and 20 on B. Reduce Heat, Assess hold, Heat and Hol
 - **Write in a type:** a prompt opens and what you type is added to the Type box on the sheet (`Thugs, Rooks` in book spelling; a word like `Spy` as typed), after what was there, with the old and new text on the card. An empty prompt changes nothing. An expert has the five core type toggles as well as the write-in. If no prompt opens, or the card says "Roll20 did not open the prompt for that button", tell me what you saw and type the command the card gives instead (`!bitdcrew cohortedit --c ... --row ... --n wt Thugs, Rooks`); that is the one thing I could not check offline.
 **Known fail states:** a click that does nothing (send me the console line), a Write in a type button that shows `?{Type to write in}` instead of a prompt, a made-up name that disappears without Remove, text from the old box lost without the change line showing it, the Type setting on the sheet not changing, a roll card that still says "roll their" for an expert, a card cut off.
 
-## L33 Clean up
+## L33 Heat and Hold: heal, Status, GM rulings (a Deep Cuts Downtime crew with Heat 5 or more; try with and without cohorts and a faction sheet)
 
-Restore every value you recorded under "Before you start". Remove test clocks and cohorts, and put back the harm and armor boxes you noted for L31 and the type, gang type, edge and flaw boxes you noted for L32. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
+**Setup:** note the crew's Heat, Rep and Coin and each cohort's harm boxes. Give a cohort some harm (use Take harm). On the faction sheet type a Tier (`III`, `IV`) and a Status number in a few rows (try `+2`, `+3`, one at Tier II with `+3`, one at `+1`). Click `5. Downtime`.
+**Steps:**
+1. Read the card. Click **Heal every cohort one level**. Click it again.
+2. Click **Spend 1 Coin: Heat -1** once, then **Take Status Heat -N**. Click Take again.
+3. Click **GM ruling: Heat -1**, then **-2**. Click the rulings at Heat 0.
+4. Click **End Downtime** and read the summary. Click `5. Downtime` again (a new Downtime) and look for the buttons.
+5. With two faction sheets in the game, open the card on a crew that has not picked one. Pick one, then **Pick another faction sheet**. With no faction sheet (or a crew in a game without one), look for the hand-set Status buttons.
+**Pass:**
+- The card lists, in order: the heal step (only with cohorts), Reduce Heat by Coin or Rep, the Status line, the GM line with three buttons, Just Passing Through if ticked, income claims, Assess hold, End Downtime.
+- The heal click posts the same public card as the heal-all button on `6d. Cohorts`, every harm one level lower; the card then says the cohorts healed this Downtime and the button is gone; a second click says it was done.
+- The Status line names each faction at **Tier III or higher with Status +2 or more** and its Status and Tier ("The Unseen +3 (Tier IV)"), and the Take button says the count. The Tier II faction and the +1 faction are not listed. One click lowers Heat by that number (not below 0) and the button is gone for this Downtime; the line says "Taken this Downtime."
+- A faction whose Tier you wrote in an odd form (`Big`) is listed as not readable and not counted.
+- Each GM ruling lowers Heat by 1, 2 or 3 (not below 0), can be clicked again, and does nothing at Heat 0.
+- End Downtime lists the Status reduction, each ruling and the healing, with Heat before and after.
+- Several faction sheets: the card lists them by name until you pick; the pick stays for this crew; another crew asks again. No faction sheet: Status Heat -1, -2, -3 appear, once per Downtime.
+- Nothing on the faction sheet changes. Nothing on the crew sheet changes except Heat, the cohort harm boxes and (the Coin and Rep buttons you click) Coin and Rep.
+**Known fail states:** a faction you expected missing (send me its Tier and Status exactly as typed, and the name), the wrong faction sheet read, a button that does nothing (send me the console line, with `!bitdcrew debug on`), Heat going below 0, the Status button usable twice, the cohort heal button still shown after use, a card cut off.
+
+## L34 Clean up
+
+Restore every value you recorded under "Before you start". Remove test clocks and cohorts, and put back the harm and armor boxes you noted for L31, the type, gang type, edge and flaw boxes you noted for L32, and the Heat, Coin, Rep and cohort boxes you noted for L33. Remove the abilities and claims you ticked for L18 to L25, restore any contact boxes and notes you changed for L26, claim boxes you ticked for L27 and upgrade boxes you marked for L28, put `!bitdcrew fmt card sheet` back if you tried the HTML cards, turn the card formatting back on with `!bitdcrew fmt on` if you switched it off for L29, restore each PC's Edge, and clear the party flags if you set them only for testing. Leave `CREW_TAM` in place.
 
 ## Not verifiable offline (summary)
 

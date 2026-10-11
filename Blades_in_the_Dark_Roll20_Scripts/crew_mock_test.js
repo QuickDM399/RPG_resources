@@ -2735,5 +2735,135 @@ if (PC_SRC) {
   ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error in any of the editor checks');
 }
 
+// ---------------------------------------------------------------- T32 Heat and Hold: Status reduction, GM rulings, cohort healing
+{
+  const { E, gm, pat, quinn } = table();
+  E.run('!bitdcrew fmt off', gm);   // these checks read the plain text
+  const mkc = (name, heat, tier) => { const c = dtCrew(E, pat, name, tier === undefined ? 2 : tier); E.attr(c, 'heat', String(heat)); return c; };
+  const hubOf = (o) => o.find(t => /Heat and Hold/.test(t) && /Downtime/.test(t)) || '';
+  const open = (c, who) => E.run('!bitdcrew hh --c ' + c, who || pat);
+  const act = (c, code, extra, who) => E.run('!bitdcrew hhact ' + code + ' --c ' + c + ' --idx ' + ledger(E, c).id + (extra || ''), who || pat);
+  const text = (o) => o.join('\n');
+  const fsheet = (name) => { const f = E.char(name); E.attr(f, 'sheet_type', 'faction'); return f; };
+  const fac = (f, grp, id, name, tier, status) => { const b = 'repeating_factions' + grp + '_' + id; E.attr(f, b + '_name', name); E.attr(f, b + '_tier', tier); if (status !== undefined) E.attr(f, b + '_status', String(status)); };
+  const statusLine = (o) => (hubOf(o).split('\n').find(l => /^Status \(Deep Cuts p84\)/.test(l)) || '');
+
+  // ---- no faction sheet: set by hand
+  let c = mkc('Crew none', 5); let o = open(c);
+  let h = hubOf(o);
+  ok(/Status \(Deep Cuts p84\): for each \+2 Status \(or more\) with a Tier 3\+ faction, reduce Heat by 1\. No faction sheet was found, so set it by hand: /.test(h) && /\[Status Heat -1\]\(!bitdcrew hhact st1 --c [^ ]+ --idx /.test(h) && /\[Status Heat -2\]/.test(h) && /\[Status Heat -3\]/.test(h), 'no faction sheet: the Status line says so and offers Heat -1, -2 and -3', statusLine(o));
+  o = act(c, 'st2'); const Ld = ledger(E, c);
+  ok(E.val(c, 'heat') === '3' && Ld.used.status === true && Ld.log.some(x => x === 'Status: Heat -2 (set by hand). Heat now 3.') && has(o, /Status reduced Heat by 2 \(Deep Cuts p84\)/), 'a hand-set Status reduction lowers Heat, is logged, and is once per Downtime', [E.val(c, 'heat'), Ld.log]);
+  ok(/Status \(Deep Cuts p84\)[^\n]*Taken this Downtime\./.test(text(o)) && !/\[Status Heat/.test(text(o)), 'the hand-set buttons go once it is taken', statusLine(o));
+  o = act(c, 'st1'); ok(has(o, /already taken this Downtime/) && E.val(c, 'heat') === '3', 'a second Status reduction in the same Downtime is refused');
+  E.attr(c, 'heat', '1'); o = open(c); const c1 = c; E.run('!bitdcrew hhact end --c ' + c + ' --idx ' + ledger(E, c).id, pat); o = open(c);
+  ok(has(o, /No Downtime was open/) && /\[Status Heat -1\]/.test(hubOf(o)), 'a new Downtime offers it again');
+  o = act(c, 'st3'); ok(E.val(c, 'heat') === '0' && ledger(E, c).log.some(x => x === 'Status: Heat -1 (set by hand). Heat now 0.'), 'Heat never goes below 0: a Heat -3 click at Heat 1 takes 1', [E.val(c, 'heat'), ledger(E, c).log]);
+  c = mkc('Crew zero', 0); o = open(c); ok(!/Status \(Deep Cuts p84\)/.test(hubOf(o)) && /Heat is 0, so there is nothing to reduce\./.test(hubOf(o)), 'Heat 0: no Status line and no GM buttons', hubOf(o));
+
+  // ---- one faction sheet: read at once
+  const f1 = fsheet('Factions of Doskvol');
+  fac(f1, 1, '-A', 'faction_the_unseen', 'IV', 3); fac(f1, 1, '-B', 'The Hive', 'IV', 2); fac(f1, 2, '-C', 'faction_the_bluecoats', 'IV', 1); fac(f1, 3, '-D', 'Dockers', 'II', 3);
+  fac(f1, 8, '-E', 'Gondoliers', 'III', 2); fac(f1, 4, '-F', 'Strangers', 'III'); fac(f1, 5, '-G', 'Cabbies', 'I', -3);
+  const fsnap = () => JSON.stringify(E.store.attrs.filter(a => a._characterid === f1).map(a => [a.name, a.current]).sort());
+  const fbefore = fsnap();
+  c = mkc('Crew sheet', 6); o = open(c); h = hubOf(o);
+  ok(/The Unseen \+3 \(Tier IV\), The Hive \+2 \(Tier IV\), Gondoliers \+2 \(Tier III\)\. \[Take Status Heat -3\]\(!bitdcrew hhact status --c [^ ]+ --idx /.test(statusLine(o)), 'one faction sheet is read: Tier III or higher at Status +2 or more, names from keys or typed, groups 1 to 8; the button says -3', statusLine(o));
+  ok(!/Bluecoats|Dockers|Strangers|Cabbies/.test(statusLine(o)), 'a faction at Status +1, a Tier II faction, a blank Status and a negative Status are not counted');
+  o = act(c, 'status');
+  ok(E.val(c, 'heat') === '3' && ledger(E, c).log.some(x => x === 'Status: Heat -3 (The Unseen, The Hive, Gondoliers). Heat now 3.') && has(o, /Status reduced Heat by 3/), 'Take Status Heat lowers Heat by the count and logs the factions', [E.val(c, 'heat'), ledger(E, c).log]);
+  ok(/Taken this Downtime\./.test(statusLine(o)) && has(act(c, 'status'), /already taken this Downtime/) && E.val(c, 'heat') === '3', 'once per Downtime');
+  ok(fsnap() === fbefore, 'the faction sheet is only read: nothing on it changed');
+  // thresholds
+  const tc = mkc('Crew tiers', 9);
+  const tiers = [['0', false], ['I', false], ['II', false], ['III', true], ['IV', true], ['V', true], ['VI', true], ['iii', true], ['Tier III', true], ['3', true], [' IV ', true], ['2', false], ['', false], ['X', false]];
+  const f2 = fsheet('Tier test'); E.attr(tc, 'crew_type', 'Hawkers'); E.run('!bitdcrew hhact fs --c ' + tc + ' --idx ' + (open(tc), ledger(E, tc).id) + ' --n ' + f2, pat);
+  let bad = [];
+  tiers.forEach((p, i) => { E.store.attrs = E.store.attrs.filter(a => a._characterid !== f2 || a.name === 'sheet_type'); fac(f2, 1, '-T', 'Test', p[0], 3); const oo = open(tc); const got = /\[Take Status Heat -1\]/.test(statusLine(oo)); if (got !== p[1]) { bad.push([p[0], got]); } });
+  ok(bad.length === 0, 'the Tier is read as a Roman numeral (any case), a number or "Tier III": III or higher counts', bad);
+  const stat = [[undefined, false], [-3, false], [0, false], [1, false], [2, true], [3, true]]; bad = [];
+  stat.forEach(p => { E.store.attrs = E.store.attrs.filter(a => a._characterid !== f2 || a.name === 'sheet_type'); fac(f2, 1, '-T', 'Test', 'IV', p[0]); const got = /\[Take Status Heat -1\]/.test(statusLine(open(tc))); if (got !== p[1]) { bad.push([p[0], got]); } });
+  ok(bad.length === 0, 'Status +2 and +3 count; +1, 0, negative and blank do not', bad);
+  E.store.attrs = E.store.attrs.filter(a => a._characterid !== f2 || a.name === 'sheet_type'); fac(f2, 1, '-T', 'Test', 'IV', 1);
+  o = open(tc); ok(/No Tier III or higher faction on the faction sheet \(Tier test\) is at Status \+2 or more, so there is nothing to take\./.test(statusLine(o)) && !/\[Take Status/.test(hubOf(o)), 'no qualifying faction: the line names the sheet and offers nothing', statusLine(o));
+  o = act(tc, 'status'); ok(has(o, /no Tier III or higher faction is at Status \+2 or more/) && E.val(tc, 'heat') === '9', 'a stale Take button with nothing to take is refused');
+  E.store.attrs = E.store.attrs.filter(a => a._characterid !== f2 || a.name === 'sheet_type'); fac(f2, 1, '-T', 'Odd tier', 'Big', 3); fac(f2, 1, '-U', 'Fine', 'IV', 2);
+  o = open(tc); ok(/The Tier could not be read for Odd tier \(Big\), so they are not counted\./.test(hubOf(o)) && /\[Take Status Heat -1\]/.test(hubOf(o)), 'an unreadable Tier is said so and not counted', hubOf(o));
+  // Heat below the count
+  E.store.attrs = E.store.attrs.filter(a => a._characterid !== f2 || a.name === 'sheet_type'); fac(f2, 1, '-1', 'A', 'IV', 3); fac(f2, 1, '-2', 'B', 'IV', 3); fac(f2, 1, '-3', 'C', 'IV', 3); fac(f2, 1, '-4', 'D', 'IV', 3);
+  E.attr(tc, 'heat', '2'); open(tc); act(tc, 'status'); ok(E.val(tc, 'heat') === '0' && ledger(E, tc).log.some(x => /^Status: Heat -2 \(A, B, C, D\)\. Heat now 0\.$/.test(x)), 'four qualifying factions at Heat 2: Heat -2, never below 0', [E.val(tc, 'heat'), ledger(E, tc).log]);
+
+  // ---- several faction sheets: pick one for the crew
+  const g1 = fsheet('Faction sheet A'), g2 = fsheet('Faction sheet B');
+  fac(g1, 1, '-A', 'The Unseen', 'IV', 3); fac(g2, 1, '-A', 'The Hive', 'IV', 2); fac(g2, 1, '-B', 'Dockers', 'III', 2);
+  const pc = mkc('Crew pick', 5); o = open(pc);
+  ok(/There is more than one faction sheet\. Pick the one for this crew: /.test(statusLine(o)) && new RegExp('\\[Faction sheet A\\]\\(!bitdcrew hhact fs --c ' + pc + ' --idx [^ ]+ --n ' + g1 + '\\)').test(hubOf(o)) && !/\[Take Status/.test(hubOf(o)), 'several faction sheets and no pick: a button for each', statusLine(o));
+  ok(/\[Faction sheet B\]/.test(hubOf(o)) && /\[Tier test\]/.test(hubOf(o)) && /\[Factions of Doskvol\]/.test(hubOf(o)), 'every faction sheet in the game is listed by its name', hubOf(o));
+  o = act(pc, 'fs', ' --n ' + g2);
+  ok(/The Hive \+2 \(Tier IV\), Dockers \+2 \(Tier III\)\. \[Take Status Heat -2\]/.test(statusLine(o)) && /Faction sheet: Faction sheet B\. \[Pick another faction sheet\]/.test(hubOf(o)), 'picking one remembers it for the crew and the card reads it', statusLine(o));
+  ok(E.env.state.BitDCrewTAM.factionSheet[pc] === g2, 'the pick is kept in state');
+  o = open(pc); ok(/\[Take Status Heat -2\]/.test(hubOf(o)), 'the pick survives reopening the card');
+  const pc2 = mkc('Crew pick 2', 5); ok(/Pick the one for this crew/.test(statusLine(open(pc2))), 'another crew has its own pick');
+  o = act(pc, 'fsclear'); ok(/Pick the one for this crew/.test(statusLine(o)), 'Pick another faction sheet clears the pick');
+  o = act(pc, 'fs', ' --n ' + pc2); ok(has(o, /that is not a faction sheet/) && /Pick the one for this crew/.test(statusLine(open(pc))), 'a character that is not a faction sheet cannot be picked', o);
+  o = act(pc, 'fs'); ok(has(o, /that is not a faction sheet/), 'a pick with no sheet is refused');
+  act(pc, 'fs', ' --n ' + g1); E.store.chars = E.store.chars.filter(x => x.id !== g1);
+  o = open(pc); ok(/Pick the one for this crew/.test(statusLine(o)) && !/The Unseen/.test(hubOf(o)) && !/Faction sheet A/.test(hubOf(o)), 'a picked sheet that was deleted is dropped and the others are offered', statusLine(o));
+  // a faction sheet named by a player
+  const hk = mkc('Hostile crew', 5); const f3 = fsheet('Evil [[1d20]] {{x}}');
+  E.store.chars = E.store.chars.filter(x => x.id !== g2); E.store.chars = E.store.chars.filter(x => x.id !== f1); E.store.chars = E.store.chars.filter(x => x.id !== f2);
+  fac(f3, 1, '-A', 'Bad [[1d20]] ?{q|a} {{x}} @{y} <b>z</b> [c](!evil)', 'IV<script>', 3); fac(f3, 1, '-B', 'Good', 'IV', 3);
+  o = open(hk); const hb = text(o);
+  ok(!/\[\[|\?\{|@\{|%\{/.test(hb) && o.every(m => (m.match(/\{\{/g) || []).length === 4 && (m.match(/\}\}/g) || []).length === 4) && !/cut at/.test(hb) && (hb.match(/\]\(![^)]*\)/g) || []).every(x => /^\]\(!bitdcrew /.test(x)), 'hostile faction names and tiers cannot make a button, an inline roll, a query or a template field', hb);
+
+  // ---- GM rulings
+  c = mkc('Crew GM', 6); open(c);
+  o = act(c, 'gm2'); ok(E.val(c, 'heat') === '4' && ledger(E, c).log.some(x => x === 'GM ruling: Heat -2 (Heat now 4).') && has(o, /The GM ruled Heat -2 \(Deep Cuts p84\)/), 'a GM ruling lowers Heat and is logged', [E.val(c, 'heat'), ledger(E, c).log]);
+  act(c, 'gm1'); act(c, 'gm3'); ok(E.val(c, 'heat') === '0' && ledger(E, c).log.filter(x => /^GM ruling/.test(x)).length === 3, 'rulings can be used any number of times; Heat stops at 0', [E.val(c, 'heat'), ledger(E, c).log]);
+  o = act(c, 'gm1'); ok(has(o, /There is no Heat to reduce/), 'at Heat 0 a ruling does nothing');
+  const gc = mkc('Crew GM cap', 1); open(gc); act(gc, 'gm3'); ok(E.val(gc, 'heat') === '0' && ledger(E, gc).log.some(x => x === 'GM ruling: Heat -1 (Heat now 0).'), 'a Heat -3 ruling at Heat 1 takes 1 and says so', [E.val(gc, 'heat'), ledger(E, gc).log]);
+  c = mkc('Crew GM 2', 3); o = open(c);
+  ok(/Ask the GM if there is anything else you can do to reduce Heat \(like silencing a witness\), what the cost or potential consequence is, and how much Heat it will remove: \[GM ruling: Heat -1\]\(!bitdcrew hhact gm1 --c [^ ]+ --idx [^ ]+\) \[GM ruling: Heat -2\]\(!bitdcrew hhact gm2 [^)]*\) \[GM ruling: Heat -3\]\(!bitdcrew hhact gm3 /.test(hubOf(o)), 'the card quotes the book line and has the three ruling buttons', hubOf(o));
+
+  // ---- heal every cohort one level
+  c = mkc('Crew heal', 2); o = open(c); ok(!/Heal every cohort/.test(hubOf(o)) && !/healed one level/.test(hubOf(o)), 'a crew with no cohorts has no heal line');
+  E.attr(c, 'cohort1_name', 'Thugs'); E.attr(c, 'cohort1_type', 'gang'); E.attr(c, 'cohort1_weak', '1'); E.attr(c, 'cohort1_impaired', '1'); E.attr(c, 'cohort1_broken', '1');
+  E.attr(c, 'repeating_cohort_-RowA_name', 'Rooks'); E.attr(c, 'repeating_cohort_-RowA_weak', '1');
+  o = open(c); ok(/The crew phase starts with healing \(Deep Cuts p80\): each cohort heals one level of Harm\. \[Heal every cohort one level\]\(!bitdcrew hhact heal --c [^ ]+ --idx /.test(hubOf(o)), 'a crew with cohorts: the heal line and button, before the Heat reductions', hubOf(o));
+  ok(hubOf(o).indexOf('Heal every cohort one level') < hubOf(o).indexOf('Spend 1 Coin'), 'the heal step comes first in the card');
+  o = act(c, 'heal');
+  ok(E.val(c, 'cohort1_broken') === '0' && E.val(c, 'cohort1_impaired') === '1' && E.val(c, 'repeating_cohort_-RowA_weak') === '0' && has(o, /Every cohort heals one level/) && has(o, /Thugs: Broken to Impaired\./) && has(o, /Rooks: Weakened to Fit\./), 'the button heals every cohort one level and posts the same card as the cohort list', [E.val(c, 'cohort1_broken'), E.val(c, 'cohort1_impaired')]);
+  ok(E.out.some(x => /^player\|/.test(x.who) || /template:bitd-broadcast/.test(x.text) && !/^\/w/.test(x.text)), 'the heal result goes to the table');
+  ok(/Cohorts: every cohort healed one level this Downtime\./.test(hubOf(o)) && !/\[Heal every cohort/.test(hubOf(o)) && ledger(E, c).log.indexOf('Every cohort healed one level.') >= 0, 'afterwards the card says so, the button is gone and the log has it');
+  o = act(c, 'heal'); ok(has(o, /already healed one level this Downtime/) && E.val(c, 'cohort1_impaired') === '1', 'a second click in the same Downtime changes nothing');
+  E.run('!bitdcrew hhact end --c ' + c + ' --idx ' + ledger(E, c).id, pat); o = open(c); ok(/\[Heal every cohort one level\]/.test(hubOf(o)), 'a new Downtime offers it again');
+  c = mkc('Crew heal 2', 2); E.attr(c, 'cohort1_name', 'Thugs'); open(c); E.attr(c, 'repeating_cohort_-RowA_name', ''); E.attr(c, 'cohort1_name', ''); o = act(c, 'heal'); ok(has(o, /there are no cohorts on this sheet/) && ledger(E, c).used.heal !== true, 'with no cohort left the click is refused and not counted');
+
+  // ---- permissions, a module that is off, a stale button
+  c = mkc('Crew perm', 4); open(c);
+  o = act(c, 'gm1', '', quinn); ok(has(o, /only use this on crews you control/) && E.val(c, 'heat') === '4', 'a player who does not control the crew cannot use the new buttons');
+  o = E.run('!bitdcrew hhact gm1 --c ' + c + ' --idx stale', pat); ok(has(o, /no longer open/) && E.val(c, 'heat') === '4', 'a stale Downtime button is refused');
+  const core = E.crew('Core crew', pat); E.attr(core, 'heat', '4'); o = E.run('!bitdcrew hhact gm1 --c ' + core + ' --idx x', pat); ok(has(o, /module is off/) && E.val(core, 'heat') === '4', 'a crew without the Downtime module is refused');
+  o = act(c, 'gm1'); ok(E.val(c, 'heat') === '3', 'a player who controls the crew can');
+
+  // ---- the summary at End Downtime lists the new steps, and only Heat and the cohort boxes change
+  c = mkc('Crew end', 5); const f4 = fsheet('Faction sheet end'); fac(f4, 1, '-A', 'The Unseen', 'IV', 3);
+  E.store.chars = E.store.chars.filter(x => x.id !== f3 && x.id !== g2 && x.id !== g1); E.attr(c, 'cohort1_name', 'Thugs'); E.attr(c, 'cohort1_weak', '1');
+  const cs = () => { const m = {}; E.store.attrs.filter(a => a._characterid === c).forEach(a => { m[a.name] = a.current; }); return m; };
+  open(c); const before = cs();
+  act(c, 'status'); act(c, 'gm1'); act(c, 'heal');
+  const after = cs(), changed = Object.keys(after).filter(k => before[k] !== after[k]);
+  ok(changed.length > 0 && changed.every(k => k === 'heat' || /^cohort1_(weak|impaired|broken|armor)$/.test(k) || k === 'wanted'), 'the new buttons write only Heat and the cohort boxes', changed);
+  o = E.run('!bitdcrew hhact end --c ' + c + ' --idx ' + ledger(E, c).id, pat); const sum = text(o);
+  ok(/Status: Heat -1 \(The Unseen\)\. Heat now 4\./.test(sum) && /GM ruling: Heat -1 \(Heat now 3\)\./.test(sum) && /Every cohort healed one level\./.test(sum) && /Heat went from 5 \(when Heat and Hold opened\) to 3\./.test(sum), 'End Downtime lists the Status reduction, the ruling and the healing', sum);
+
+  // ---- debug
+  E.run('!bitdcrew debug on', gm); E.logs.length = 0;
+  c = mkc('Crew dbg', 5); open(c); act(c, 'st1'); act(c, 'gm1');
+  ok(E.logs.some(l => /BitDCrew debug: hh status .*set by hand/.test(l)) && E.logs.some(l => /hh gm ruling/.test(l)), 'debug logging names the Status and ruling steps', E.logs.slice(-5));
+  E.run('!bitdcrew debug off', gm);
+  ok(E.out.every(x => !/BitDCrew: something went wrong/.test(x.text)), 'no script error in any of the Heat and Hold checks');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed' + (PC_SRC ? '' : '  (coexistence tests SKIPPED: pass the PC script as the third argument)'));
 process.exit(fail ? 1 : 0);
