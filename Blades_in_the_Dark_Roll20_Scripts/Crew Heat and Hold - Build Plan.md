@@ -24,7 +24,7 @@
 ### 4a. Heat reduced by Status (the main item)
 
 - **Reading the faction sheet.** Each faction is a row in one of eight repeating groups, `repeating_factions1` to `repeating_factions8`, with `name` (a translation key such as `faction_the_unseen`, or typed text), `tier` (text: `0`, `I`, `II`, `III`, `IV`, `V` or `VI`), `hold` and `status` (a number box, blank until typed). The script reads those rows; it writes nothing to the faction sheet.
-- **The rule as I read it:** each faction of Tier III or higher with Status +2 or more counts **once** ("for each +2 Status (or more)": +2 and +3 both give 1, since Status runs to +3). Heat -1 for each such faction. This is a reading, not a ruling: the alternative is Heat -1 per +2 steps, which gives the same answer except for nothing, because Status cannot pass +3. Decision 3 asks you to confirm.
+- **The rule as I read it:** each faction of Tier III or higher with Status +2 or more counts **once**, so Heat -1 for each such faction. Status runs from -3 to +3, so "for each +2 Status (or more)" read as "per faction at +2 or more" and read as "per +2 steps" give the same count (1 for +2 and for +3). It needs no decision.
 - **On the card:** "Status: Heat -2 available (The Unseen +3, Tier IV; The Hive +2, Tier IV)" with a button **Take Status Heat -2**. It is once per Downtime, lowers Heat by the number (never below 0, Heat is not asked to roll over), and goes in the log. If no faction sheet can be found it says so and offers **Heat -1** and **Heat -2** buttons you set by hand.
 - **Which faction sheet.** (a) One faction sheet in the game: use it. (b) More than one, or the Status on it belongs to another crew: the card shows a "Pick the faction sheet" button list once, and the script remembers the choice for this crew in state. (c) None: say so. Decision 2.
 
@@ -32,11 +32,11 @@
 
 A line quoting the book ("Ask the GM if there's anything else you can do to reduce Heat (like silencing a witness), what the cost or potential consequence is, and how much Heat it will remove.") and buttons **GM ruling: Heat -1, -2, -3**, each logged as "GM ruling". They change only Heat. No cost is tracked: the GM names it at the table.
 
-### 4c. Tier readiness line (optional, decision 5)
+### 4c. Tier readiness line (optional, decision 4)
 
 One line under Assess hold: "Tier 2 to 3: rep 9 of 12 (turf 2 lowers the track to 10), hold strong, 11 of 12 upgrades, 3 of 4 cohorts: not ready." The script knows every input: Rep, turf, Hold, the taken upgrades (the `6c` reader) and the named cohorts (the `6d` reader). Two things are my inference: an upgrade counts once when taken (a Hardened-type three-box upgrade counts once, not three times; the book counts "upgrade boxes" for cohorts only) and a cohort counts once. I would show the numbers and let the table decide. No Tier change is made.
 
-### 4d. Cohort healing at the start of the crew phase (decision 4)
+### 4d. Cohort healing at the start of the crew phase (decision 3)
 
 p80 opens the crew phase with "each cohort heals one level of Harm". You ruled in v0.12.0 that the heal-all button lives on the cohort list only. If you now want it on the Heat and Hold card as well, it would be one button, **Heal every cohort one level**, with a "done" mark once clicked this Downtime. Never automatic.
 
@@ -51,11 +51,10 @@ p80 opens the crew phase with "each cohort heals one level of Harm". You ruled i
 
 1. **Scope.** Which of 4a to 4d do you want? My recommendation: **4a, 4b and 4d**, with 4c later if you want it (it rests on two inferences about counting upgrades and cohorts).
 2. **The faction sheet.** Is there one faction sheet in the game, and is its Status column the one for the crew you run Downtime on? If you run several crews against one faction sheet, option (b) lets you pick per crew. Tell me which applies. Also tell me whether you actually type Status numbers on the faction sheet, or keep Status elsewhere (a handout, notes): if elsewhere, 4a becomes the hand-set buttons only.
-3. **The counting rule.** Each Tier III+ faction at Status +2 or more gives Heat -1 (my reading). Agree?
-4. **Cohort healing on the card.** Add the button (4d)? A button only, never automatic.
-5. **Tier readiness line** (4c): include now, later or never.
-6. **Anything in the current card you want changed.** If you have notes from running L18 (Heat and Hold and End Downtime) live, send them and I will fold them in.
-7. **How many "Ask the GM" buttons.** -1, -2, -3 (my recommendation), or a prompt that asks for the number (it needs a Roll20 query in a chat button, which the write-in on the cohort editor is testing now).
+3. **Cohort healing on the card.** Add the button (4d)? A button only, never automatic.
+4. **Tier readiness line** (4c): include now, later or never.
+5. **Anything in the current card you want changed.** If you have notes from running L18 (Heat and Hold and End Downtime) live, send them and I will fold them in.
+6. **How many "Ask the GM" buttons.** -1, -2, -3 (my recommendation), or a prompt that asks for the number (it needs a Roll20 query in a chat button, which the Write in a type button on the cohort editor is testing now).
 
 ## 7. Tests I would write
 
