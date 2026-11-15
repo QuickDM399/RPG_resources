@@ -878,9 +878,14 @@ if (HTML) {
   const ui = L.findIndex(l => /^Utility/.test(l));
   ok(/^Utility \(2 load, more if the Quartermaster allows\), marked 0:$/.test(L[ui]) && /Rope x2/.test(L[ui + 1]) && /Flask/.test(L[ui + 1]) && !/-U3/.test(L[ui + 1]), 'utility rows listed, unnamed rows left out', L.slice(ui));
   const ub = buttons(bcards(o)[0]);
-  E.run(ub.find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '1', 'a 2-box utility item: first click marks one box');
-  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '2', 'second click marks both');
-  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '0', 'third click clears');
+  E.run(ub.find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '2', 'a 2-slot utility item always takes both slots: the first click marks both, never just one');
+  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '0', 'the second click clears both');
+  E.attr(soldier, 'repeating_item_-U1_check', 1);
+  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Rope/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U1_check') === '2', 'a half-marked 2-slot item (set on the sheet) goes to both slots, not to 0 or 1');
+  E.attr(soldier, 'repeating_item_-U1_check', 0);
+  E.attr(soldier, 'repeating_item_-U4_name', 'Lamp'); E.attr(soldier, 'repeating_item_-U4_num_boxes', 1);
+  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Lamp/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U4_check') === '1', 'a 1-slot item marks its one slot');
+  E.run(buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Lamp/.test(b.label)).cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U4_check') === '0', 'and clears it');
   const fu = buttons(lastCard(E.run('!bobtam load', pat, tS))).find(b => /Flask uses 0\/3/.test(b.label));
   E.run(fu.cmd, pat, tS); ok(E.get(soldier, 'repeating_item_-U2_item_uses') === '1', 'utility uses are marked one at a time');
   ok(has(E.run('!bobtam loaditem --c ' + soldier + ' --sec utility --row -U1 --idx u', pat), /has no uses/), 'an item with no uses refuses the uses click');

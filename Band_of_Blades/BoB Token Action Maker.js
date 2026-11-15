@@ -1051,7 +1051,8 @@ var BoBTAM = BoBTAM || (function () {
         if (u.uses < 1) { whisper(msg, 'BoB: that item has no uses.'); return; }
         setAttr(cid, u.base + 'item_uses', u.used >= u.uses ? 0 : u.used + 1);
       } else {
-        setAttr(cid, u.base + 'check', u.check >= u.boxes ? 0 : u.check + 1);
+        // an item always takes all of its slots (a 2-slot item such as Black Shot cannot be half marked)
+        setAttr(cid, u.base + 'check', u.check >= u.boxes ? 0 : u.boxes);
       }
     } else { whisper(msg, 'BoB: unknown item list.'); return; }
     doLoad(msg, { c: cid, pos: [] });

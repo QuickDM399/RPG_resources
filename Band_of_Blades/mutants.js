@@ -58,6 +58,7 @@ const MUTANTS = [
   ['a stale bar is not healed', "if (String(tok.get('bar1_value')) !== cur) { tok.set('bar1_value', cur);", "if (false) { tok.set('bar1_value', cur);"],
   ['the load card lists every tier', 'if (LOAD_TIERS.indexOf(tier) > LOAD_TIERS.indexOf(current)) { return; }', ''],
   ['hidden items are listed', "if (String(getAttrByName(cid, id + '_show')) !== '1') { return; }", ''],
+  ['a 2-slot item can be marked one slot at a time', "u.check >= u.boxes ? 0 : u.boxes);", "u.check >= u.boxes ? 0 : u.check + 1);"],
   ['the pair choice is not exclusive', "setAttr(cid, it.id + '_check', it.check === pick ? '0' : pick);", "setAttr(cid, it.id + '_check', '1');"],
   ['a pool above 12 is not capped', 'n = Math.min(pool, MAX_DICE);', 'n = pool;'],
   ['title_text is cleaned of its braces', "var tt = String(getAttr(cid, 'title_text', '')).replace(/[\\r\\n]+/g, ' ').trim();", "var tt = clean(getAttr(cid, 'title_text', ''));"],
